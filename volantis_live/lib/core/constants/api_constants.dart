@@ -1,0 +1,51 @@
+/// API constants for VolantisLive
+class ApiConstants {
+  ApiConstants._();
+
+  // Base URL - Production API
+  static const String baseUrl = 'https://api-dev.volantislive.com';
+
+  // API Version
+  static const String apiVersion = 'v1';
+
+  // Auth Endpoints
+  static const String login = '/auth/login';
+  static const String signup = '/auth/signup/user';
+  static const String verifyEmail = '/auth/verify-email';
+  static const String logout = '/auth/logout';
+  static const String refreshToken = '/auth/refresh';
+
+  static const String userProfile = '/auth/me';
+  static const String userSettings = '/user/settings';
+  static const String userAnalytics = '/user/analytics';
+
+  static const String channels = '/channels';
+  static const String channelDetail = '/channels/{id}';
+  static const String subscribedChannels = '/user/channels/subscribed';
+  static const String subscribeChannel = '/user/channels/{id}/subscribe';
+  static const String unsubscribeChannel = '/user/channels/{id}/unsubscribe';
+
+  static const String streams = '/streams';
+  static const String liveStreams = '/streams/live';
+  static const String activeLivestreams = '/livestreams/active';
+  static const String streamDetail = '/streams/{id}';
+
+  static const String downloads = '/user/downloads';
+  static const String downloadChannel = '/channels/{id}/download';
+
+  // Company endpoints (public)
+  static const String companyHome = '/{company_slug}';
+  static const String companyLive = '/{company_slug}/live';
+  static const String companyStreams = '/{company_slug}/streams';
+  static const String companyRecordings = '/recordings/public/company/{company_slug}';
+
+  // Timeouts
+  static const int connectionTimeout = 30000; // 30 seconds
+  static const int receiveTimeout = 30000; // 30 seconds
+
+  // Headers
+  static const String contentType = 'application/x-www-form-urlencoded';
+  static const String jsonContentType = 'application/json';
+  static const String authorization = 'Authorization';
+  static const String bearer = 'Bearer';
+}

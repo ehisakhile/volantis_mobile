@@ -1,0 +1,66 @@
+name: volantis_live
+description: "VolantisLive - Ultra-low bandwidth audio streaming that works on poor connections"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Networking
+  dio: ^5.4.0
+  
+  # Secure Storage
+  flutter_secure_storage: ^9.0.0
+  
+  # Audio Playback
+  just_audio: ^0.9.36
+  audio_service: ^0.18.12
+  
+  # Local Storage
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.2
+  path_provider: ^2.1.2
+  path: ^1.8.3
+  
+  # UI Components
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  flutter_svg: ^2.0.9
+  
+  # Connectivity
+  connectivity_plus: ^5.0.2
+  
+  # Utilities
+  intl: ^0.19.0
+  equatable: ^2.0.5
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/volantislive_logo.jpeg"
+  adaptive_icon_background: "#1E3A5F"
+  adaptive_icon_foreground: "assets/images/volantislive_logo.jpeg"
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
