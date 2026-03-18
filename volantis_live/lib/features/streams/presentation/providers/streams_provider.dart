@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
+import '../../data/models/company_live_stream_model.dart';
 
 /// LiveStream model for API response
 class LiveStream {
@@ -43,8 +44,8 @@ class LiveStream {
       isLive: json['is_live'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
-      startedAt: json['started_at'] != null 
-          ? DateTime.tryParse(json['started_at']) 
+      startedAt: json['started_at'] != null
+          ? DateTime.tryParse(json['started_at'])
           : null,
     );
   }
@@ -53,7 +54,7 @@ class LiveStream {
 /// Streams provider for managing streams screen state
 class StreamsProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService.instance;
-  
+
   List<LiveStream> _allStreams = [];
   List<LiveStream> _liveStreams = [];
   List<LiveStream> _filteredStreams = [];
@@ -88,19 +89,20 @@ class StreamsProvider extends ChangeNotifier {
   /// Fetch all active livestreams
   Future<void> _fetchActiveStreams() async {
     try {
-      print('API: Fetching active livestreams from ${ApiConstants.activeLivestreams}');
-      
+      print(
+        'API: Fetching active livestreams from ${ApiConstants.activeLivestreams}',
+      );
+
       final response = await _apiService.get(ApiConstants.activeLivestreams);
-      
+
       print('API: Active streams response: ${response.data}');
-      
+
       final data = response.data as Map<String, dynamic>;
       final streams = data['streams'] as List<dynamic>? ?? [];
-      
+
       _allStreams = streams.map((json) => LiveStream.fromJson(json)).toList();
       _liveStreams = _allStreams.where((s) => s.isLive).toList();
       _filteredStreams = _allStreams;
-      
     } on DioException catch (e) {
       print('API: Error fetching streams - ${e.message}');
       throw _handleError(e);
@@ -117,7 +119,8 @@ class StreamsProvider extends ChangeNotifier {
         final titleLower = stream.title.toLowerCase();
         final companyLower = stream.companyName.toLowerCase();
         final queryLower = query.toLowerCase();
-        return titleLower.contains(queryLower) || companyLower.contains(queryLower);
+        return titleLower.contains(queryLower) ||
+            companyLower.contains(queryLower);
       }).toList();
     }
     notifyListeners();
@@ -134,6 +137,28 @@ class StreamsProvider extends ChangeNotifier {
       return 'No internet connection';
     }
     return 'Failed to load streams';
+  }
+
+  /// Fetch company live stream details by company slug
+  /// This is used when user taps on a stream to get the playback URL
+  Future<CompanyLiveStream?> getCompanyLiveStream(String companySlug) async {
+    try {
+      print(
+        'API: Fetching company live stream from ${ApiConstants.getCompanyLiveEndpoint(companySlug)}',
+      );
+
+      final response = await _apiService.get(
+        ApiConstants.getCompanyLiveEndpoint(companySlug),
+      );
+
+      print('API: Company live stream response: ${response.data}');
+
+      final data = response.data as Map<String, dynamic>;
+      return CompanyLiveStream.fromJson(data);
+    } on DioException catch (e) {
+      print('API: Error fetching company live stream - ${e.message}');
+      throw _handleError(e);
+    }
   }
 
   @override

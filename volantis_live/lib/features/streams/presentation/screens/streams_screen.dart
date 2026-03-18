@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../providers/streams_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
+import 'stream_player_screen.dart';
 
 /// Streams screen showing all live streams
 class StreamsScreen extends StatefulWidget {
@@ -63,9 +64,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
             child: CustomScrollView(
               slivers: [
                 // Search bar
-                SliverToBoxAdapter(
-                  child: _buildSearchBar(streamsProvider),
-                ),
+                SliverToBoxAdapter(child: _buildSearchBar(streamsProvider)),
 
                 // Live Now Section
                 if (streamsProvider.liveStreams.isNotEmpty) ...[
@@ -89,28 +88,24 @@ class _StreamsScreenState extends State<StreamsScreen> {
                     streamsProvider.filteredStreams.length,
                   ),
                 ),
-                
+
                 if (streamsProvider.filteredStreams.isEmpty)
-                  SliverFillRemaining(
-                    child: _buildEmptyState(),
-                  )
+                  SliverFillRemaining(child: _buildEmptyState())
                 else
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
                     sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.85,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final stream = streamsProvider.filteredStreams[index];
-                          return _buildStreamCard(stream);
-                        },
-                        childCount: streamsProvider.filteredStreams.length,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.85,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final stream = streamsProvider.filteredStreams[index];
+                        return _buildStreamCard(stream);
+                      }, childCount: streamsProvider.filteredStreams.length),
                     ),
                   ),
               ],
@@ -157,9 +152,9 @@ class _StreamsScreenState extends State<StreamsScreen> {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 8),
           Container(
@@ -197,230 +192,118 @@ class _StreamsScreenState extends State<StreamsScreen> {
   }
 
   Widget _buildLiveStreamCard(stream) {
-    return Container(
-      width: 280,
-      margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: AppColors.primaryGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () => _navigateToPlayer(stream),
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: AppColors.primaryGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-      ),
-      child: Stack(
-        children: [
-          // Background image
-          if (stream.thumbnailUrl != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                stream.thumbnailUrl!,
-                width: 280,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+        child: Stack(
+          children: [
+            // Background image
+            if (stream.thumbnailUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  stream.thumbnailUrl!,
                   width: 280,
                   height: 200,
-                  color: AppColors.primary.withOpacity(0.3),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 280,
+                    height: 200,
+                    color: AppColors.primary.withOpacity(0.3),
+                  ),
                 ),
               ),
-            ),
-          // Gradient overlay
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.7),
-                ],
-              ),
-            ),
-          ),
-          // Live badge
-          Positioned(
-            top: 12,
-            left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            // Gradient overlay
+            Container(
               decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.circle, color: Colors.white, size: 8),
-                  SizedBox(width: 4),
-                  Text(
-                    'LIVE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                ),
               ),
             ),
-          ),
-          // Content
-          Positioned(
-            bottom: 12,
-            left: 12,
-            right: 12,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stream.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+            // Live badge
+            Positioned(
+              top: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                const SizedBox(height: 4),
-                Row(
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.wifi, color: Colors.white70, size: 14),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        stream.companyName,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const Icon(Icons.visibility, color: Colors.white70, size: 14),
-                    const SizedBox(width: 4),
+                    Icon(Icons.circle, color: Colors.white, size: 8),
+                    SizedBox(width: 4),
                     Text(
-                      '${stream.viewerCount}',
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      'LIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStreamCard(stream) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Thumbnail
-          Expanded(
-            flex: 3,
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: stream.thumbnailUrl != null
-                      ? Image.network(
-                          stream.thumbnailUrl!,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: AppColors.primary.withOpacity(0.3),
-                            child: const Center(
-                              child: Icon(Icons.wifi, size: 40, color: AppColors.textSecondary),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.primary.withOpacity(0.3),
-                          child: const Center(
-                            child: Icon(Icons.wifi, size: 40, color: AppColors.textSecondary),
-                          ),
-                        ),
-                ),
-                if (stream.isLive)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, color: Colors.white, size: 6),
-                          SizedBox(width: 2),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Info
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
+            // Content
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     stream.title,
                     style: const TextStyle(
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 16,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
+                      const Icon(Icons.wifi, color: Colors.white70, size: 14),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           stream.companyName,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
+                          style: const TextStyle(
+                            color: Colors.white70,
                             fontSize: 12,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Icon(Icons.visibility, size: 12, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.visibility,
+                        color: Colors.white70,
+                        size: 14,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${stream.viewerCount}',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
+                        style: const TextStyle(
+                          color: Colors.white70,
                           fontSize: 12,
                         ),
                       ),
@@ -429,8 +312,158 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStreamCard(stream) {
+    return GestureDetector(
+      onTap: () => _navigateToPlayer(stream),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                    child: stream.thumbnailUrl != null
+                        ? Image.network(
+                            stream.thumbnailUrl!,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: AppColors.primary.withOpacity(0.3),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.wifi,
+                                  size: 40,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: AppColors.primary.withOpacity(0.3),
+                            child: const Center(
+                              child: Icon(
+                                Icons.wifi,
+                                size: 40,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                  ),
+                  if (stream.isLive)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, color: Colors.white, size: 6),
+                            SizedBox(width: 2),
+                            Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stream.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            stream.companyName,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.visibility,
+                          size: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${stream.viewerCount}',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Navigate to stream player screen
+  void _navigateToPlayer(stream) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StreamPlayerScreen(
+          companySlug: stream.companySlug,
+          streamTitle: stream.title,
+          companyName: stream.companyName,
+        ),
       ),
     );
   }
@@ -440,18 +473,11 @@ class _StreamsScreenState extends State<StreamsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.wifi_off,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.wifi_off, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             AppStrings.noStreamsAvailable,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -470,18 +496,11 @@ class _StreamsScreenState extends State<StreamsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: AppColors.error,
-          ),
+          Icon(Icons.error_outline, size: 64, color: AppColors.error),
           const SizedBox(height: 16),
           Text(
             error,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),

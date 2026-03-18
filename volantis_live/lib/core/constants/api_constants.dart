@@ -35,9 +35,15 @@ class ApiConstants {
 
   // Company endpoints (public)
   static const String companyHome = '/{company_slug}';
-  static const String companyLive = '/{company_slug}/live';
+  static const String companyLiveEndpoint = '/{company_slug}/live';
   static const String companyStreams = '/{company_slug}/streams';
-  static const String companyRecordings = '/recordings/public/company/{company_slug}';
+  static const String companyRecordings =
+      '/recordings/public/company/{company_slug}';
+
+  /// Get company live stream endpoint
+  static String getCompanyLiveEndpoint(String companySlug) {
+    return '/$companySlug/live';
+  }
 
   // Timeouts
   static const int connectionTimeout = 30000; // 30 seconds
