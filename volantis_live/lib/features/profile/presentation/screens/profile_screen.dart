@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -88,7 +89,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 UserAvatar(
                   imageUrl: user?.companySlug,
-                  initials: user?.username?.substring(0, 1).toUpperCase() ?? 'U',
+                  initials:
+                      user?.username?.substring(0, 1).toUpperCase() ?? 'U',
                   size: 72,
                 ),
                 const SizedBox(width: 16),
@@ -104,8 +106,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         user?.email ?? '',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Container(
@@ -276,24 +278,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 value,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               if (suffix != null)
                 Text(
                   suffix,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                    color: AppColors.textSecondary,
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -345,8 +347,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text(
                         '${AppStrings.storageUsed}: ${profileProvider.formatStorageSize(profileProvider.storageUsed)}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -472,9 +474,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              context.read<AuthProvider>().logout();
+              await context.read<AuthProvider>().logout();
+              // Navigate to login using GoRouter
+              if (context.mounted) {
+                context.go('/splash');
+              }
             },
             child: const Text(
               AppStrings.logout,
@@ -491,7 +497,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear Downloads'),
-        content: const Text('Are you sure you want to delete all downloaded content?'),
+        content: const Text(
+          'Are you sure you want to delete all downloaded content?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

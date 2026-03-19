@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -43,15 +44,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      // Navigate to OTP verification screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const VerifyOtpScreen()),
-      );
+      // Navigate to OTP verification screen using GoRouter
+      context.go('/verify-otp');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage ?? AppStrings.somethingWentWrong),
+          content: Text(
+            authProvider.errorMessage ?? AppStrings.somethingWentWrong,
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -108,16 +108,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Text(
           'Create Account',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           'Join VolantisLive and start streaming',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -250,7 +250,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
+            // Navigate to login using GoRouter
+            context.go('/login');
           },
           child: Text(
             AppStrings.login,

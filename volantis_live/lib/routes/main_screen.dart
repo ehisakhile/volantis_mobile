@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_strings.dart';
@@ -11,7 +12,10 @@ import '../features/profile/presentation/screens/profile_screen.dart';
 
 /// Main screen with bottom navigation
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final Widget? child;
+  final Function(int)? onTabChanged;
+
+  const MainScreen({super.key, this.child, this.onTabChanged});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -28,11 +32,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Use IndexedStack for managing tab navigation
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: _buildBottomNavBar(),
     );
   }
@@ -87,13 +89,32 @@ class _MainScreenState extends State<MainScreen> {
     required String label,
   }) {
     final isSelected = _currentIndex == index;
-    
+
     return GestureDetector(
       onTap: () {
+        // Update local state for visual indication
         setState(() {
           _currentIndex = index;
         });
-        
+
+        // Use callback if provided, otherwise use GoRouter
+        if (widget.onTabChanged != null) {
+          widget.onTabChanged!(index);
+        } else {
+          // Navigate using GoRouter
+          switch (index) {
+            case 0:
+              context.go('/home');
+              break;
+            case 1:
+              context.go('/streams');
+              break;
+            case 2:
+              context.go('/profile');
+              break;
+          }
+        }
+
         // Initialize data when switching tabs
         if (index == 0) {
           context.read<HomeProvider>().init();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -37,12 +38,14 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (success && mounted) {
-      // Navigate to home screen (main screen with bottom nav)
-      Navigator.of(context).pushNamedAndRemoveUntil('/main', (route) => false);
+      // Navigate to home screen using GoRouter
+      context.go('/home');
     } else if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage ?? AppStrings.somethingWentWrong),
+          content: Text(
+            authProvider.errorMessage ?? AppStrings.somethingWentWrong,
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -110,16 +113,16 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 24),
         Text(
           AppStrings.appName,
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           AppStrings.appTagline,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -216,10 +219,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         TextButton(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RegisterScreen()),
-            );
+            // Navigate to register using GoRouter
+            context.go('/register');
           },
           child: Text(
             AppStrings.signup,

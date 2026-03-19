@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -17,7 +18,7 @@ class VerifyOtpScreen extends StatefulWidget {
 class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _otpController = TextEditingController();
-  
+
   // Auto-submit when 6 digits are entered
   void _onOtpChanged(String value) {
     if (value.length == 6) {
@@ -39,13 +40,9 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-      
-      // Navigate to login screen, replacing the entire stack
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
+
+      // Navigate to login screen using GoRouter
+      context.go('/login');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -121,16 +118,16 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
         const SizedBox(height: 24),
         Text(
           'Verify Your Email',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
           'Enter the 6-digit code sent to your email',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
       ],
@@ -171,9 +168,9 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
         const SizedBox(height: 8),
         Text(
           'Enter the 6-digit code from your email',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
