@@ -10,27 +10,26 @@ class AuthRepository {
   /// Login with email and password
   Future<LoginResponse> login(String email, String password) async {
     try {
-      print('API: Attempting login to ${ApiConstants.baseUrl}${ApiConstants.login}');
+      print(
+        'API: Attempting login to ${ApiConstants.baseUrl}${ApiConstants.login}',
+      );
       print('API: Login payload - email: $email');
 
       final response = await _apiService.post(
         ApiConstants.login,
-        data: FormData.fromMap({
-          'email': email,
-          'password': password,
-        }),
+        data: FormData.fromMap({'email': email, 'password': password}),
       );
 
       print('API: Login response: ${response.data}');
 
       final loginResponse = LoginResponse.fromJson(response.data);
-      
+
       // Save tokens in secure storage
       await ApiService.saveToken(loginResponse.accessToken);
       if (loginResponse.refreshToken.isNotEmpty) {
         await ApiService.saveRefreshToken(loginResponse.refreshToken);
       }
-      
+
       return loginResponse;
     } on DioException catch (e) {
       print('API: Login error - ${e.message}');
@@ -41,9 +40,15 @@ class AuthRepository {
   }
 
   /// Register new user
-  Future<SignupResponse> signup(String email, String username, String password) async {
+  Future<SignupResponse> signup(
+    String email,
+    String username,
+    String password,
+  ) async {
     try {
-      print('API: Attempting signup to ${ApiConstants.baseUrl}${ApiConstants.signup}');
+      print(
+        'API: Attempting signup to ${ApiConstants.baseUrl}${ApiConstants.signup}',
+      );
       print('API: Signup payload - email: $email, username: $username');
 
       final response = await _apiService.post(
@@ -58,10 +63,10 @@ class AuthRepository {
       print('API: Signup response: ${response.data}');
 
       final signupResponse = SignupResponse.fromJson(response.data);
-      
+
       // Save user ID for OTP verification
       await ApiService.saveUserId(signupResponse.userId.toString());
-      
+
       return signupResponse;
     } on DioException catch (e) {
       print('API: Signup error - ${e.message}');
@@ -73,14 +78,15 @@ class AuthRepository {
   /// Verify email with OTP
   Future<void> verifyEmail(String userId, String otp) async {
     try {
-      print('API: Attempting verify to ${ApiConstants.baseUrl}${ApiConstants.verifyEmail}');
+      print(
+        'API: Attempting verify to ${ApiConstants.baseUrl}${ApiConstants.verifyEmail}',
+      );
+
+      print('API: Verify payload - userId: $userId, otp: $otp');
 
       final response = await _apiService.post(
         ApiConstants.verifyEmail,
-        data: FormData.fromMap({
-          'user_id': userId,
-          'otp': otp,
-        }),
+        data: FormData.fromMap({'user_id': userId, 'otp': otp}),
       );
 
       print('API: Verify response: ${response.data}');
@@ -131,7 +137,7 @@ class AuthRepository {
   Exception _handleError(DioException e) {
     String message;
     print('API: Handling error - type: ${e.type}');
-    
+
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
@@ -144,14 +150,19 @@ class AuthRepository {
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode;
         final responseData = e.response?.data;
-        print('API: Bad response - statusCode: $statusCode, data: $responseData');
-        
+        print(
+          'API: Bad response - statusCode: $statusCode, data: $responseData',
+        );
+
         if (statusCode == 401) {
           message = 'Invalid email or password.';
         } else if (statusCode == 422) {
           // Extract validation error message
           if (responseData is Map) {
-            message = responseData['message'] ?? responseData['error'] ?? 'Invalid request.';
+            message =
+                responseData['detail'] ??
+                responseData['error'] ??
+                'Invalid request.';
           } else {
             message = 'Invalid request.';
           }
@@ -159,6 +170,9 @@ class AuthRepository {
           message = 'Server error. Please try again later.';
         } else if (statusCode == 404) {
           message = 'Service not found. Please contact support.';
+        } else if (statusCode == 400) {
+          message =
+              responseData['detail'] ?? 'Bad request. Please check your input.';
         } else {
           message = 'Something went wrong. Please try again.';
         }
@@ -198,16 +212,30 @@ class LoginResponse {
 class SignupResponse {
   final int userId;
   final String message;
+  final String? email;
+  final String? username;
+  final String? role;
+  final bool? isVerified;
 
   SignupResponse({
     required this.userId,
     required this.message,
+    this.email,
+    this.username,
+    this.role,
+    this.isVerified,
   });
 
   factory SignupResponse.fromJson(Map<String, dynamic> json) {
+    // Parse user object if present
+    final user = json['user'] as Map<String, dynamic>?;
     return SignupResponse(
-      userId: json['user_id'] ?? 0,
+      userId: user?['id'] ?? json['user_id'] ?? 0,
       message: json['message'] ?? '',
+      email: user?['email'] ?? json['email'],
+      username: user?['username'] ?? json['username'],
+      role: user?['role'] ?? json['role'],
+      isVerified: user?['is_verified'] ?? json['is_verified'] ?? false,
     );
   }
 }
