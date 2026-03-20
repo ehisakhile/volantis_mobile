@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:volantis_live/features/recordings/presentation/widgets/recordings_section.dart';
+import 'package:volantis_live/features/recordings/presentation/widgets/mini_player.dart';
+import 'package:volantis_live/features/recordings/presentation/providers/recordings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
@@ -88,27 +90,49 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // App Bar with company banner
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            flexibleSpace: FlexibleSpaceBar(background: _buildHeader()),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              // App Bar with company banner
+              SliverAppBar(
+                expandedHeight: 200,
+                pinned: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => context.pop(),
+                ),
+                flexibleSpace: FlexibleSpaceBar(background: _buildHeader()),
+              ),
+
+              // Company Info
+              SliverToBoxAdapter(child: _buildCompanyInfo()),
+
+              // Live Now Section
+              SliverToBoxAdapter(
+                child: _buildSectionHeader(AppStrings.liveNow),
+              ),
+
+              // Streams content
+              SliverToBoxAdapter(child: _buildContent()),
+            ],
           ),
-
-          // Company Info
-          SliverToBoxAdapter(child: _buildCompanyInfo()),
-
-          // Live Now Section
-          SliverToBoxAdapter(child: _buildSectionHeader(AppStrings.liveNow)),
-
-          // Streams content
-          SliverToBoxAdapter(child: _buildContent()),
+          // Mini Player - Fixed at bottom, outside scroll view
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Consumer<RecordingsProvider>(
+              builder: (context, recordingsProvider, _) {
+                // Only show mini player when a recording is open and not in fullscreen mode
+                if (!recordingsProvider.isPlayerOpen ||
+                    recordingsProvider.isFullScreen) {
+                  return const SizedBox.shrink();
+                }
+                return const MiniPlayer();
+              },
+            ),
+          ),
         ],
       ),
     );

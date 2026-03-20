@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../core/constants/app_colors.dart';
-import '../core/constants/app_strings.dart';
-import '../features/home/presentation/providers/home_provider.dart';
 import '../features/home/presentation/screens/home_screen.dart';
-import '../features/streams/presentation/providers/streams_provider.dart';
 import '../features/streams/presentation/screens/streams_screen.dart';
-import '../features/profile/presentation/providers/profile_provider.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/recordings/presentation/providers/recordings_provider.dart';
 import '../features/recordings/presentation/widgets/mini_player.dart';
@@ -16,8 +11,14 @@ import '../features/recordings/presentation/widgets/mini_player.dart';
 class MainScreen extends StatefulWidget {
   final Widget? child;
   final Function(int)? onTabChanged;
+  final int currentIndex;
 
-  const MainScreen({super.key, this.child, this.onTabChanged});
+  const MainScreen({
+    super.key,
+    this.child,
+    this.onTabChanged,
+    this.currentIndex = 0,
+  });
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -25,7 +26,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen>
     with SingleTickerProviderStateMixin {
-  int _currentIndex = 0;
   late AnimationController _indicatorCtrl;
 
   // ── Design tokens ────────────────────────────────────────────────────────
@@ -81,26 +81,14 @@ class _MainScreenState extends State<MainScreen>
   }
 
   void _onTabTapped(int index) {
-    if (_currentIndex == index) return;
+    if (widget.currentIndex == index) return;
 
-    setState(() => _currentIndex = index);
     _indicatorCtrl.forward(from: 0);
 
     if (widget.onTabChanged != null) {
       widget.onTabChanged!(index);
     } else {
       context.go(_navItems[index].route);
-    }
-
-    // Only initialize data if it hasn't been loaded yet
-    // This prevents refetching when switching tabs back and forth
-    switch (index) {
-      case 0:
-        final homeProvider = context.read<HomeProvider>();
-        if (homeProvider.companies.isEmpty && !homeProvider.isLoading) {
-          homeProvider.init();
-        }
-        break;
     }
   }
 
@@ -110,7 +98,7 @@ class _MainScreenState extends State<MainScreen>
       backgroundColor: _surface,
       body: Stack(
         children: [
-          IndexedStack(index: _currentIndex, children: _screens),
+          IndexedStack(index: widget.currentIndex, children: _screens),
           // Persistent mini player at bottom
           Positioned(
             left: 0,
@@ -128,7 +116,7 @@ class _MainScreenState extends State<MainScreen>
         ],
       ),
       bottomNavigationBar: _VolantisNavBar(
-        currentIndex: _currentIndex,
+        currentIndex: widget.currentIndex,
         items: _navItems,
         onTap: _onTabTapped,
       ),

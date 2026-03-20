@@ -5,7 +5,6 @@ import '../../../../core/widgets/loading_shimmer.dart';
 import '../providers/recordings_provider.dart';
 import 'recording_card.dart';
 import 'full_screen_player_sheet.dart';
-import 'mini_player.dart';
 
 /// Section widget for displaying recordings list on the channel page
 class RecordingsSection extends StatefulWidget {
@@ -126,9 +125,6 @@ class _RecordingsSectionState extends State<RecordingsSection> {
                 );
               },
             ),
-            // Mini player at bottom if player is open
-            if (provider.isPlayerOpen && !provider.isFullScreen)
-              const MiniPlayer(),
           ],
         );
       },

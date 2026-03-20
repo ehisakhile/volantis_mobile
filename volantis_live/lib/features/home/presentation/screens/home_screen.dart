@@ -49,7 +49,10 @@ class _HomeScreenState extends State<HomeScreen>
     _fadeCtrl.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<HomeProvider>().init();
+      final provider = context.read<HomeProvider>();
+      if (provider.companies.isEmpty && !provider.isLoading) {
+        provider.init();
+      }
     });
     _scrollController.addListener(_onScroll);
   }

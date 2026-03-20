@@ -81,20 +81,25 @@ class AppRouter {
         name: 'forgotPassword',
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
-      GoRoute(
-        path: '/home',
-        name: 'home',
-        builder: (context, state) => const _TabMainScreen(initialTab: 0),
-      ),
-      GoRoute(
-        path: '/streams',
-        name: 'streams',
-        builder: (context, state) => const _TabMainScreen(initialTab: 1),
-      ),
-      GoRoute(
-        path: '/profile',
-        name: 'profile',
-        builder: (context, state) => const _TabMainScreen(initialTab: 2),
+      ShellRoute(
+        builder: (context, state, child) => _MainShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/home',
+            name: 'home',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/streams',
+            name: 'streams',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/stream/:id',
@@ -204,31 +209,30 @@ class AppRouter {
   }
 }
 
-/// Wrapper that creates MainScreen with initial tab
-class _TabMainScreen extends StatefulWidget {
-  final int initialTab;
+class _MainShell extends StatefulWidget {
+  final Widget child;
 
-  const _TabMainScreen({required this.initialTab});
+  const _MainShell({required this.child});
 
   @override
-  State<_TabMainScreen> createState() => _TabMainScreenState();
+  State<_MainShell> createState() => _MainShellState();
 }
 
-class _TabMainScreenState extends State<_TabMainScreen> {
-  late int _currentIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialTab;
+class _MainShellState extends State<_MainShell> {
+  int _getIndexFromLocation(String location) {
+    if (location.startsWith('/streams')) return 1;
+    if (location.startsWith('/profile')) return 2;
+    return 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final currentIndex = _getIndexFromLocation(location);
+
     return MainScreen(
-      key: ValueKey(_currentIndex),
+      currentIndex: currentIndex,
       onTabChanged: (index) {
-        setState(() => _currentIndex = index);
         final tabs = ['home', 'streams', 'profile'];
         context.go('/${tabs[index]}');
       },
