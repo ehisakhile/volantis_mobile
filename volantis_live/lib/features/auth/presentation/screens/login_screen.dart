@@ -158,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   const AuthFieldLabel('Password'),
                                   GestureDetector(
                                     onTap: () {
-                                      /* TODO: forgot password */
+                                      context.go('/forgot-password');
                                     },
                                     child: const Text(
                                       'Forgot Password?',

@@ -97,6 +97,68 @@ class AuthRepository {
     }
   }
 
+  /// Request password reset
+  Future<String> requestPasswordReset(String email) async {
+    try {
+      print(
+        'API: Requesting password reset to ${ApiConstants.baseUrl}${ApiConstants.passwordReset}',
+      );
+      print('API: Password reset payload - email: $email');
+
+      final response = await _apiService.post(
+        ApiConstants.passwordReset,
+        data: {'email': email},
+        options: Options(contentType: Headers.jsonContentType),
+      );
+
+      print('API: Password reset response: ${response.data}');
+
+      return response.data['message'] ??
+          'Password reset code sent to your email';
+    } on DioException catch (e) {
+      print('API: Password reset error - ${e.message}');
+      print('API: Password reset error response - ${e.response?.data}');
+      throw _handleError(e);
+    }
+  }
+
+  /// Verify password reset OTP and set new password
+  /// Returns LoginResponse which includes access token for auto-login
+  Future<LoginResponse> verifyPasswordReset(
+    String email,
+    String otp,
+    String newPassword,
+  ) async {
+    try {
+      print(
+        'API: Verifying password reset to ${ApiConstants.baseUrl}${ApiConstants.passwordResetVerify}',
+      );
+      print('API: Password reset verify payload - email: $email, otp: $otp');
+
+      final response = await _apiService.post(
+        ApiConstants.passwordResetVerify,
+        data: {'email': email, 'otp': otp, 'new_password': newPassword},
+        options: Options(contentType: Headers.jsonContentType),
+      );
+
+      print('API: Password reset verify response: ${response.data}');
+
+      final loginResponse = LoginResponse.fromJson(response.data);
+
+      // Save tokens in secure storage for auto-login
+      await ApiService.saveToken(loginResponse.accessToken);
+      if (loginResponse.refreshToken.isNotEmpty) {
+        await ApiService.saveRefreshToken(loginResponse.refreshToken);
+      }
+
+      return loginResponse;
+    } on DioException catch (e) {
+      print('API: Password reset verify error - ${e.message}');
+      print('API: Password reset verify error response - ${e.response?.data}');
+      throw _handleError(e);
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     try {

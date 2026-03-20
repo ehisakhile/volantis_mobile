@@ -6,6 +6,7 @@ import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
+import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String verifyOtp = '/verify-otp';
+  static const String forgotPassword = '/forgot-password';
   static const String home = '/home';
   static const String streams = '/streams';
   static const String profile = '/profile';
@@ -73,6 +75,11 @@ class AppRouter {
         builder: (context, state) => const VerifyOtpScreen(),
       ),
       GoRoute(
+        path: AppRoutes.forgotPassword,
+        name: 'forgotPassword',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
         path: '/home',
         name: 'home',
         builder: (context, state) => const _TabMainScreen(initialTab: 0),
@@ -123,7 +130,9 @@ class AppRouter {
         return isLoggedIn ? AppRoutes.home : AppRoutes.login;
       }
 
-      if (currentPath == AppRoutes.login || currentPath == AppRoutes.register) {
+      if (currentPath == AppRoutes.login ||
+          currentPath == AppRoutes.register ||
+          currentPath == AppRoutes.forgotPassword) {
         if (!hasCompletedOnboarding) return AppRoutes.onboarding;
         if (isLoggedIn) return AppRoutes.home;
         return null;

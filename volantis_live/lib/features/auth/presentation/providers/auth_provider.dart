@@ -15,11 +15,12 @@ enum AuthState {
 /// Auth provider for managing authentication state
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository = AuthRepository();
-  
+
   AuthState _state = AuthState.initial;
   User? _user;
   String? _errorMessage;
   String? _pendingUserId; // For OTP verification after signup
+  String? _pendingEmail; // For password reset flow
 
   // Getters
   AuthState get state => _state;
@@ -28,6 +29,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _state == AuthState.authenticated;
   bool get isLoading => _state == AuthState.loading;
   String? get pendingUserId => _pendingUserId;
+  String? get pendingEmail => _pendingEmail;
 
   /// Initialize auth state
   Future<void> init() async {
@@ -118,6 +120,57 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Request password reset
+  Future<bool> requestPasswordReset(String email) async {
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.requestPasswordReset(email);
+      _pendingEmail = email;
+      _state = AuthState.otpPending;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _state = AuthState.error;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Verify password reset OTP and set new password
+  /// Returns true and auto-logs in the user on success
+  Future<bool> verifyPasswordReset(String otp, String newPassword) async {
+    if (_pendingEmail == null) {
+      _errorMessage = 'No pending email for password reset';
+      notifyListeners();
+      return false;
+    }
+
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // This returns LoginResponse with access token for auto-login
+      await _repository.verifyPasswordReset(_pendingEmail!, otp, newPassword);
+
+      // Fetch user profile to complete the login
+      _user = await _repository.getProfile();
+      _pendingEmail = null;
+      _state = AuthState.authenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _state = AuthState.error;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     _state = AuthState.loading;
@@ -130,6 +183,7 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _user = null;
       _pendingUserId = null;
+      _pendingEmail = null;
       _state = AuthState.unauthenticated;
       notifyListeners();
     }

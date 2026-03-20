@@ -14,6 +14,8 @@ class ApiConstants {
   static const String verifyEmail = '/auth/verify-email';
   static const String logout = '/auth/logout';
   static const String refreshToken = '/auth/refresh';
+  static const String passwordReset = '/auth/password-reset';
+  static const String passwordResetVerify = '/auth/password-reset/verify';
 
   static const String userProfile = '/auth/me';
   static const String userSettings = '/user/settings';
