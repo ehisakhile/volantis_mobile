@@ -480,7 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await context.read<AuthProvider>().logout();
               // Navigate to login using GoRouter
               if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
+                context.go('/login');
               }
             },
             child: const Text(

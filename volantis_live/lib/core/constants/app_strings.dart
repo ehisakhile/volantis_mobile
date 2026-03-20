@@ -139,4 +139,18 @@ class AppStrings {
   static const String weeks = 'weeks';
   static const String months = 'months';
   static const String years = 'years';
+
+  // Recordings
+  static const String recordings = 'Recordings';
+  static const String pastStreams = 'Past Streams';
+  static const String listenAgain = 'Listen Again';
+  static const String noRecordingsAvailable = 'No recordings available';
+  static const String playRecording = 'Play Recording';
+  static const String replayCount = 'replays';
+  static const String recordingNowPlaying = 'Now Playing';
+  static const String recordingCompleted = 'Completed';
+  static const String watchHistory = 'Watch History';
+  static const String playbackSpeed = 'Playback Speed';
+  static const String skipBack = 'Skip Back';
+  static const String skipForward = 'Skip Forward';
 }

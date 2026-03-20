@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:volantis_live/features/recordings/presentation/widgets/recordings_section.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
@@ -232,39 +233,46 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   }
 
   Widget _buildContent() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Placeholder for streams - will be implemented later
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.wifi,
-                    size: 48,
-                    color: AppColors.textSecondary,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Live Streams Section (placeholder for now)
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.wifi,
+                        size: 48,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No live streams available',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No live streams available',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+        // Recordings Section
+        RecordingsSection(companySlug: widget.companySlug),
+      ],
     );
   }
 }
