@@ -5,6 +5,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../providers/home_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
+import '../widgets/recording_card.dart';
+import '../../../recordings/presentation/providers/recordings_provider.dart';
 
 /// Home screen — VolantisLive dark glass design
 class HomeScreen extends StatefulWidget {
@@ -325,6 +327,16 @@ class _HomeScreenState extends State<HomeScreen>
         if (hp.followedCompanies.isNotEmpty)
           SliverToBoxAdapter(child: _buildFollowingStrip(hp)),
 
+        // Latest recordings from followed channels
+        if (hp.followedCompanies.isNotEmpty)
+          SliverToBoxAdapter(
+            child: hp.followedRecordings.isEmpty && hp.isLoadingRecordings
+                ? _buildRecordingsLoading()
+                : (hp.followedRecordings.isNotEmpty
+                      ? _buildRecordingsStrip(hp)
+                      : const SizedBox.shrink()),
+          ),
+
         // Section label
         SliverToBoxAdapter(
           child: _buildSectionLabel(
@@ -432,6 +444,112 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // ── Recordings strip (latest from followed channels) ─────────────────────────
+
+  Widget _buildRecordingsStrip(HomeProvider hp) {
+    if (hp.followedRecordings.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('Latest Recordings', hp.followedRecordings.length),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: hp.followedRecordings.length,
+            itemBuilder: (_, i) => RecordingCard(
+              recording: hp.followedRecordings[i],
+              onTap: () => _playRecording(hp.followedRecordings[i].id),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  /// Play a recording
+  void _playRecording(int recordingId) {
+    // Get the recordings provider from the context
+    final recordingsProvider = context.read<RecordingsProvider>();
+    recordingsProvider.openRecording(recordingId);
+  }
+
+  /// Build loading shimmer for recordings
+  Widget _buildRecordingsLoading() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('Latest Recordings', 0),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: 3,
+            itemBuilder: (_, __) => Container(
+              width: 140,
+              height: 180,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: _glassCard,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _surfaceHigh,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 12,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: _surfaceHigh,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 8,
+                            width: 60,
+                            decoration: BoxDecoration(
+                              color: _surfaceHigh,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 

@@ -454,15 +454,30 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  /// Navigate to stream player screen
-  void _navigateToPlayer(stream) {
+  /// Navigate to stream player screen - handles single stream logic
+  Future<void> _navigateToPlayer(stream) async {
+    final provider = context.read<StreamsProvider>();
+    
+    // Open stream - returns true if same stream (continue listening), false if new
+    final isSameStream = await provider.openStream(stream);
+    
+    if (isSameStream) {
+      // Same stream - just expand the player
+      provider.expand();
+    }
+    
+    if (!context.mounted) return;
+    
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => StreamPlayerScreen(
-          companySlug: stream.companySlug,
-          streamTitle: stream.title,
-          companyName: stream.companyName,
+        builder: (context) => ChangeNotifierProvider.value(
+          value: provider,
+          child: StreamPlayerScreen(
+            companySlug: stream.companySlug,
+            streamTitle: stream.title,
+            companyName: stream.companyName,
+          ),
         ),
       ),
     );

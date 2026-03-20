@@ -64,6 +64,9 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen> {
         throw Exception('No playback URL available');
       }
 
+      // Set stream details in provider
+      streamsProvider.setStreamDetails(streamDetails.livestream);
+
       setState(() {
         _streamDetails = streamDetails;
         _playbackUrl = streamDetails.livestream.webrtcPlaybackUrl;
@@ -85,6 +88,9 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen> {
         _isPlaying = true;
         _connectionState = 'connected';
       });
+      // Update provider state
+      final provider = context.read<StreamsProvider>();
+      provider.updateConnectionState(isConnecting: false, isPlaying: true);
     }
   }
 
@@ -94,6 +100,9 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen> {
         _isPlaying = false;
         _connectionState = 'disconnected';
       });
+      // Update provider state
+      final provider = context.read<StreamsProvider>();
+      provider.updateConnectionState(isConnecting: false, isPlaying: false);
     }
   }
 
@@ -104,6 +113,9 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen> {
         _isPlaying = false;
         _connectionState = 'failed';
       });
+      // Update provider state
+      final provider = context.read<StreamsProvider>();
+      provider.updateConnectionState(isConnecting: false, isPlaying: false, error: error);
     }
   }
 
@@ -342,6 +354,17 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen> {
                   IconButton(
                     onPressed: _initializePlayer,
                     icon: const Icon(Icons.refresh, color: Colors.white),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  IconButton(
+                    onPressed: () {
+                      context.read<StreamsProvider>().minimize();
+                      Navigator.of(context).pop();
+                    },
+                    icon: const Icon(Icons.minimize, color: Colors.white),
                     style: IconButton.styleFrom(
                       backgroundColor: AppColors.primary.withOpacity(0.3),
                     ),

@@ -4,6 +4,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/followed_companies_service.dart';
 import '../../data/models/company_model.dart';
+import '../../../recordings/data/models/recording_model.dart';
 
 /// Home provider for managing home screen state - Companies listing
 class HomeProvider extends ChangeNotifier {
@@ -27,6 +28,10 @@ class HomeProvider extends ChangeNotifier {
   String _searchQuery = '';
   bool _isSearching = false;
 
+  // Recordings from followed companies
+  List<Recording> _followedRecordings = [];
+  bool _isLoadingRecordings = false;
+
   // State
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -39,6 +44,8 @@ class HomeProvider extends ChangeNotifier {
   List<CompanyModel> get followedCompanies =>
       _allCompanies.where((c) => _followedCompanyIds.contains(c.id)).toList();
   Set<int> get followedCompanyIds => _followedCompanyIds;
+  List<Recording> get followedRecordings => _followedRecordings;
+  bool get isLoadingRecordings => _isLoadingRecordings;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get isSearchingLoading => _isSearchingLoading;
@@ -62,12 +69,67 @@ class HomeProvider extends ChangeNotifier {
 
       // Fetch companies
       await _fetchCompanies();
+
+      // Fetch recordings for followed companies
+      await _fetchFollowedRecordings();
+
       _error = null;
     } catch (e) {
       _error = e.toString();
     }
 
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Fetch recordings for followed companies
+  Future<void> _fetchFollowedRecordings() async {
+    if (_followedCompanyIds.isEmpty) return;
+
+    _isLoadingRecordings = true;
+    notifyListeners();
+
+    try {
+      final followed = followedCompanies;
+      final List<Recording> allRecordings = [];
+
+      // Fetch recordings for each followed company (limit to 3 most recent per company)
+      for (final company in followed) {
+        try {
+          final response = await _apiService.get(
+            ApiConstants.companyRecordings.replaceAll(
+              '{company_slug}',
+              company.slug,
+            ),
+            queryParameters: {'limit': 3, 'offset': 0},
+          );
+
+          if (response.data is List) {
+            final recordings = (response.data as List)
+                .map((json) => Recording.fromJson(json as Map<String, dynamic>))
+                .toList();
+
+            // Add company info to each recording
+            for (final recording in recordings) {
+              allRecordings.add(recording);
+            }
+          }
+        } catch (e) {
+          // Continue with other companies if one fails
+          debugPrint('Failed to fetch recordings for ${company.name}: $e');
+        }
+      }
+
+      // Sort by created date (newest first)
+      allRecordings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Keep only the latest 10 recordings
+      _followedRecordings = allRecordings.take(10).toList();
+    } catch (e) {
+      debugPrint('Error fetching followed recordings: $e');
+    }
+
+    _isLoadingRecordings = false;
     notifyListeners();
   }
 
@@ -200,11 +262,20 @@ class HomeProvider extends ChangeNotifier {
 
     if (isFollowed) {
       _followedCompanyIds.add(companyId);
+      // Fetch recordings for the newly followed company
+      await _fetchFollowedRecordings();
     } else {
       _followedCompanyIds.remove(companyId);
+      // Remove recordings from unfollowed company
+      _followedRecordings.removeWhere((r) => r.companyId == companyId);
     }
 
     notifyListeners();
+  }
+
+  /// Refresh recordings for followed companies
+  Future<void> refreshRecordings() async {
+    await _fetchFollowedRecordings();
   }
 
   /// Refresh home data

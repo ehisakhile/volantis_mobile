@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../features/home/presentation/screens/home_screen.dart';
 import '../features/streams/presentation/screens/streams_screen.dart';
+import '../features/streams/presentation/providers/streams_provider.dart';
+import '../features/streams/presentation/widgets/live_stream_mini_player.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/recordings/presentation/providers/recordings_provider.dart';
 import '../features/recordings/presentation/widgets/mini_player.dart';
@@ -99,7 +101,7 @@ class _MainScreenState extends State<MainScreen>
       body: Stack(
         children: [
           IndexedStack(index: widget.currentIndex, children: _screens),
-          // Persistent mini player at bottom
+          // Persistent mini player at bottom - recordings
           Positioned(
             left: 0,
             right: 0,
@@ -110,6 +112,20 @@ class _MainScreenState extends State<MainScreen>
                   return const SizedBox.shrink();
                 }
                 return const MiniPlayer();
+              },
+            ),
+          ),
+          // Persistent mini player at bottom - live streams
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 10, // Above navbar
+            child: Consumer<StreamsProvider>(
+              builder: (context, streamsProvider, _) {
+                if (!streamsProvider.hasActivePlayer) {
+                  return const SizedBox.shrink();
+                }
+                return const LiveStreamMiniPlayer();
               },
             ),
           ),
