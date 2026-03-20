@@ -9,7 +9,7 @@ void main() async {
 
   // Initialize just_audio_background for background playback
   await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.volantislive.audio',
+    androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Volantis Audio',
     androidNotificationOngoing: true,
   );

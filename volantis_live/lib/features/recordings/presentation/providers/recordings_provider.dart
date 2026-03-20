@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:audio_session/audio_session.dart';
 import '../../data/models/recording_model.dart';
 import '../../data/services/recordings_service.dart';
@@ -146,8 +147,23 @@ class RecordingsProvider extends ChangeNotifier {
       // Build streaming URL
       final url = _service.getStreamingUrl(recording.streamingUrl);
 
-      // Set audio source with background support
-      await _player.setUrl(url);
+      // Set audio source with background support and MediaItem tag
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          tag: MediaItem(
+            id: recording.id.toString(),
+            title: recording.title,
+            artist: recording.description ?? 'Volantis Live',
+            artUri: recording.thumbnailUrl != null
+                ? Uri.parse(recording.thumbnailUrl!)
+                : null,
+            duration: recording.durationSeconds != null
+                ? Duration(seconds: recording.durationSeconds!)
+                : null,
+          ),
+        ),
+      );
 
       // Seek to start position if provided (from watch history)
       if (startPosition != null && startPosition > 0) {
