@@ -8,6 +8,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/home/presentation/screens/company_details_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
 
@@ -24,6 +25,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String streams = '/streams';
   static const String profile = '/profile';
+  static const String companyDetails = '/company/:slug';
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -108,6 +110,14 @@ class AppRouter {
         builder: (context, state) {
           final channelId = state.pathParameters['id'] ?? '';
           return _ChannelDeepLinkHandler(channelId: channelId);
+        },
+      ),
+      GoRoute(
+        path: '/company/:slug',
+        name: 'companyDetails',
+        builder: (context, state) {
+          final companySlug = state.pathParameters['slug'] ?? '';
+          return _CompanyDetailsHandler(companySlug: companySlug);
         },
       ),
     ],
@@ -253,5 +263,17 @@ class _ChannelDeepLinkHandler extends StatelessWidget {
       if (context.mounted) context.go('/home');
     });
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+/// Deep link handler for company details
+class _CompanyDetailsHandler extends StatelessWidget {
+  final String companySlug;
+
+  const _CompanyDetailsHandler({required this.companySlug});
+
+  @override
+  Widget build(BuildContext context) {
+    return CompanyDetailsScreen(companySlug: companySlug);
   }
 }

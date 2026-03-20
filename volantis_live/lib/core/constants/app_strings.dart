@@ -5,7 +5,8 @@ class AppStrings {
   // App Info
   static const String appName = 'VolantisLive';
   static const String appTagline = 'Streaming That Works';
-  static const String appDescription = 'Ultra-low bandwidth audio streaming that works on poor connections';
+  static const String appDescription =
+      'Ultra-low bandwidth audio streaming that works on poor connections';
 
   // Navigation
   static const String home = 'Home';
@@ -34,6 +35,18 @@ class AppStrings {
   static const String offlineReady = 'Offline Ready';
   static const String noSubscribedChannels = 'No subscribed channels yet';
   static const String discoverChannels = 'Discover Channels';
+
+  // Companies
+  static const String discover = 'Discover';
+  static const String companies = 'Companies';
+  static const String searchCompanies = 'Search companies...';
+  static const String following = 'Following';
+  static const String follow = 'Follow';
+  static const String followed = 'Followed';
+  static const String noCompaniesAvailable = 'No companies available';
+  static const String noSearchResults = 'No search results found';
+  static const String yourFollowing = 'Your Following';
+  static const String recommended = 'Recommended';
 
   // Streams Screen
   static const String allStreams = 'All Streams';
@@ -86,7 +99,8 @@ class AppStrings {
   static const String error = 'Error';
   static const String somethingWentWrong = 'Something went wrong';
   static const String noInternetConnection = 'No internet connection';
-  static const String checkConnection = 'Please check your connection and try again';
+  static const String checkConnection =
+      'Please check your connection and try again';
   static const String tryAgain = 'Try Again';
   static const String retry = 'Retry';
 

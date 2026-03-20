@@ -36,11 +36,27 @@ class ApiConstants {
   static const String downloadChannel = '/channels/{id}/download';
 
   // Company endpoints (public)
+  static const String companies = '/companies';
+  static const String companySearch = '/companies/search';
   static const String companyHome = '/{company_slug}';
   static const String companyLiveEndpoint = '/{company_slug}/live';
   static const String companyStreams = '/{company_slug}/streams';
   static const String companyRecordings =
       '/recordings/public/company/{company_slug}';
+
+  /// Get companies list endpoint
+  static String getCompaniesEndpoint({int limit = 50, int offset = 0}) {
+    return '/companies?limit=$limit&offset=$offset';
+  }
+
+  /// Get company search endpoint
+  static String getCompanySearchEndpoint(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) {
+    return '/companies/search?q=${Uri.encodeComponent(query)}&limit=$limit&offset=$offset';
+  }
 
   /// Get company live stream endpoint
   static String getCompanyLiveEndpoint(String companySlug) {
