@@ -2,21 +2,22 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
-import '../../../../services/followed_companies_service.dart';
+import '../../../../services/subscriptions_service.dart';
 import '../../data/models/company_model.dart';
 import '../../../recordings/data/models/recording_model.dart';
 
 /// Home provider for managing home screen state - Companies listing
 class HomeProvider extends ChangeNotifier {
   final ApiService _apiService = ApiService.instance;
-  final FollowedCompaniesService _followedCompaniesService =
-      FollowedCompaniesService.instance;
+  final SubscriptionsService _subscriptionsService =
+      SubscriptionsService.instance;
 
   // Companies data
   List<CompanyModel> _allCompanies = [];
   List<CompanyModel> _filteredCompanies = [];
   List<CompanyModel> _searchResults = [];
-  Set<int> _followedCompanyIds = {};
+  // Track subscriptions by company slug (from API)
+  Set<String> _subscribedSlugs = {};
 
   // Pagination
   int _currentOffset = 0;
@@ -42,8 +43,8 @@ class HomeProvider extends ChangeNotifier {
   List<CompanyModel> get companies => _filteredCompanies;
   List<CompanyModel> get searchResults => _searchResults;
   List<CompanyModel> get followedCompanies =>
-      _allCompanies.where((c) => _followedCompanyIds.contains(c.id)).toList();
-  Set<int> get followedCompanyIds => _followedCompanyIds;
+      _allCompanies.where((c) => _subscribedSlugs.contains(c.slug)).toList();
+  Set<String> get subscribedSlugs => _subscribedSlugs;
   List<Recording> get followedRecordings => _followedRecordings;
   bool get isLoadingRecordings => _isLoadingRecordings;
   bool get isLoading => _isLoading;
@@ -63,9 +64,8 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load followed companies from local storage
-      _followedCompanyIds = await _followedCompaniesService
-          .getFollowedCompanyIds();
+      // Fetch subscriptions from API
+      await _fetchSubscriptions();
 
       // Fetch companies
       await _fetchCompanies();
@@ -82,9 +82,21 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetch subscriptions from API
+  Future<void> _fetchSubscriptions() async {
+    try {
+      _subscribedSlugs = await _subscriptionsService.getSubscribedSlugs();
+      print('API: Loaded ${_subscribedSlugs.length} subscriptions from API');
+    } catch (e) {
+      print('API: Failed to fetch subscriptions - $e');
+      // Continue without subscriptions - use empty set
+      _subscribedSlugs = {};
+    }
+  }
+
   /// Fetch recordings for followed companies
   Future<void> _fetchFollowedRecordings() async {
-    if (_followedCompanyIds.isEmpty) return;
+    if (_subscribedSlugs.isEmpty) return;
 
     _isLoadingRecordings = true;
     notifyListeners();
@@ -251,26 +263,54 @@ class HomeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Check if a company is followed
-  bool isCompanyFollowed(int companyId) {
-    return _followedCompanyIds.contains(companyId);
+  /// Check if a company is subscribed (by slug)
+  bool isCompanySubscribed(String companySlug) {
+    return _subscribedSlugs.contains(companySlug);
   }
 
-  /// Toggle follow status for a company
-  Future<void> toggleFollow(int companyId) async {
-    final isFollowed = await _followedCompaniesService.toggleFollow(companyId);
+  /// Check if a company is followed (by ID - for backward compatibility)
+  bool isCompanyFollowed(int companyId) {
+    // Find company by ID and check its slug
+    final company = _allCompanies.where((c) => c.id == companyId).firstOrNull;
+    if (company != null) {
+      return _subscribedSlugs.contains(company.slug);
+    }
+    return false;
+  }
 
-    if (isFollowed) {
-      _followedCompanyIds.add(companyId);
-      // Fetch recordings for the newly followed company
-      await _fetchFollowedRecordings();
+  /// Toggle subscription status for a company (using slug)
+  Future<void> toggleSubscription(String companySlug, {int? companyId}) async {
+    final isCurrentlySubscribed = _subscribedSlugs.contains(companySlug);
+
+    if (isCurrentlySubscribed) {
+      // Unsubscribe
+      final success = await _subscriptionsService.unsubscribe(companySlug);
+      if (success) {
+        _subscribedSlugs.remove(companySlug);
+        // Remove recordings from unsubscribed company
+        if (companyId != null) {
+          _followedRecordings.removeWhere((r) => r.companyId == companyId);
+        }
+      }
     } else {
-      _followedCompanyIds.remove(companyId);
-      // Remove recordings from unfollowed company
-      _followedRecordings.removeWhere((r) => r.companyId == companyId);
+      // Subscribe
+      final success = await _subscriptionsService.subscribe(companySlug);
+      if (success) {
+        _subscribedSlugs.add(companySlug);
+        // Fetch recordings for the newly subscribed company
+        await _fetchFollowedRecordings();
+      }
     }
 
     notifyListeners();
+  }
+
+  /// Toggle follow status for a company (legacy method - uses ID)
+  Future<void> toggleFollow(int companyId) async {
+    final company = _allCompanies.where((c) => c.id == companyId).firstOrNull;
+    if (company != null) {
+      await toggleSubscription(company.slug, companyId: companyId);
+    }
   }
 
   /// Refresh recordings for followed companies

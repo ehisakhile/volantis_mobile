@@ -59,7 +59,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _repository.login(email, password);
+      await _repository.login(email, password);
       // After successful login, fetch the user profile
       _user = await _repository.getProfile();
       _state = AuthState.authenticated;

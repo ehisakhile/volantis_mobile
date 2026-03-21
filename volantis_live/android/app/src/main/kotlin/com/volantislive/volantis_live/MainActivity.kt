@@ -1,4 +1,4 @@
-package com.volantislive.volantis_live
+package com.volantislive.volantislive
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../providers/onboarding_provider.dart';
 
 /// Onboarding / Welcome screen — single scrollable page
