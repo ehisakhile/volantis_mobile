@@ -43,8 +43,12 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen>
 
   @override
   void dispose() {
-    for (final c in _digitControllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _digitControllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     _fadeCtrl.dispose();
     super.dispose();
   }

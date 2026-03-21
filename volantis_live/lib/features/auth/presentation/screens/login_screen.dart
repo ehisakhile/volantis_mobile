@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../providers/auth_provider.dart';
 
@@ -141,10 +140,12 @@ class _LoginScreenState extends State<LoginScreen>
                                   AutofillHints.username,
                                 ],
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter your email';
-                                  if (!v.contains('@'))
+                                  }
+                                  if (!v.contains('@')) {
                                     return 'Enter a valid email';
+                                  }
                                   return null;
                                 },
                               ),
@@ -193,8 +194,9 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter your password';
+                                  }
                                   if (v.length < 6) return 'Min 6 characters';
                                   return null;
                                 },

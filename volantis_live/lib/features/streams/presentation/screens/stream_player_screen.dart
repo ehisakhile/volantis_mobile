@@ -517,7 +517,7 @@ class _AudioWebRTCPlayerState extends State<AudioWebRTCPlayer> {
       }
     }
 
-    return optimizedLines.join('\r\n') + '\r\n';
+    return '${optimizedLines.join('\r\n')}\r\n';
   }
 
   Future<void> _connectToCloudflareStream(RTCSessionDescription offer) async {
@@ -608,7 +608,7 @@ class _AudioWebRTCPlayerState extends State<AudioWebRTCPlayer> {
 
       // Handle incoming tracks
       _peerConnection!.onTrack = (RTCTrackEvent event) {
-        developer.log('✓ Track received: ${event.track?.kind}');
+        developer.log('✓ Track received: ${event.track.kind}');
         if (event.streams.isNotEmpty) {
           developer.log(
             '✓ Stream received with ${event.streams.first.getTracks().length} tracks',

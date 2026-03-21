@@ -51,8 +51,8 @@ class ChannelCard extends StatelessWidget {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: isPlaying 
-                                ? AppColors.primary 
+                            color: isPlaying
+                                ? AppColors.primary
                                 : AppColors.background.withOpacity(0.8),
                             shape: BoxShape.circle,
                           ),
@@ -101,23 +101,23 @@ class ChannelCard extends StatelessWidget {
                   Text(
                     channel.genre!,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   if (channel.listenerCount != null)
                     Text(
                       ' • ',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                 ],
                 if (channel.listenerCount != null)
                   Text(
-                    '${_formatListeners(channel.listenerCount!)}',
+                    _formatListeners(channel.listenerCount!),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
               ],
             ),
@@ -183,11 +183,7 @@ class ChannelListItem extends StatelessWidget {
             ),
         ],
       ),
-      title: Text(
-        channel.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(channel.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -196,16 +192,19 @@ class ChannelListItem extends StatelessWidget {
               channel.description!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
           const SizedBox(height: 4),
           Row(
             children: [
               if (channel.genre != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(4),
@@ -228,8 +227,8 @@ class ChannelListItem extends StatelessWidget {
                     Text(
                       _formatListeners(channel.listenerCount!),
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -243,7 +242,9 @@ class ChannelListItem extends StatelessWidget {
           if (onPlay != null)
             IconButton(
               icon: Icon(
-                isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                isPlaying
+                    ? Icons.pause_circle_filled
+                    : Icons.play_circle_filled,
                 color: AppColors.primary,
                 size: 36,
               ),

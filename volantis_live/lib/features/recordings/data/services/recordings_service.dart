@@ -5,7 +5,7 @@ import '../models/recording_model.dart';
 /// Service for handling recordings API calls
 class RecordingsService {
   Dio _dio;
-  String? _authToken;
+  final String? _authToken;
 
   RecordingsService(this._dio, {String? authToken}) : _authToken = authToken;
 

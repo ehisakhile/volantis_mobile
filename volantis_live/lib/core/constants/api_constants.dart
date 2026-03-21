@@ -44,6 +44,10 @@ class ApiConstants {
   static const String companyRecordings =
       '/recordings/public/company/{company_slug}';
 
+  // Subscription endpoints
+  static const String subscriptions = '/subscriptions';
+  static const String subscriptionBySlug = '/subscriptions/{slug}';
+
   /// Get companies list endpoint
   static String getCompaniesEndpoint({int limit = 50, int offset = 0}) {
     return '/companies?limit=$limit&offset=$offset';

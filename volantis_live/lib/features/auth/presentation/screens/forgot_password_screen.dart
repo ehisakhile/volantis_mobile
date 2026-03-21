@@ -54,8 +54,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    for (final c in _digitControllers) c.dispose();
-    for (final f in _focusNodes) f.dispose();
+    for (final c in _digitControllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -89,15 +93,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     }
     if (_otp.length == 6) {
       _focusNodes[5].unfocus();
-    }
-  }
-
-  void _onKeyDown(int index, RawKeyEvent event) {
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.backspace &&
-        _digitControllers[index].text.isEmpty &&
-        index > 0) {
-      _focusNodes[index - 1].requestFocus();
     }
   }
 
@@ -160,6 +155,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             bottom: -80,
             left: -80,
             child: _GlowBlob(
+              // ignore: deprecated_member_use
               color: AuthColors.secondary.withOpacity(0.07),
               size: 280,
             ),
@@ -168,6 +164,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             top: 60,
             right: -60,
             child: _GlowBlob(
+              // ignore: deprecated_member_use
               color: AuthColors.primary.withOpacity(0.06),
               size: 220,
             ),
@@ -233,10 +230,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                                     AutofillHints.username,
                                   ],
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return 'Enter your email';
-                                    if (!v.contains('@'))
+                                    }
+                                    if (!v.contains('@')) {
                                       return 'Enter a valid email';
+                                    }
                                     return null;
                                   },
                                   onSubmitted: (_) => _requestPasswordReset(),
@@ -321,8 +320,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                                     ),
                                   ),
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return 'Enter your password';
+                                    }
                                     if (v.length < 6) return 'Min 6 characters';
                                     return null;
                                   },
@@ -351,10 +351,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
                                     ),
                                   ),
                                   validator: (v) {
-                                    if (v == null || v.isEmpty)
+                                    if (v == null || v.isEmpty) {
                                       return 'Confirm your password';
-                                    if (v != _passwordController.text)
+                                    }
+                                    if (v != _passwordController.text) {
                                       return 'Passwords do not match';
+                                    }
                                     return null;
                                   },
                                   onSubmitted: (_) => _verifyPasswordReset(),

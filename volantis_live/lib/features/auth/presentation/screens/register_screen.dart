@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:volantis_live/features/auth/presentation/screens/login_screen.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../providers/auth_provider.dart';
 // Import shared auth design system from login_screen.dart or a shared file:
@@ -155,8 +154,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 hint: 'your_name',
                                 textInputAction: TextInputAction.next,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter a username';
+                                  }
                                   if (v.length < 3) return 'Min 3 characters';
                                   return null;
                                 },
@@ -175,10 +175,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   AutofillHints.username,
                                 ],
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter your email';
-                                  if (!v.contains('@'))
+                                  }
+                                  if (!v.contains('@')) {
                                     return 'Enter a valid email';
+                                  }
                                   return null;
                                 },
                               ),
@@ -207,8 +209,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   ),
                                 ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Enter a password';
+                                  }
                                   if (v.length < 6) return 'Min 6 characters';
                                   return null;
                                 },
@@ -236,10 +239,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   ),
                                 ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'Confirm your password';
-                                  if (v != _passwordController.text)
+                                  }
+                                  if (v != _passwordController.text) {
                                     return 'Passwords do not match';
+                                  }
                                   return null;
                                 },
                               ),
