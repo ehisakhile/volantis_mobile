@@ -81,7 +81,9 @@ class StreamsProvider extends ChangeNotifier {
 
   Future<void> _initLiveStreamService() async {
     await _liveStreamService.init();
-    _streamSubscription = _liveStreamService.stateStream.listen(_onStreamStateChanged);
+    _streamSubscription = _liveStreamService.stateStream.listen(
+      _onStreamStateChanged,
+    );
   }
 
   void _onStreamStateChanged(LiveStreamState state) {
@@ -191,7 +193,7 @@ class StreamsProvider extends ChangeNotifier {
       return true; // Indicates same stream (continue listening)
     }
 
-    // Different stream - close old one and play new
+    // Different stream - close old one and play new (ensures single stream)
     _currentStream = stream;
     _isPlayerOpen = true;
     _isPlayerExpanded = true;
@@ -199,8 +201,8 @@ class StreamsProvider extends ChangeNotifier {
     _isConnecting = true;
     _error = null;
 
-    // Start in background service
-    await _liveStreamService.startStream(stream);
+    // Switch to new stream (cleans up old one first)
+    await _liveStreamService.switchStream(stream);
 
     notifyListeners();
     return false; // Indicates new stream
@@ -218,7 +220,12 @@ class StreamsProvider extends ChangeNotifier {
   }
 
   /// Update connection state from WebRTC player
-  void updateConnectionState({bool? isConnecting, bool? isPlaying, bool? isMuted, String? error}) {
+  void updateConnectionState({
+    bool? isConnecting,
+    bool? isPlaying,
+    bool? isMuted,
+    String? error,
+  }) {
     if (isConnecting != null) _isConnecting = isConnecting;
     if (isPlaying != null) _isPlaying = isPlaying;
     if (isMuted != null) _isMuted = isMuted;
@@ -240,6 +247,7 @@ class StreamsProvider extends ChangeNotifier {
 
   /// Close the player
   Future<void> closePlayer() async {
+    // This will cleanup WebRTC via the callback and stop the stream
     await _liveStreamService.stopStream();
     _isPlayerOpen = false;
     _isPlayerExpanded = true;

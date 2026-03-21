@@ -7,7 +7,7 @@ import 'services/offline_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize just_audio_background for background playback
+  // Initialize just_audio_background for background playback (recordings)
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Volantis Audio',

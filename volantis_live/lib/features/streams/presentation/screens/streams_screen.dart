@@ -4,7 +4,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../providers/streams_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
-import 'stream_player_screen.dart';
+import '../widgets/full_screen_player_sheet.dart';
+import '../widgets/live_stream_mini_player.dart';
 
 /// Streams screen showing all live streams
 class StreamsScreen extends StatefulWidget {
@@ -49,69 +50,84 @@ class _StreamsScreenState extends State<StreamsScreen> {
           ),
         ],
       ),
-      body: Consumer<StreamsProvider>(
-        builder: (context, streamsProvider, _) {
-          if (streamsProvider.isLoading) {
-            return const LoadingShimmer();
-          }
+      body: Stack(
+        children: [
+          Consumer<StreamsProvider>(
+            builder: (context, streamsProvider, _) {
+              if (streamsProvider.isLoading) {
+                return const LoadingShimmer();
+              }
 
-          if (streamsProvider.error != null) {
-            return _buildError(streamsProvider.error!);
-          }
+              if (streamsProvider.error != null) {
+                return _buildError(streamsProvider.error!);
+              }
 
-          return RefreshIndicator(
-            onRefresh: streamsProvider.refresh,
-            child: CustomScrollView(
-              slivers: [
-                // Search bar
-                SliverToBoxAdapter(child: _buildSearchBar(streamsProvider)),
+              return RefreshIndicator(
+                onRefresh: streamsProvider.refresh,
+                child: CustomScrollView(
+                  slivers: [
+                    // Search bar
+                    SliverToBoxAdapter(child: _buildSearchBar(streamsProvider)),
 
-                // Live Now Section
-                if (streamsProvider.liveStreams.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: _buildSectionHeader(
-                      context,
-                      AppStrings.liveNow,
-                      streamsProvider.liveStreams.length,
+                    // Live Now Section
+                    if (streamsProvider.liveStreams.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: _buildSectionHeader(
+                          context,
+                          AppStrings.liveNow,
+                          streamsProvider.liveStreams.length,
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _buildLiveStreamsList(streamsProvider),
+                      ),
+                    ],
+
+                    // All Streams Section
+                    SliverToBoxAdapter(
+                      child: _buildSectionHeader(
+                        context,
+                        'All Streams',
+                        streamsProvider.filteredStreams.length,
+                      ),
                     ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildLiveStreamsList(streamsProvider),
-                  ),
-                ],
 
-                // All Streams Section
-                SliverToBoxAdapter(
-                  child: _buildSectionHeader(
-                    context,
-                    'All Streams',
-                    streamsProvider.filteredStreams.length,
-                  ),
-                ),
-
-                if (streamsProvider.filteredStreams.isEmpty)
-                  SliverFillRemaining(child: _buildEmptyState())
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.85,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
+                    if (streamsProvider.filteredStreams.isEmpty)
+                      SliverFillRemaining(child: _buildEmptyState())
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.85,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                              ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final stream =
+                                  streamsProvider.filteredStreams[index];
+                              return _buildStreamCard(stream);
+                            },
+                            childCount: streamsProvider.filteredStreams.length,
                           ),
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final stream = streamsProvider.filteredStreams[index];
-                        return _buildStreamCard(stream);
-                      }, childCount: streamsProvider.filteredStreams.length),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          // Mini player at the bottom
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: LiveStreamMiniPlayer(),
+          ),
+        ],
       ),
     );
   }
@@ -125,20 +141,15 @@ class _StreamsScreenState extends State<StreamsScreen> {
         decoration: InputDecoration(
           hintText: AppStrings.searchChannels,
           prefixIcon: const Icon(Icons.search),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    provider.searchStreams('');
-                  },
-                )
-              : null,
           filled: true,
           fillColor: AppColors.cardBackground,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
           ),
         ),
       ),
@@ -149,27 +160,34 @@ class _StreamsScreenState extends State<StreamsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '$count',
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -191,42 +209,26 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildLiveStreamCard(stream) {
+  Widget _buildLiveStreamCard(dynamic stream) {
     return GestureDetector(
       onTap: () => _navigateToPlayer(stream),
       child: Container(
-        width: 280,
-        margin: const EdgeInsets.only(right: 16),
+        width: 160,
+        margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           gradient: const LinearGradient(
-            colors: AppColors.primaryGradient,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            colors: [Color(0xFF1E3A5F), Color(0xFF0D1B2A)],
           ),
         ),
         child: Stack(
           children: [
-            // Background image
-            if (stream.thumbnailUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  stream.thumbnailUrl!,
-                  width: 280,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 280,
-                    height: 200,
-                    color: AppColors.primary.withOpacity(0.3),
-                  ),
-                ),
-              ),
-            // Gradient overlay
+            // Background gradient
             Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -236,10 +238,10 @@ class _StreamsScreenState extends State<StreamsScreen> {
             ),
             // Live badge
             Positioned(
-              top: 12,
-              left: 12,
+              top: 8,
+              left: 8,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.red,
                   borderRadius: BorderRadius.circular(4),
@@ -247,14 +249,14 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.circle, color: Colors.white, size: 8),
+                    Icon(Icons.circle, size: 6, color: Colors.white),
                     SizedBox(width: 4),
                     Text(
                       'LIVE',
                       style: TextStyle(
                         color: Colors.white,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -270,44 +272,24 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    stream.title,
+                    stream.companyName,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 14,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.wifi, color: Colors.white70, size: 14),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          stream.companyName,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Icon(
-                        Icons.visibility,
-                        color: Colors.white70,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${stream.viewerCount}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    stream.title,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -318,58 +300,60 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildStreamCard(stream) {
+  Widget _buildStreamCard(dynamic stream) {
     return GestureDetector(
       onTap: () => _navigateToPlayer(stream),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thumbnail
+            // Thumbnail area
             Expanded(
               flex: 3,
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
                     ),
                     child: stream.thumbnailUrl != null
-                        ? Image.network(
-                            stream.thumbnailUrl!,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: AppColors.primary.withOpacity(0.3),
-                              child: const Center(
+                        ? ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
+                            child: Image.network(
+                              stream.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Center(
                                 child: Icon(
-                                  Icons.wifi,
+                                  Icons.live_tv,
+                                  color: AppColors.primary,
                                   size: 40,
-                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ),
                           )
-                        : Container(
-                            color: AppColors.primary.withOpacity(0.3),
-                            child: const Center(
-                              child: Icon(
-                                Icons.wifi,
-                                size: 40,
-                                color: AppColors.textSecondary,
-                              ),
+                        : const Center(
+                            child: Icon(
+                              Icons.live_tv,
+                              color: AppColors.primary,
+                              size: 40,
                             ),
                           ),
                   ),
+                  // Live badge
                   if (stream.isLive)
                     Positioned(
                       top: 8,
-                      right: 8,
+                      left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
@@ -382,14 +366,14 @@ class _StreamsScreenState extends State<StreamsScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.circle, color: Colors.white, size: 6),
-                            SizedBox(width: 2),
+                            Icon(Icons.circle, size: 6, color: Colors.white),
+                            SizedBox(width: 4),
                             Text(
                               'LIVE',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
                                 fontSize: 10,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
@@ -399,7 +383,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 ],
               ),
             ),
-            // Info
+            // Info area
             Expanded(
               flex: 2,
               child: Padding(
@@ -407,14 +391,16 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      stream.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    Expanded(
+                      child: Text(
+                        stream.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const Spacer(),
                     Row(
@@ -422,7 +408,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
                         Expanded(
                           child: Text(
                             stream.companyName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
@@ -437,7 +423,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
                         const SizedBox(width: 4),
                         Text(
                           '${stream.viewerCount}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12,
                           ),
@@ -457,28 +443,25 @@ class _StreamsScreenState extends State<StreamsScreen> {
   /// Navigate to stream player screen - handles single stream logic
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
-    
+
     // Open stream - returns true if same stream (continue listening), false if new
     final isSameStream = await provider.openStream(stream);
-    
+
     if (isSameStream) {
       // Same stream - just expand the player
       provider.expand();
     }
-    
+
     if (!context.mounted) return;
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChangeNotifierProvider.value(
-          value: provider,
-          child: StreamPlayerScreen(
-            companySlug: stream.companySlug,
-            streamTitle: stream.title,
-            companyName: stream.companyName,
-          ),
-        ),
+
+    // Use bottom sheet instead of full screen navigation (like recordings player)
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ChangeNotifierProvider.value(
+        value: provider,
+        child: const FullScreenPlayerSheet(),
       ),
     );
   }
@@ -488,7 +471,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off, size: 64, color: AppColors.textSecondary),
+          const Icon(Icons.wifi_off, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             AppStrings.noStreamsAvailable,
@@ -511,7 +494,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: AppColors.error),
+          const Icon(Icons.error_outline, size: 64, color: AppColors.error),
           const SizedBox(height: 16),
           Text(
             error,

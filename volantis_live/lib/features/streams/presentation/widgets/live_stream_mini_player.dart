@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../providers/streams_provider.dart';
-import '../screens/stream_player_screen.dart' show StreamPlayerScreen;
+import 'full_screen_player_sheet.dart';
 
+/// Mini player bar shown at the bottom when player is minimized
+/// Uses bottom sheet pattern like recordings player for easy expanding/minimizing
 class LiveStreamMiniPlayer extends StatelessWidget {
   const LiveStreamMiniPlayer({super.key});
 
@@ -21,17 +23,16 @@ class LiveStreamMiniPlayer extends StatelessWidget {
 
         return GestureDetector(
           onTap: () {
+            // Expand player state
             provider.expand();
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ChangeNotifierProvider.value(
-                  value: provider,
-                  child: StreamPlayerScreen(
-                    companySlug: stream.companySlug,
-                    streamTitle: stream.title,
-                    companyName: stream.companyName,
-                  ),
-                ),
+            // Show full screen player sheet
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => ChangeNotifierProvider.value(
+                value: provider,
+                child: const FullScreenPlayerSheet(),
               ),
             );
           },
@@ -49,29 +50,30 @@ class LiveStreamMiniPlayer extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Container(
-                  height: 2,
-                  color: Colors.red,
-                ),
+                // Live indicator
+                Container(height: 2, color: Colors.red),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
+                        // Thumbnail
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: stream.thumbnailUrl != null
+                          child: stream.companyLogoUrl != null
                               ? CachedNetworkImage(
-                                  imageUrl: stream.thumbnailUrl!,
+                                  imageUrl: stream.companyLogoUrl!,
                                   width: 48,
                                   height: 48,
                                   fit: BoxFit.cover,
                                   placeholder: (_, __) => _buildPlaceholder(),
-                                  errorWidget: (_, __, ___) => _buildPlaceholder(),
+                                  errorWidget: (_, __, ___) =>
+                                      _buildPlaceholder(),
                                 )
                               : _buildPlaceholder(),
                         ),
                         const SizedBox(width: 12),
+                        // Title
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -88,33 +90,23 @@ class LiveStreamMiniPlayer extends StatelessWidget {
                                       color: Colors.red,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.circle,
-                                          color: Colors.white,
-                                          size: 6,
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'LIVE',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                                    child: const Text(
+                                      'LIVE',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      stream.title,
-                                      style: theme.textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      stream.companyName,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -123,7 +115,7 @@ class LiveStreamMiniPlayer extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                stream.companyName,
+                                stream.title,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -133,6 +125,7 @@ class LiveStreamMiniPlayer extends StatelessWidget {
                             ],
                           ),
                         ),
+                        // Controls
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -142,19 +135,21 @@ class LiveStreamMiniPlayer extends StatelessWidget {
                                     ? Icons.volume_off
                                     : Icons.volume_up,
                               ),
-                              iconSize: 24,
+                              iconSize: 20,
                               onPressed: () => provider.toggleMute(),
                             ),
                             IconButton(
                               icon: Icon(
-                                provider.isPlaying ? Icons.pause : Icons.play_arrow,
+                                provider.isPlaying
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
                               ),
-                              iconSize: 32,
+                              iconSize: 28,
                               onPressed: () => provider.togglePlayPause(),
                             ),
                             IconButton(
                               icon: const Icon(Icons.close),
-                              iconSize: 24,
+                              iconSize: 20,
                               onPressed: () => provider.closePlayer(),
                             ),
                           ],
@@ -179,7 +174,11 @@ class LiveStreamMiniPlayer extends StatelessWidget {
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Icon(Icons.live_tv, color: AppColors.textSecondary, size: 24),
+      child: const Icon(
+        Icons.live_tv,
+        color: AppColors.textSecondary,
+        size: 24,
+      ),
     );
   }
 }
