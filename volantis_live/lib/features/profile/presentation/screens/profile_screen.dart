@@ -6,6 +6,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/network_image.dart';
 import '../../../../services/analytics_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../downloads/presentation/screens/downloads_screen.dart';
 import '../providers/profile_provider.dart';
 
 /// Profile screen with analytics and settings
@@ -309,58 +310,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-            child: Text(
-              AppStrings.offlineDownloads,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.download_done,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${profileProvider.downloads.length} ${AppStrings.downloadedContent}',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${AppStrings.storageUsed}: ${profileProvider.formatStorageSize(profileProvider.storageUsed)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  AppStrings.offlineDownloads,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 if (profileProvider.downloads.isNotEmpty)
                   TextButton(
                     onPressed: () {
-                      _showClearDownloadsDialog();
+                      context.push('/downloads');
                     },
-                    child: const Text('Clear'),
+                    child: const Text('View All'),
                   ),
               ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => context.push('/downloads'),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.download_done,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${profileProvider.downloads.length} ${AppStrings.downloadedContent}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${AppStrings.storageUsed}: ${profileProvider.formatStorageSize(profileProvider.storageUsed)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
             ),
           ),
         ],

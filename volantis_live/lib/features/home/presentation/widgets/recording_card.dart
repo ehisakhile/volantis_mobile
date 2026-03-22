@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../../../recordings/data/models/recording_model.dart';
+import '../../../recordings/presentation/providers/recordings_provider.dart';
+import '../../../../core/constants/app_colors.dart';
 
 /// Recording card widget for displaying recordings on the home screen
 class RecordingCard extends StatelessWidget {
@@ -137,6 +140,8 @@ class RecordingCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  // Download button
+                  Positioned(top: 6, right: 6, child: _buildDownloadButton()),
                 ],
               ),
             ),
@@ -193,6 +198,74 @@ class RecordingCard extends StatelessWidget {
       return '${diff.inDays} days ago';
     } else {
       return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  Widget _buildDownloadButton() {
+    return Consumer<RecordingsProvider>(
+      builder: (context, provider, _) {
+        final status = provider.getDownloadStatus(recording.id);
+
+        return GestureDetector(
+          onTap: () => _handleDownloadTap(provider, status),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _getDownloadIcon(status),
+              color: _getDownloadColor(status),
+              size: 18,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleDownloadTap(RecordingsProvider provider, dynamic status) {
+    if (status.toString().contains('downloaded')) {
+      // Already downloaded - play offline
+      provider.playDownloadedRecording(recording.id);
+    } else if (status.toString().contains('downloading') ||
+        status.toString().contains('queued')) {
+      // Currently downloading - show info or cancel
+      _showDownloadInfo();
+    } else {
+      // Not downloaded - start download
+      provider.downloadRecording(recording, downloadUrl: recording.s3Url);
+    }
+  }
+
+  void _showDownloadInfo() {
+    // Could show a snackbar or dialog with download progress
+    debugPrint('Download in progress for: ${recording.title}');
+  }
+
+  IconData _getDownloadIcon(dynamic status) {
+    final statusStr = status.toString();
+    if (statusStr.contains('downloaded')) {
+      return Icons.download_done;
+    } else if (statusStr.contains('downloading')) {
+      return Icons.downloading;
+    } else if (statusStr.contains('queued')) {
+      return Icons.hourglass_empty;
+    } else {
+      return Icons.download;
+    }
+  }
+
+  Color _getDownloadColor(dynamic status) {
+    final statusStr = status.toString();
+    if (statusStr.contains('downloaded')) {
+      return AppColors.primary;
+    } else if (statusStr.contains('downloading') ||
+        statusStr.contains('queued')) {
+      return AppColors.primary;
+    } else {
+      return Colors.white;
     }
   }
 }

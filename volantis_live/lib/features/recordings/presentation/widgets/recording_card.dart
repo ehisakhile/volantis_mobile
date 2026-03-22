@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../data/models/recording_model.dart';
+import '../providers/recordings_provider.dart';
 import 'package:intl/intl.dart';
 
 /// Card widget for displaying a single recording in a list
@@ -103,6 +105,9 @@ class RecordingCard extends StatelessWidget {
                   ],
                 ),
               ),
+              // Download button
+              _buildDownloadButton(context),
+              const SizedBox(width: 8),
               // Play button
               Container(
                 width: 40,
@@ -155,5 +160,69 @@ class RecordingCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return DateFormat('MMM d, yyyy').format(date);
+  }
+
+  Widget _buildDownloadButton(BuildContext context) {
+    return Consumer<RecordingsProvider>(
+      builder: (context, provider, _) {
+        final status = provider.getDownloadStatus(recording.id);
+
+        return GestureDetector(
+          onTap: () => _handleDownloadTap(provider, status),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _getDownloadIcon(status),
+              color: _getDownloadColor(status),
+              size: 20,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleDownloadTap(RecordingsProvider provider, dynamic status) {
+    if (status.toString().contains('downloaded')) {
+      // Already downloaded - play offline
+      provider.playDownloadedRecording(recording.id);
+    } else if (status.toString().contains('downloading') ||
+        status.toString().contains('queued')) {
+      // Currently downloading - show info
+      debugPrint('Download in progress for: ${recording.title}');
+    } else {
+      // Not downloaded - start download
+      provider.downloadRecording(recording, downloadUrl: recording.s3Url);
+    }
+  }
+
+  IconData _getDownloadIcon(dynamic status) {
+    final statusStr = status.toString();
+    if (statusStr.contains('downloaded')) {
+      return Icons.download_done;
+    } else if (statusStr.contains('downloading')) {
+      return Icons.downloading;
+    } else if (statusStr.contains('queued')) {
+      return Icons.hourglass_empty;
+    } else {
+      return Icons.download;
+    }
+  }
+
+  Color _getDownloadColor(dynamic status) {
+    final statusStr = status.toString();
+    if (statusStr.contains('downloaded')) {
+      return AppColors.primary;
+    } else if (statusStr.contains('downloading') ||
+        statusStr.contains('queued')) {
+      return AppColors.primary;
+    } else {
+      return AppColors.textSecondary;
+    }
   }
 }

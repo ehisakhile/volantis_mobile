@@ -4,7 +4,10 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:audio_session/audio_session.dart';
 import '../../data/models/recording_model.dart';
+import '../../data/models/recording_download.dart';
 import '../../data/services/recordings_service.dart';
+import '../../data/services/recordings_downloads_service.dart';
+import '../../../../services/download_manager.dart';
 
 /// Provider for managing recordings state and audio playback
 class RecordingsProvider extends ChangeNotifier {
@@ -37,6 +40,10 @@ class RecordingsProvider extends ChangeNotifier {
 
   // Error state
   String? errorMessage;
+
+  // Download state
+  final Map<int, DownloadStatus> _downloadStatuses = {};
+  final Map<int, double> _downloadProgress = {};
 
   RecordingsProvider(this._service) {
     _initAudioSession();
@@ -269,6 +276,151 @@ class RecordingsProvider extends ChangeNotifier {
       return watchHistory.firstWhere((item) => item.recordingId == recordingId);
     } catch (_) {
       return null;
+    }
+  }
+
+  // Download methods
+
+  /// Get download status for a recording
+  DownloadStatus getDownloadStatus(int recordingId) {
+    return _downloadStatuses[recordingId] ?? DownloadStatus.notDownloaded;
+  }
+
+  /// Get download progress for a recording
+  double getDownloadProgress(int recordingId) {
+    return _downloadProgress[recordingId] ?? 0.0;
+  }
+
+  /// Start downloading a recording
+  Future<void> downloadRecording(
+    Recording recording, {
+    required String downloadUrl,
+    String? companyName,
+    String? companySlug,
+    Function(double)? onProgress,
+  }) async {
+    final recordingId = recording.id;
+
+    // Check if already downloading or downloaded
+    final status = getDownloadStatus(recordingId);
+    if (status == DownloadStatus.downloading ||
+        status == DownloadStatus.downloaded) {
+      return;
+    }
+
+    _downloadStatuses[recordingId] = DownloadStatus.downloading;
+    _downloadProgress[recordingId] = 0.0;
+    notifyListeners();
+
+    try {
+      // Get download manager
+      final downloadManager = DownloadManager.instance;
+
+      await downloadManager.queueDownload(
+        recording: recording,
+        downloadUrl: downloadUrl,
+        companyName: companyName,
+        companySlug: companySlug,
+      );
+    } catch (e) {
+      _downloadStatuses[recordingId] = DownloadStatus.failed;
+      debugPrint('Failed to start download: $e');
+      notifyListeners();
+    }
+  }
+
+  /// Play a downloaded recording offline
+  Future<void> playDownloadedRecording(int recordingId) async {
+    try {
+      final downloadsService = RecordingsDownloadsService.instance;
+
+      // Check if recording is downloaded
+      final isDownloaded = await downloadsService.isRecordingDownloaded(
+        recordingId,
+      );
+      if (!isDownloaded) {
+        throw Exception('Recording not downloaded');
+      }
+
+      // Get decrypted file path
+      final filePath = await downloadsService.getDecryptedFilePath(recordingId);
+
+      // Get download info for the recording
+      final download = await downloadsService.getDownload(recordingId);
+
+      // Stop any current playback
+      await _player.stop();
+      _positionTimer?.cancel();
+
+      currentRecording = Recording(
+        id: recordingId,
+        companyId: 0,
+        title: download?.title ?? 'Downloaded Recording',
+        description: download?.description,
+        s3Url: filePath,
+        streamingUrl: filePath,
+        durationSeconds: download?.durationSeconds,
+        thumbnailUrl: download?.thumbnailUrl,
+        createdAt: download?.downloadedAt ?? DateTime.now(),
+      );
+
+      isPlayerOpen = true;
+      isFullScreen = true;
+      isCompleted = false;
+      errorMessage = null;
+      notifyListeners();
+
+      // Set audio source from local file
+      await _player.setAudioSource(
+        AudioSource.file(
+          filePath,
+          tag: MediaItem(
+            id: recordingId.toString(),
+            title: download?.title ?? 'Downloaded Recording',
+            artist: download?.description ?? 'Volantis Live',
+            artUri: download?.thumbnailUrl != null
+                ? Uri.parse(download!.thumbnailUrl!)
+                : null,
+            duration: download?.durationSeconds != null
+                ? Duration(seconds: download!.durationSeconds!)
+                : null,
+          ),
+        ),
+      );
+
+      // Seek to last position if available
+      if (download != null && download.lastPosition > 0) {
+        await _player.seek(Duration(seconds: download.lastPosition));
+      }
+
+      await _player.play();
+      _startPositionTimer();
+    } catch (e) {
+      errorMessage = 'Failed to play downloaded recording: ${e.toString()}';
+      debugPrint(errorMessage);
+      notifyListeners();
+    }
+  }
+
+  /// Cancel a download
+  void cancelDownload(int recordingId) {
+    final downloadManager = DownloadManager.instance;
+    downloadManager.cancelDownload(recordingId);
+    _downloadStatuses[recordingId] = DownloadStatus.notDownloaded;
+    _downloadProgress[recordingId] = 0.0;
+    notifyListeners();
+  }
+
+  /// Delete a downloaded recording
+  Future<void> deleteDownload(int recordingId) async {
+    try {
+      final downloadManager = DownloadManager.instance;
+      await downloadManager.deleteDownload(recordingId);
+      _downloadStatuses[recordingId] = DownloadStatus.notDownloaded;
+      _downloadProgress[recordingId] = 0.0;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to delete download: $e');
     }
   }
 

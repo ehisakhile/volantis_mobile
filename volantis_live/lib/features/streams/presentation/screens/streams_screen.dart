@@ -62,12 +62,31 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 return _buildError(streamsProvider.error!);
               }
 
+              // Get streams with followed channels first
+              final streams = streamsProvider.streamsWithFollowedFirst;
+              final followedStreams = streamsProvider.followedStreams;
+
               return RefreshIndicator(
                 onRefresh: streamsProvider.refresh,
                 child: CustomScrollView(
                   slivers: [
                     // Search bar
                     SliverToBoxAdapter(child: _buildSearchBar(streamsProvider)),
+
+                    // Following Section (if user follows any companies with streams)
+                    if (followedStreams.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: _buildSectionHeader(
+                          context,
+                          'Following',
+                          followedStreams.length,
+                          isFollowing: true,
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _buildFollowedStreamsList(streamsProvider),
+                      ),
+                    ],
 
                     // Live Now Section
                     if (streamsProvider.liveStreams.isNotEmpty) ...[
@@ -82,39 +101,6 @@ class _StreamsScreenState extends State<StreamsScreen> {
                         child: _buildLiveStreamsList(streamsProvider),
                       ),
                     ],
-
-                    // All Streams Section
-                    SliverToBoxAdapter(
-                      child: _buildSectionHeader(
-                        context,
-                        'All Streams',
-                        streamsProvider.filteredStreams.length,
-                      ),
-                    ),
-
-                    if (streamsProvider.filteredStreams.isEmpty)
-                      SliverFillRemaining(child: _buildEmptyState())
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.all(16),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 0.85,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                              ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final stream =
-                                  streamsProvider.filteredStreams[index];
-                              return _buildStreamCard(stream);
-                            },
-                            childCount: streamsProvider.filteredStreams.length,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               );
@@ -156,7 +142,12 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, int count) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    int count, {
+    bool isFollowing = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
@@ -164,6 +155,10 @@ class _StreamsScreenState extends State<StreamsScreen> {
         children: [
           Row(
             children: [
+              if (isFollowing) ...[
+                const Icon(Icons.favorite, size: 18, color: Colors.red),
+                const SizedBox(width: 8),
+              ],
               Text(
                 title,
                 style: const TextStyle(
@@ -175,13 +170,15 @@ class _StreamsScreenState extends State<StreamsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.2),
+                  color: isFollowing
+                      ? Colors.red.withOpacity(0.2)
+                      : AppColors.primary.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '$count',
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: isFollowing ? Colors.red : AppColors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -190,6 +187,28 @@ class _StreamsScreenState extends State<StreamsScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build horizontal list of followed company streams
+  Widget _buildFollowedStreamsList(StreamsProvider provider) {
+    final followedStreams = provider.followedStreams;
+
+    if (followedStreams.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: followedStreams.length,
+        itemBuilder: (context, index) {
+          final stream = followedStreams[index];
+          return _buildLiveStreamCard(stream, isFollowed: true);
+        },
       ),
     );
   }
@@ -209,7 +228,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildLiveStreamCard(dynamic stream) {
+  Widget _buildLiveStreamCard(dynamic stream, {bool isFollowed = false}) {
     return GestureDetector(
       onTap: () => _navigateToPlayer(stream),
       child: Container(
@@ -217,10 +236,12 @@ class _StreamsScreenState extends State<StreamsScreen> {
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1E3A5F), Color(0xFF0D1B2A)],
+            colors: isFollowed
+                ? [const Color(0xFF8B0000), const Color(0xFF4A0000)]
+                : [const Color(0xFF1E3A5F), const Color(0xFF0D1B2A)],
           ),
         ),
         child: Stack(
@@ -236,33 +257,68 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 ),
               ),
             ),
-            // Live badge
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.circle, size: 6, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+            // Followed badge
+            if (isFollowed)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.favorite, size: 8, color: Colors.white),
+                      SizedBox(width: 2),
+                      Text(
+                        'Following',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
+            // Live badge
+            if (!isFollowed)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 6, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // Content
             Positioned(
               bottom: 12,
@@ -300,7 +356,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildStreamCard(dynamic stream) {
+  Widget _buildStreamCard(dynamic stream, {bool isFollowed = false}) {
     return GestureDetector(
       onTap: () => _navigateToPlayer(stream),
       child: Container(
@@ -391,6 +447,34 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Followed indicator
+                    if (isFollowed)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.favorite, size: 10, color: Colors.red),
+                            SizedBox(width: 2),
+                            Text(
+                              'Following',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Expanded(
                       child: Text(
                         stream.title,

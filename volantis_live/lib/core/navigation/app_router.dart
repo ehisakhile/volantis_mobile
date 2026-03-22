@@ -9,6 +9,7 @@ import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/home/presentation/screens/company_details_screen.dart';
+import '../../features/downloads/presentation/screens/downloads_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
 
@@ -25,6 +26,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String streams = '/streams';
   static const String profile = '/profile';
+  static const String downloads = '/downloads';
   static const String companyDetails = '/company/:slug';
 }
 
@@ -124,6 +126,11 @@ class AppRouter {
           final companySlug = state.pathParameters['slug'] ?? '';
           return _CompanyDetailsHandler(companySlug: companySlug);
         },
+      ),
+      GoRoute(
+        path: '/downloads',
+        name: 'downloads',
+        builder: (context, state) => const DownloadsScreen(),
       ),
     ],
     redirect: (context, state) {

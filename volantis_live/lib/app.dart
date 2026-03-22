@@ -12,6 +12,9 @@ import 'features/profile/presentation/providers/profile_provider.dart';
 import 'features/splash/presentation/splash_screen.dart';
 import 'features/recordings/data/services/recordings_service.dart';
 import 'features/recordings/presentation/providers/recordings_provider.dart';
+import 'features/downloads/presentation/providers/downloads_provider.dart';
+import 'services/download_manager.dart';
+import 'features/recordings/data/services/recordings_downloads_service.dart';
 
 /// Main App Widget with GoRouter navigation
 class VolantisLiveApp extends StatefulWidget {
@@ -87,6 +90,12 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider<RecordingsProvider>.value(
           value: recordingsProvider,
+        ),
+        ChangeNotifierProvider(
+          create: (_) => DownloadsProvider(
+            RecordingsDownloadsService.instance,
+            DownloadManager.instance,
+          ),
         ),
       ],
       child: _isInitialized && _appRouter != null

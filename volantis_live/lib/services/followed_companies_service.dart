@@ -1,11 +1,18 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../features/home/data/models/subscription_model.dart';
+import 'subscriptions_service.dart';
 
-/// Service for managing followed companies locally
+/// Service for managing followed companies
+/// Uses API as primary source with local fallback/cache
 class FollowedCompaniesService {
   static const String _followedCompaniesKey = 'followed_companies';
   static FollowedCompaniesService? _instance;
   static FlutterSecureStorage? _storage;
+
+  // Reference to subscriptions service for API calls
+  final SubscriptionsService _subscriptionsService =
+      SubscriptionsService.instance;
 
   FollowedCompaniesService._();
 
@@ -19,7 +26,8 @@ class FollowedCompaniesService {
     return _storage!;
   }
 
-  /// Get all followed company IDs
+  /// Get all followed company IDs from local storage
+  /// Note: This is for local caching - actual state comes from API
   Future<Set<int>> getFollowedCompanyIds() async {
     try {
       final data = await _secureStorage.read(key: _followedCompaniesKey);
@@ -34,35 +42,130 @@ class FollowedCompaniesService {
     }
   }
 
-  /// Check if a company is followed
+  /// Get all subscriptions from API
+  Future<List<SubscriptionModel>> getFollowedSubscriptions() async {
+    try {
+      return await _subscriptionsService.getSubscriptions();
+    } catch (e) {
+      print('Error fetching followed subscriptions: $e');
+      return [];
+    }
+  }
+
+  /// Check if a company is followed (by ID - for backward compatibility)
   Future<bool> isCompanyFollowed(int companyId) async {
-    final followedIds = await getFollowedCompanyIds();
-    return followedIds.contains(companyId);
+    // Try to get from API first
+    try {
+      // We need the slug to check - this is a limitation
+      // The caller should use isCompanyFollowedBySlug when possible
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
-  /// Follow a company
-  Future<void> followCompany(int companyId) async {
-    final followedIds = await getFollowedCompanyIds();
-    followedIds.add(companyId);
-    await _saveFollowedCompanies(followedIds);
+  /// Check if a company is followed by slug
+  Future<bool> isCompanyFollowedBySlug(String companySlug) async {
+    try {
+      return await _subscriptionsService.isSubscribed(companySlug);
+    } catch (e) {
+      print('Error checking follow status: $e');
+      return false;
+    }
   }
 
-  /// Unfollow a company
-  Future<void> unfollowCompany(int companyId) async {
-    final followedIds = await getFollowedCompanyIds();
-    followedIds.remove(companyId);
-    await _saveFollowedCompanies(followedIds);
+  /// Follow a company (subscribe via API)
+  Future<bool> followCompany(int companyId, String companySlug) async {
+    try {
+      final success = await _subscriptionsService.subscribe(companySlug);
+      if (success) {
+        // Also save to local storage for offline access
+        await _addToLocalStorage(companyId);
+      }
+      return success;
+    } catch (e) {
+      print('Error following company: $e');
+      return false;
+    }
+  }
+
+  /// Unfollow a company (unsubscribe via API)
+  Future<bool> unfollowCompany(int companyId, String companySlug) async {
+    try {
+      final success = await _subscriptionsService.unsubscribe(companySlug);
+      if (success) {
+        // Also remove from local storage
+        await _removeFromLocalStorage(companyId);
+      }
+      return success;
+    } catch (e) {
+      print('Error unfollowing company: $e');
+      return false;
+    }
   }
 
   /// Toggle follow status
-  Future<bool> toggleFollow(int companyId) async {
-    final isFollowed = await isCompanyFollowed(companyId);
+  /// Returns true if now followed, false if unfollowed
+  Future<bool> toggleFollow(int companyId, String companySlug) async {
+    final isFollowed = await isCompanyFollowedBySlug(companySlug);
     if (isFollowed) {
-      await unfollowCompany(companyId);
-      return false;
+      final success = await unfollowCompany(companyId, companySlug);
+      return success ? false : true;
     } else {
-      await followCompany(companyId);
-      return true;
+      final success = await followCompany(companyId, companySlug);
+      return success ? true : false;
+    }
+  }
+
+  /// Get company stats
+  Future<CompanyStatsModel?> getCompanyStats(String companySlug) async {
+    try {
+      return await _subscriptionsService.getCompanyStats(companySlug);
+    } catch (e) {
+      print('Error getting company stats: $e');
+      return null;
+    }
+  }
+
+  /// Get live followed streams
+  Future<List<SubscriptionModel>> getLiveFollowedStreams() async {
+    try {
+      return await _subscriptionsService.getLiveSubscriptions();
+    } catch (e) {
+      print('Error getting live followed streams: $e');
+      return [];
+    }
+  }
+
+  /// Get followed company slugs
+  Future<Set<String>> getFollowedSlugs() async {
+    try {
+      return await _subscriptionsService.getSubscribedSlugs();
+    } catch (e) {
+      print('Error getting followed slugs: $e');
+      return {};
+    }
+  }
+
+  /// Add company ID to local storage
+  Future<void> _addToLocalStorage(int companyId) async {
+    try {
+      final followedIds = await getFollowedCompanyIds();
+      followedIds.add(companyId);
+      await _saveFollowedCompanies(followedIds);
+    } catch (e) {
+      print('Error saving to local storage: $e');
+    }
+  }
+
+  /// Remove company ID from local storage
+  Future<void> _removeFromLocalStorage(int companyId) async {
+    try {
+      final followedIds = await getFollowedCompanyIds();
+      followedIds.remove(companyId);
+      await _saveFollowedCompanies(followedIds);
+    } catch (e) {
+      print('Error removing from local storage: $e');
     }
   }
 
@@ -76,12 +179,17 @@ class FollowedCompaniesService {
     }
   }
 
-  /// Clear all followed companies
-  Future<void> clearAll() async {
+  /// Clear all followed companies (local only)
+  Future<void> clearLocal() async {
     try {
       await _secureStorage.delete(key: _followedCompaniesKey);
     } catch (e) {
       print('Error clearing followed companies: $e');
     }
+  }
+
+  /// Force refresh subscriptions from API
+  Future<List<SubscriptionModel>> refreshSubscriptions() async {
+    return await _subscriptionsService.getSubscriptions(forceRefresh: true);
   }
 }

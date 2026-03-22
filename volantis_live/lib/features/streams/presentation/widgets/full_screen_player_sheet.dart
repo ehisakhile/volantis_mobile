@@ -6,9 +6,9 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../services/live_stream_service.dart';
 import '../../data/models/company_live_stream_model.dart';
+import '../../../chat/presentation/widgets/live_chat_widget.dart';
 import '../providers/streams_provider.dart';
 
 /// Full-screen player bottom sheet for live streams
@@ -59,6 +59,9 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
 
   // Flag to track if we're fully closing vs minimizing
   bool _isClosing = false;
+
+  // Chat visibility
+  bool _showChat = false;
 
   @override
   void initState() {
@@ -490,96 +493,203 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                       },
                     ),
                     _buildConnectionBadge(),
-                    // IconButton(
-                    //   icon: const Icon(Icons.more_vert, color: Colors.white),
-                    //   onPressed: () {},
-                    // ),
+                    IconButton(
+                      icon: Icon(
+                        _showChat ? Icons.chat_bubble : Icons.chat_bubble_outline,
+                        color: _showChat ? const Color(0xFF38BDF8) : Colors.white,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showChat = !_showChat;
+                        });
+                      },
+                    ),
                   ],
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 24),
-                      // Avatar with pulsing ring
-                      _buildAvatar(stream, provider),
-                      const SizedBox(height: 20),
-                      // Name
-                      Text(
-                        stream.companyName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // Title
-                      Text(
-                        stream.title,
-                        style: const TextStyle(
-                          color: _onVariant,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 32),
-                      // Waveform (shows when connected)
-                      _buildWaveform(),
-                      const SizedBox(height: 32),
-                      // Viewer count
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                child: _showChat
+                    ? Column(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.circle,
-                                  color: Colors.white,
-                                  size: 6,
+                          // Mini player header when in chat-only mode
+                          GestureDetector(
+                            onTap: () => setState(() => _showChat = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B).withOpacity(0.4),
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
                                 ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'LIVE',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: const Color(0xFF222A3D),
+                                      border: Border.all(color: const Color(0xFF060E20), width: 2),
+                                    ),
+                                    clipBehavior: Clip.hardEdge,
+                                    child: stream.companyLogoUrl != null
+                                        ? CachedNetworkImage(
+                                            imageUrl: stream.companyLogoUrl!,
+                                            fit: BoxFit.cover,
+                                            placeholder: (_, __) =>
+                                                const Icon(Icons.live_tv, color: _primary),
+                                            errorWidget: (_, __, ___) =>
+                                                const Icon(Icons.live_tv, color: _primary),
+                                          )
+                                        : const Icon(Icons.live_tv, color: _primary),
                                   ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          stream.companyName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 6,
+                                              height: 6,
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            const Text(
+                                              'LIVE',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(Icons.visibility, color: _onVariant, size: 12),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              '${stream.viewerCount}',
+                                              style: TextStyle(color: _onVariant, fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Full screen chat
+                          Expanded(
+                            child: LiveChatWidget(
+                              slug: stream.slug,
+                              isCreator: provider.currentStream?.companySlug == stream.companySlug,
+                              companyName: stream.companyName,
+                            ),
+                          ),
+                        ],
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 24),
+                            _buildAvatar(stream, provider),
+                            const SizedBox(height: 20),
+                            Text(
+                              stream.companyName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              stream.title,
+                              style: const TextStyle(
+                                color: _onVariant,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 32),
+                            _buildWaveform(),
+                            const SizedBox(height: 32),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.circle,
+                                        color: Colors.white,
+                                        size: 6,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'LIVE',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Icon(Icons.visibility, color: _onVariant, size: 16),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${stream.viewerCount} watching',
+                                  style: TextStyle(color: _onVariant, fontSize: 14),
                                 ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(Icons.visibility, color: _onVariant, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${stream.viewerCount} watching',
-                            style: TextStyle(color: _onVariant, fontSize: 14),
-                          ),
-                        ],
+                            const SizedBox(height: 48),
+                            _buildControls(provider),
+                            const SizedBox(height: 32),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 48),
-                      // Controls
-                      _buildControls(provider),
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),

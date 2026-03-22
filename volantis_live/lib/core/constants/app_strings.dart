@@ -12,6 +12,7 @@ class AppStrings {
   static const String home = 'Home';
   static const String streams = 'Streams';
   static const String profile = 'Profile';
+  static const String downloads = 'Downloads';
 
   // Auth Screen
   static const String login = 'Login';

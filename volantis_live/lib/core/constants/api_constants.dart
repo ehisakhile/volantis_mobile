@@ -44,9 +44,50 @@ class ApiConstants {
   static const String companyRecordings =
       '/recordings/public/company/{company_slug}';
 
-  // Subscription endpoints
+  /// Get company streams endpoint with optional parameters
+  static String getCompanyStreamsEndpoint(
+    String companySlug, {
+    int limit = 50,
+    int offset = 0,
+    bool includeInactive =
+        true, // Include inactive (previous) streams by default
+  }) {
+    return '/$companySlug/streams?limit=$limit&offset=$offset&include_inactive=$includeInactive';
+  }
+
+  /// Get active-only company streams endpoint
+  static String getCompanyActiveStreamsEndpoint(
+    String companySlug, {
+    int limit = 50,
+    int offset = 0,
+  }) {
+    return '/$companySlug/streams?limit=$limit&offset=$offset&include_inactive=false';
+  }
+
+  // Subscription endpoints (new API with company slug)
   static const String subscriptions = '/subscriptions';
   static const String subscriptionBySlug = '/subscriptions/{slug}';
+
+  // New follow/subscribe endpoints using company slug
+  static const String subscribeToCompany = '/subscriptions/{slug}/subscribe';
+  static const String unsubscribeFromCompany =
+      '/subscriptions/{slug}/unsubscribe';
+  static const String companyStats = '/subscriptions/{slug}/stats';
+
+  /// Get subscribe endpoint for a company
+  static String getSubscribeEndpoint(String companySlug) {
+    return '/subscriptions/$companySlug/subscribe';
+  }
+
+  /// Get unsubscribe endpoint for a company
+  static String getUnsubscribeEndpoint(String companySlug) {
+    return '/subscriptions/$companySlug/unsubscribe';
+  }
+
+  /// Get company stats endpoint
+  static String getCompanyStatsEndpoint(String companySlug) {
+    return '/subscriptions/$companySlug/stats';
+  }
 
   /// Get companies list endpoint
   static String getCompaniesEndpoint({int limit = 50, int offset = 0}) {
