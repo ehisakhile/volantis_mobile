@@ -490,10 +490,10 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                       },
                     ),
                     _buildConnectionBadge(),
-                    IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      onPressed: () {},
-                    ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.more_vert, color: Colors.white),
+                    //   onPressed: () {},
+                    // ),
                   ],
                 ),
               ),
@@ -776,41 +776,41 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
           },
         ),
         const SizedBox(width: 24),
-        // Play/Pause button
-        GestureDetector(
-          onTap: () {
-            if (_isConnected) {
-              provider.togglePlayPause();
-            } else if (!_isConnecting && _error == null) {
-              _connectToStream();
-            } else if (_error != null) {
-              _reconnect();
-            }
-          },
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: _primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: _primary.withOpacity(0.4),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(
-              _isConnected
-                  ? (provider.isPlaying ? Icons.pause : Icons.play_arrow)
-                  : (_error != null ? Icons.refresh : Icons.play_arrow),
-              color: _bg,
-              size: 40,
-            ),
-          ),
-        ),
-        const SizedBox(width: 24),
+        // // Play/Pause button
+        // GestureDetector(
+        //   onTap: () {
+        //     if (_isConnected) {
+        //       provider.togglePlayPause();
+        //     } else if (!_isConnecting && _error == null) {
+        //       _connectToStream();
+        //     } else if (_error != null) {
+        //       _reconnect();
+        //     }
+        //   },
+        //   child: Container(
+        //     width: 72,
+        //     height: 72,
+        //     decoration: BoxDecoration(
+        //       color: _primary,
+        //       shape: BoxShape.circle,
+        //       boxShadow: [
+        //         BoxShadow(
+        //           color: _primary.withOpacity(0.4),
+        //           blurRadius: 20,
+        //           spreadRadius: 2,
+        //         ),
+        //       ],
+        //     ),
+        //     child: Icon(
+        //       _isConnected
+        //           ? (provider.isPlaying ? Icons.pause : Icons.play_arrow)
+        //           : (_error != null ? Icons.refresh : Icons.play_arrow),
+        //       color: _bg,
+        //       size: 40,
+        //     ),
+        //   ),
+        // ),
+        // const SizedBox(width: 24),
         // Close button
         _ControlButton(
           icon: Icons.close,

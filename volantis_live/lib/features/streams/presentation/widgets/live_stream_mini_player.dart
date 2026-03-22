@@ -129,24 +129,24 @@ class LiveStreamMiniPlayer extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: Icon(
-                                provider.isMuted
-                                    ? Icons.volume_off
-                                    : Icons.volume_up,
-                              ),
-                              iconSize: 20,
-                              onPressed: () => provider.toggleMute(),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                provider.isPlaying
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
-                              ),
-                              iconSize: 28,
-                              onPressed: () => provider.togglePlayPause(),
-                            ),
+                            // IconButton(
+                            //   icon: Icon(
+                            //     provider.isMuted
+                            //         ? Icons.volume_off
+                            //         : Icons.volume_up,
+                            //   ),
+                            //   iconSize: 20,
+                            //   onPressed: () => provider.toggleMute(),
+                            // ),
+                            // IconButton(
+                            //   icon: Icon(
+                            //     provider.isPlaying
+                            //         ? Icons.pause
+                            //         : Icons.play_arrow,
+                            //   ),
+                            //   iconSize: 28,
+                            //   onPressed: () => provider.togglePlayPause(),
+                            // ),
                             IconButton(
                               icon: const Icon(Icons.close),
                               iconSize: 20,
