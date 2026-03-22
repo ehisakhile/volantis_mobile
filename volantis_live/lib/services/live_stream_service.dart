@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../features/streams/presentation/providers/streams_provider.dart';
 
 /// Callback type for WebRTC cleanup
 typedef WebRTCCleanupCallback = Future<void> Function();
+
+/// Callback for WebRTC connection state changes
+typedef WebRTCStateCallback =
+    void Function(bool isConnected, bool isConnecting, String? error);
 
 /// Service for managing live stream state and audio session
 /// Uses audio_session for audio focus management
@@ -26,6 +31,17 @@ class LiveStreamService {
   bool _isMuted = false;
   int? _currentStreamId;
 
+  // WebRTC connection state (persists across widget disposal)
+  RTCPeerConnection? _peerConnection;
+  MediaStreamTrack? _audioTrack;
+  bool _isWebRTCConnected = false;
+  bool _isWebRTCConnecting = false;
+  String? _webRTCError;
+  String? _playbackUrl;
+
+  // WebRTC state callback - for UI updates
+  WebRTCStateCallback? _onWebRTCStateChanged;
+
   // WebRTC cleanup callback - set by the player sheet when WebRTC is active
   WebRTCCleanupCallback? _webrtcCleanupCallback;
 
@@ -38,9 +54,53 @@ class LiveStreamService {
   bool get isMuted => _isMuted;
   bool get hasActiveStream => _currentStream != null;
 
+  // WebRTC state getters
+  bool get isWebRTCConnected => _isWebRTCConnected;
+  bool get isWebRTCConnecting => _isWebRTCConnecting;
+  String? get webRTCError => _webRTCError;
+  String? get playbackUrl => _playbackUrl;
+  MediaStreamTrack? get audioTrack => _audioTrack;
+
   /// Set the WebRTC cleanup callback
   void setWebRTCCleanupCallback(WebRTCCleanupCallback? callback) {
     _webrtcCleanupCallback = callback;
+  }
+
+  /// Set the WebRTC state change callback
+  void setWebRTCStateCallback(WebRTCStateCallback? callback) {
+    _onWebRTCStateChanged = callback;
+  }
+
+  /// Update WebRTC state and notify listeners
+  void updateWebRTCState({
+    bool? isConnected,
+    bool? isConnecting,
+    String? error,
+    String? playbackUrl,
+    MediaStreamTrack? audioTrack,
+  }) {
+    if (isConnected != null) _isWebRTCConnected = isConnected;
+    if (isConnecting != null) _isWebRTCConnecting = isConnecting;
+    if (error != null) _webRTCError = error;
+    if (playbackUrl != null) _playbackUrl = playbackUrl;
+    if (audioTrack != null) _audioTrack = audioTrack;
+
+    _onWebRTCStateChanged?.call(
+      _isWebRTCConnected,
+      _isWebRTCConnecting,
+      _webRTCError,
+    );
+    _notifyStateChange();
+  }
+
+  /// Set audio track enabled/disabled (mute/unmute)
+  void setAudioTrackEnabled(bool enabled) {
+    if (_audioTrack != null) {
+      _audioTrack!.enabled = enabled;
+      _isMuted = !enabled;
+      _notifyStateChange();
+      debugPrint('Audio track ${enabled ? 'unmuted' : 'muted'} via service');
+    }
   }
 
   /// Initialize audio session for playback

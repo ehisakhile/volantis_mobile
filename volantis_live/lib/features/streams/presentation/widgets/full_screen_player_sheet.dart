@@ -54,6 +54,12 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   RTCPeerConnection? _peerConnection;
   bool _isWebRTCInitialized = false;
 
+  // Audio track for muting
+  MediaStreamTrack? _audioTrack;
+
+  // Flag to track if we're fully closing vs minimizing
+  bool _isClosing = false;
+
   @override
   void initState() {
     super.initState();
@@ -67,10 +73,41 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
       duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
 
-    // Register WebRTC cleanup callback with LiveStreamService
+    // Register WebRTC callbacks with LiveStreamService
     LiveStreamService.instance.setWebRTCCleanupCallback(_cleanupWebRTC);
+    LiveStreamService.instance.setWebRTCStateCallback(_onWebRTCStateChanged);
+
+    // Sync with existing WebRTC state if already connected
+    _syncFromService();
 
     _initializeWebRTC();
+  }
+
+  /// Sync local state with LiveStreamService state
+  void _syncFromService() {
+    final service = LiveStreamService.instance;
+    if (service.isWebRTCConnected || service.isWebRTCConnecting) {
+      setState(() {
+        _isConnected = service.isWebRTCConnected;
+        _isConnecting = service.isWebRTCConnecting;
+        _error = service.webRTCError;
+        _audioTrack = service.audioTrack;
+      });
+    }
+  }
+
+  /// Callback for WebRTC state changes from service
+  void _onWebRTCStateChanged(
+    bool isConnected,
+    bool isConnecting,
+    String? error,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      _isConnected = isConnected;
+      _isConnecting = isConnecting;
+      _error = error;
+    });
   }
 
   Future<void> _initializeWebRTC() async {
@@ -203,6 +240,20 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
       // Handle incoming tracks
       _peerConnection!.onTrack = (RTCTrackEvent event) {
         developer.log('✓ Track received: ${event.track?.kind}');
+
+        // Capture audio track for muting
+        if (event.track?.kind == 'audio') {
+          _audioTrack = event.track;
+          developer.log('✓ Audio track captured for muting control');
+
+          // Apply current mute state to the track
+          final provider = context.read<StreamsProvider>();
+          if (provider.isMuted && event.track != null) {
+            event.track!.enabled = false;
+            developer.log('✓ Applied mute state to new track');
+          }
+        }
+
         if (event.streams.isNotEmpty) {
           developer.log(
             '✓ Stream received with ${event.streams.first.getTracks().length} tracks',
@@ -213,6 +264,12 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
               _isConnected = true;
               _isConnecting = false;
             });
+            // Update service state
+            LiveStreamService.instance.updateWebRTCState(
+              isConnected: true,
+              isConnecting: false,
+              audioTrack: _audioTrack,
+            );
           }
           developer.log('✓ WebRTC connected successfully');
         }
@@ -332,16 +389,40 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
     await _disconnect();
   }
 
-  Future<void> _disconnect() async {
+  /// Set audio track enabled/disabled for mute functionality
+  /// Uses both local track and service for persistence
+  void _setAudioTrackEnabled(bool enabled) {
+    // Update local track if available
+    if (_audioTrack != null) {
+      _audioTrack!.enabled = enabled;
+      developer.log('Audio track ${enabled ? 'unmuted' : 'muted'} locally');
+    }
+    // Also update service for persistence across widget lifecycle
+    LiveStreamService.instance.setAudioTrackEnabled(enabled);
+  }
+
+  /// Disconnect WebRTC - optionally clear service state
+  /// [clearServiceState] should be false when minimizing (keep WebRTC in service)
+  /// and true when fully stopping the stream
+  Future<void> _disconnect({bool clearServiceState = true}) async {
     try {
       await _peerConnection?.close();
       _peerConnection = null;
+      _audioTrack = null;
       _renderer.srcObject = null;
       if (mounted) {
         setState(() {
           _isConnected = false;
           _isConnecting = false;
         });
+      }
+      // Clear service state if requested (i.e., when fully stopping)
+      if (clearServiceState) {
+        LiveStreamService.instance.updateWebRTCState(
+          isConnected: false,
+          isConnecting: false,
+          error: null,
+        );
       }
     } catch (e) {
       developer.log('Error disconnecting: $e');
@@ -350,9 +431,13 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
 
   @override
   void dispose() {
-    // Clear the cleanup callback
-    LiveStreamService.instance.setWebRTCCleanupCallback(null);
-    _disconnect();
+    // Only disconnect WebRTC when fully closing (not minimizing)
+    // When minimizing, the WebRTC continues running in the service
+    if (_isClosing) {
+      LiveStreamService.instance.setWebRTCCleanupCallback(null);
+      LiveStreamService.instance.setWebRTCStateCallback(null);
+      _disconnect(clearServiceState: true);
+    }
     _renderer.dispose();
     _waveCtrl.dispose();
     _pulseCtrl.dispose();
@@ -684,7 +769,11 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
         _ControlButton(
           icon: provider.isMuted ? Icons.volume_off : Icons.volume_up,
           label: provider.isMuted ? 'Unmute' : 'Mute',
-          onTap: () => provider.toggleMute(),
+          onTap: () {
+            provider.toggleMute();
+            // Apply mute state to WebRTC audio track
+            _setAudioTrackEnabled(!provider.isMuted);
+          },
         ),
         const SizedBox(width: 24),
         // Play/Pause button
@@ -727,7 +816,10 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
           icon: Icons.close,
           label: 'Stop',
           onTap: () {
-            _disconnect();
+            // Set closing flag before pop (which triggers dispose)
+            _isClosing = true;
+            // closePlayer() will call stopStream() which triggers the cleanup callback
+            // which calls _disconnect(), so we don't need to call it directly
             provider.closePlayer();
             Navigator.of(context).pop();
           },

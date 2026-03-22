@@ -306,14 +306,14 @@ class _ContentSection extends StatelessWidget {
           const SizedBox(height: 36),
 
           // ── Action buttons ────────────────────────────────────────────────
-          _GoogleButton(onTap: onGoogle),
-          const SizedBox(height: 12),
-          _AppleButton(onTap: onApple),
+          // _GoogleButton(onTap: onGoogle),
+          // const SizedBox(height: 12),
+          // _AppleButton(onTap: onApple),
           const SizedBox(height: 12),
           _EmailButton(onTap: onEmail),
-          const SizedBox(height: 20),
-          _GuestLink(onTap: onGuest),
 
+          // const SizedBox(height: 20),
+          // _GuestLink(onTap: onGuest),
           const SizedBox(height: 32),
 
           // ── Footer ────────────────────────────────────────────────────────
@@ -470,12 +470,17 @@ class _EmailButton extends StatelessWidget {
     return _AuthButton(
       onTap: onTap,
       decoration: BoxDecoration(
-        color: Colors.transparent,
+        gradient: const LinearGradient(
+          colors: [
+            _OnboardingColors.primary,
+            _OnboardingColors.primaryContainer,
+          ],
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _OnboardingColors.outlineVariant),
       ),
       child: const Text(
-        'Sign up with Email',
+        'Continue with Email',
         style: TextStyle(
           color: _OnboardingColors.onSurface,
           fontSize: 16,
