@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../features/recordings/data/models/recording_download.dart';
@@ -63,7 +64,7 @@ class DownloadManager {
 
   /// Initialize the download manager
   static Future<DownloadManager> init(Dio dio) async {
-    final connectivityService = ConnectivityService.instance;
+    final connectivityService = ConnectivityService();
     final downloadsService = RecordingsDownloadsService.instance;
 
     _instance = DownloadManager._(downloadsService, connectivityService, dio);
@@ -73,18 +74,18 @@ class DownloadManager {
 
   /// Initialize connectivity listener
   void _initConnectivityListener() {
-    _connectivityService.statusStream.listen((status) {
-      if (status == ConnectivityStatus.wifi ||
-          status == ConnectivityStatus.ethernet) {
+    _connectivityService.onConnectivityResultChanged.listen((status) {
+      if (status == ConnectivityResult.wifi ||
+          status == ConnectivityResult.ethernet) {
         // WiFi connected - resume if paused
         if (_isPaused && _queue.isNotEmpty) {
           _isPaused = false;
           _processQueue();
         }
-      } else if (status == ConnectivityStatus.mobile) {
+      } else if (status == ConnectivityResult.mobile) {
         // Mobile data - check preferences
         _checkAndPauseForMobileData();
-      } else if (status == ConnectivityStatus.offline) {
+      } else if (status == ConnectivityResult.none) {
         // No connection - pause downloads
         _pauseAll();
       }
@@ -218,14 +219,14 @@ class DownloadManager {
     if (_isProcessing || _queue.isEmpty || _isPaused) return;
 
     // Check network
-    final status = _connectivityService.currentStatus;
+    final status = _connectivityService.currentConnectivityResult;
     final prefs = await _downloadsService.loadPreferences();
 
     // Check WiFi requirement
     if (prefs.downloadOverWifiOnly) {
       final hasWifi =
-          status == ConnectivityStatus.wifi ||
-          status == ConnectivityStatus.ethernet;
+          status == ConnectivityResult.wifi ||
+          status == ConnectivityResult.ethernet;
       if (!hasWifi) {
         return; // Wait for WiFi
       }

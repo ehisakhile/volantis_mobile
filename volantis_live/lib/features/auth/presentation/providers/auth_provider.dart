@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../../../services/connectivity_service.dart';
 
 /// Auth state
 enum AuthState {
@@ -10,26 +11,32 @@ enum AuthState {
   unauthenticated,
   error,
   otpPending, // Waiting for email verification
+  offlineAuthenticated, // Authenticated but offline - limited features
 }
 
 /// Auth provider for managing authentication state
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository = AuthRepository();
+  final ConnectivityService _connectivityService = ConnectivityService();
 
   AuthState _state = AuthState.initial;
   User? _user;
   String? _errorMessage;
   String? _pendingUserId; // For OTP verification after signup
   String? _pendingEmail; // For password reset flow
+  bool _isOffline = false; // Track if user is offline
 
   // Getters
   AuthState get state => _state;
   User? get user => _user;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _state == AuthState.authenticated;
+  bool get isAuthenticated =>
+      _state == AuthState.authenticated ||
+      _state == AuthState.offlineAuthenticated;
   bool get isLoading => _state == AuthState.loading;
   String? get pendingUserId => _pendingUserId;
   String? get pendingEmail => _pendingEmail;
+  bool get isOffline => _isOffline;
 
   /// Initialize auth state
   Future<void> init() async {
@@ -39,8 +46,25 @@ class AuthProvider extends ChangeNotifier {
     try {
       final isLoggedIn = await _repository.isLoggedIn();
       if (isLoggedIn) {
-        _user = await _repository.getProfile();
-        _state = AuthState.authenticated;
+        // Check connectivity
+        final isConnected = await _connectivityService.isConnected();
+        _isOffline = !isConnected;
+
+        if (isConnected) {
+          // Online - try to fetch profile
+          try {
+            _user = await _repository.getProfile();
+            _state = AuthState.authenticated;
+          } catch (e) {
+            // Network error but token exists - allow offline access
+            _state = AuthState.offlineAuthenticated;
+            _errorMessage = 'Working offline - some features may be limited';
+          }
+        } else {
+          // Offline but token exists - allow access to offline features
+          _state = AuthState.offlineAuthenticated;
+          _errorMessage = 'You are offline. Accessing downloaded content only.';
+        }
       } else {
         _state = AuthState.unauthenticated;
       }
@@ -50,6 +74,24 @@ class AuthProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// Try to refresh profile when coming back online
+  Future<void> refreshProfile() async {
+    if (_isOffline) {
+      final isConnected = await _connectivityService.isConnected();
+      if (isConnected) {
+        try {
+          _user = await _repository.getProfile();
+          _state = AuthState.authenticated;
+          _isOffline = false;
+          _errorMessage = null;
+          notifyListeners();
+        } catch (e) {
+          // Keep offline state if profile fetch fails
+        }
+      }
+    }
   }
 
   /// Login with email and password
@@ -184,6 +226,7 @@ class AuthProvider extends ChangeNotifier {
       _user = null;
       _pendingUserId = null;
       _pendingEmail = null;
+      _isOffline = false;
       _state = AuthState.unauthenticated;
       notifyListeners();
     }

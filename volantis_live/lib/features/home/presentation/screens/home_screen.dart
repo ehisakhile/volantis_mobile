@@ -813,6 +813,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildError(String error) {
+    // Check if this is a network connectivity error
+    final isOfflineError =
+        error.toLowerCase().contains('no internet') ||
+        error.toLowerCase().contains('connection') ||
+        error.toLowerCase().contains('network');
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -823,19 +829,25 @@ class _HomeScreenState extends State<HomeScreen>
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: const Color(0xFF93000A).withOpacity(0.15),
+                color: isOfflineError
+                    ? const Color(0xFF0EA5E9).withOpacity(0.15)
+                    : const Color(0xFF93000A).withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.error_outline_rounded,
+              child: Icon(
+                isOfflineError
+                    ? Icons.wifi_off_rounded
+                    : Icons.error_outline_rounded,
                 size: 36,
-                color: Color(0xFFFFB4AB),
+                color: isOfflineError
+                    ? const Color(0xFF89CEFF)
+                    : const Color(0xFFFFB4AB),
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Something went wrong',
-              style: TextStyle(
+            Text(
+              isOfflineError ? 'You are offline' : 'Something went wrong',
+              style: const TextStyle(
                 color: _onSurface,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
@@ -843,7 +855,9 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              error,
+              isOfflineError
+                  ? 'Your downloaded recordings are still available. Connect to the internet to see latest content.'
+                  : error,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: _onVariant,
@@ -852,10 +866,25 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             const SizedBox(height: 28),
-            _PrimaryBtn(
-              label: AppStrings.tryAgain,
-              onTap: () => context.read<HomeProvider>().refresh(),
-            ),
+            if (isOfflineError) ...[
+              _PrimaryBtn(
+                label: 'My Downloads',
+                onTap: () => context.go('/downloads'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => context.read<HomeProvider>().refresh(),
+                child: const Text(
+                  'Try Again',
+                  style: TextStyle(color: _primary),
+                ),
+              ),
+            ] else ...[
+              _PrimaryBtn(
+                label: AppStrings.tryAgain,
+                onTap: () => context.read<HomeProvider>().refresh(),
+              ),
+            ],
           ],
         ),
       ),

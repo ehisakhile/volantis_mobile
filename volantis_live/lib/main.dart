@@ -4,6 +4,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'app.dart';
 import 'services/offline_service.dart';
 import 'services/encryption_service.dart';
+import 'services/connectivity_service.dart';
 import 'features/recordings/data/services/recordings_downloads_service.dart';
 import 'services/download_manager.dart';
 import 'package:dio/dio.dart';
@@ -40,6 +41,9 @@ void main() async {
 
   // Initialize encryption service
   await EncryptionService.instance.init();
+
+  // Initialize connectivity service for offline support
+  await ConnectivityService().init();
 
   // Initialize recordings downloads service
   final dio = Dio(

@@ -1,173 +1,79 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:rxdart/rxdart.dart';
 
-/// Service to monitor and handle network connectivity
+/// Service to check network connectivity status
 class ConnectivityService {
-  static ConnectivityService? _instance;
+  static final ConnectivityService _instance = ConnectivityService._internal();
+  factory ConnectivityService() => _instance;
+  ConnectivityService._internal();
+
   final Connectivity _connectivity = Connectivity();
-  
-  final BehaviorSubject<ConnectivityStatus> _statusController =
-      BehaviorSubject<ConnectivityStatus>.seeded(ConnectivityStatus.unknown);
-  
-  StreamSubscription<ConnectivityResult>? _subscription;
 
-  ConnectivityService._() {
-    _init();
-  }
+  /// Stream controller for connectivity changes (bool)
+  final StreamController<bool> _connectionChangeController =
+      StreamController<bool>.broadcast();
 
-  static ConnectivityService get instance {
-    _instance ??= ConnectivityService._();
-    return _instance!;
-  }
+  /// Stream controller for detailed connectivity results
+  final StreamController<ConnectivityResult> _connectivityResultController =
+      StreamController<ConnectivityResult>.broadcast();
 
-  void _init() {
-    _checkConnectivity();
-    _subscription = _connectivity.onConnectivityChanged.listen(_updateStatus);
-  }
+  /// Current connectivity status (null = unknown/not checked yet)
+  bool? _isConnected;
 
-  Future<void> _checkConnectivity() async {
+  /// Initialize and start listening to connectivity changes
+  Future<void> init() async {
+    // Get initial connectivity status
     final result = await _connectivity.checkConnectivity();
-    _updateStatus(result);
+    _updateConnectionStatus(result);
+
+    // Listen for changes
+    _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
   }
 
-  void _updateStatus(ConnectivityResult result) {
-    switch (result) {
-      case ConnectivityResult.none:
-        _statusController.add(ConnectivityStatus.offline);
-        break;
-      case ConnectivityResult.mobile:
-        _statusController.add(ConnectivityStatus.mobile);
-        break;
-      case ConnectivityResult.wifi:
-        _statusController.add(ConnectivityStatus.wifi);
-        break;
-      case ConnectivityResult.ethernet:
-        _statusController.add(ConnectivityStatus.ethernet);
-        break;
-      case ConnectivityResult.vpn:
-        _statusController.add(ConnectivityStatus.vpn);
-        break;
-      default:
-        _statusController.add(ConnectivityStatus.unknown);
+  void _updateConnectionStatus(ConnectivityResult result) {
+    final wasConnected = _isConnected;
+    _isConnected = result != ConnectivityResult.none;
+
+    // Notify listeners only if status changed
+    if (wasConnected != _isConnected) {
+      _connectionChangeController.add(_isConnected ?? false);
     }
+
+    // Always emit connectivity result for detailed status tracking
+    _lastConnectivityResult = result;
+    _connectivityResultController.add(result);
   }
 
-  /// Stream of connectivity status
-  Stream<ConnectivityStatus> get statusStream => _statusController.stream;
+  /// Check if device is currently connected to the internet
+  /// Returns cached value if available, otherwise checks fresh
+  Future<bool> isConnected() async {
+    if (_isConnected != null) return _isConnected!;
 
-  /// Current connectivity status
-  ConnectivityStatus get currentStatus => _statusController.value;
-
-  /// Check if connected to the internet
-  bool get isConnected =>
-      currentStatus != ConnectivityStatus.offline &&
-      currentStatus != ConnectivityStatus.unknown;
-
-  /// Check if connected to WiFi
-  bool get isWifi => currentStatus == ConnectivityStatus.wifi;
-
-  /// Check if connected to mobile data
-  bool get isMobile => currentStatus == ConnectivityStatus.mobile;
-
-  /// Get quality rating based on connection type
-  NetworkQuality get networkQuality {
-    switch (currentStatus) {
-      case ConnectivityStatus.wifi:
-        return NetworkQuality.excellent;
-      case ConnectivityStatus.ethernet:
-        return NetworkQuality.excellent;
-      case ConnectivityStatus.vpn:
-        return NetworkQuality.good;
-      case ConnectivityStatus.mobile:
-        return NetworkQuality.fair;
-      case ConnectivityStatus.offline:
-        return NetworkQuality.noConnection;
-      case ConnectivityStatus.unknown:
-        return NetworkQuality.unknown;
-    }
+    final result = await _connectivity.checkConnectivity();
+    _updateConnectionStatus(result);
+    return _isConnected ?? false;
   }
 
-  /// Dispose
+  /// Stream of connectivity changes (true = connected, false = offline)
+  Stream<bool> get onConnectivityChanged => _connectionChangeController.stream;
+
+  /// Stream of detailed connectivity results (WiFi, mobile, ethernet, etc.)
+  Stream<ConnectivityResult> get onConnectivityResultChanged =>
+      _connectivityResultController.stream;
+
+  /// Get current connection status synchronously (may be null)
+  bool? get currentStatus => _isConnected;
+
+  /// Get the last connectivity result (WiFi, mobile, ethernet, etc.)
+  /// Returns null if not initialized yet
+  ConnectivityResult? _lastConnectivityResult;
+
+  /// Get current connectivity result
+  ConnectivityResult? get currentConnectivityResult => _lastConnectivityResult;
+
+  /// Dispose resources
   void dispose() {
-    _subscription?.cancel();
-    _statusController.close();
-  }
-}
-
-/// Connectivity status enum
-enum ConnectivityStatus {
-  unknown,
-  offline,
-  wifi,
-  mobile,
-  ethernet,
-  vpn,
-}
-
-/// Network quality enum
-enum NetworkQuality {
-  unknown,
-  noConnection,
-  poor,
-  fair,
-  good,
-  excellent,
-}
-
-/// Extension to get human-readable status
-extension ConnectivityStatusExtension on ConnectivityStatus {
-  String get displayName {
-    switch (this) {
-      case ConnectivityStatus.unknown:
-        return 'Unknown';
-      case ConnectivityStatus.offline:
-        return 'Offline';
-      case ConnectivityStatus.wifi:
-        return 'WiFi';
-      case ConnectivityStatus.mobile:
-        return 'Mobile Data';
-      case ConnectivityStatus.ethernet:
-        return 'Ethernet';
-      case ConnectivityStatus.vpn:
-        return 'VPN';
-    }
-  }
-
-  bool get isConnected => this != ConnectivityStatus.offline && this != ConnectivityStatus.unknown;
-}
-
-/// Extension for network quality
-extension NetworkQualityExtension on NetworkQuality {
-  String get displayName {
-    switch (this) {
-      case NetworkQuality.unknown:
-        return 'Unknown';
-      case NetworkQuality.noConnection:
-        return 'No Connection';
-      case NetworkQuality.poor:
-        return 'Poor';
-      case NetworkQuality.fair:
-        return 'Fair';
-      case NetworkQuality.good:
-        return 'Good';
-      case NetworkQuality.excellent:
-        return 'Excellent';
-    }
-  }
-
-  /// Get recommended audio quality based on network
-  String get recommendedAudioQuality {
-    switch (this) {
-      case NetworkQuality.unknown:
-      case NetworkQuality.noConnection:
-      case NetworkQuality.poor:
-        return 'low';
-      case NetworkQuality.fair:
-        return 'medium';
-      case NetworkQuality.good:
-      case NetworkQuality.excellent:
-        return 'high';
-    }
+    _connectionChangeController.close();
+    _connectivityResultController.close();
   }
 }

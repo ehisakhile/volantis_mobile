@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -757,6 +758,12 @@ class _StreamsScreenState extends State<StreamsScreen> {
   // ── Error state ───────────────────────────────────────────────────────────
 
   Widget _buildError(String error) {
+    // Check if this is a network connectivity error
+    final isOfflineError =
+        error.toLowerCase().contains('no internet') ||
+        error.toLowerCase().contains('connection') ||
+        error.toLowerCase().contains('network');
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -767,18 +774,33 @@ class _StreamsScreenState extends State<StreamsScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: isOfflineError
+                    ? _primary.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.error_outline_rounded,
+              child: Icon(
+                isOfflineError
+                    ? Icons.wifi_off_rounded
+                    : Icons.error_outline_rounded,
                 size: 32,
-                color: Colors.redAccent,
+                color: isOfflineError ? _primary : Colors.redAccent,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              error,
+              isOfflineError ? 'You are offline' : 'Something went wrong',
+              style: const TextStyle(
+                color: _onSurface,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isOfflineError
+                  ? 'Your downloaded recordings are still available.'
+                  : error,
               style: const TextStyle(
                 color: _onVariant,
                 fontSize: 14,
@@ -787,38 +809,85 @@ class _StreamsScreenState extends State<StreamsScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            GestureDetector(
-              onTap: () => context.read<StreamsProvider>().refresh(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 28,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_primary, _primaryCont],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+            if (isOfflineError) ...[
+              GestureDetector(
+                onTap: () => context.go('/downloads'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 12,
                   ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _primary.withOpacity(0.25),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_primary, _primaryCont],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
-                ),
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(
-                    color: _onPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _primary.withOpacity(0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'My Downloads',
+                    style: TextStyle(
+                      color: _onPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => context.read<StreamsProvider>().refresh(),
+                child: const Text(
+                  'Try Again',
+                  style: TextStyle(
+                    color: _primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ] else ...[
+              GestureDetector(
+                onTap: () => context.read<StreamsProvider>().refresh(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_primary, _primaryCont],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _primary.withOpacity(0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(
+                      color: _onPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
