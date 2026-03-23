@@ -9,7 +9,6 @@ import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../../services/download_manager.dart';
 import '../providers/downloads_provider.dart';
 
-/// Downloads screen for viewing and managing downloaded recordings
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
 
@@ -18,6 +17,15 @@ class DownloadsScreen extends StatefulWidget {
 }
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
+  // Volantis Dark Glass Theme Tokens
+  static const _bg = Color(0xFF0B1326);
+  static const _glassCard = Color(0xFF171F33);
+  static const _surfaceHigh = Color(0xFF222A3D);
+  static const _primary = Color(0xFF89CEFF);
+  static const _onSurface = Color(0xFFDAE2FD);
+  static const _onVariant = Color(0xFFBEC8D2);
+  static const _error = Color(0xFFFF5252);
+
   @override
   void initState() {
     super.initState();
@@ -29,140 +37,128 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _bg,
       appBar: AppBar(
-        title: const Text(AppStrings.offlineDownloads),
-        actions: [
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        title: const Text(
+          AppStrings.offlineDownloads,
+          style: TextStyle(
+            color: _onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        actions: [_buildHeaderActions()],
+      ),
+      body: Stack(
+        children: [
+          // Background Glow Effect
+          Positioned(
+            top: -100,
+            right: -50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary.withOpacity(0.05),
+              ),
+            ),
+          ),
           Consumer<DownloadsProvider>(
             builder: (context, provider, _) {
-              if (provider.downloads.isEmpty) return const SizedBox.shrink();
-              return PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
-                  if (value == 'clear_all') {
-                    _showClearAllDialog();
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'clear_all',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_sweep, color: AppColors.error),
-                        SizedBox(width: 8),
-                        Text('Clear All Downloads'),
-                      ],
+              if (provider.isLoading) {
+                return const Center(
+                  child: CircularProgressIndicator(color: _primary),
+                );
+              }
+
+              final hasActive = provider.activeDownloads.isNotEmpty;
+              final hasCompleted = provider.downloads.isNotEmpty;
+
+              if (!hasActive && !hasCompleted) return _buildEmptyState();
+
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildStorageInfo(provider)),
+
+                  if (hasActive) ...[
+                    SliverToBoxAdapter(
+                      child: _buildSectionHeader('Active Downloads'),
                     ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildActiveDownloadItem(
+                          provider.activeDownloads[index],
+                          provider,
+                        ),
+                        childCount: provider.activeDownloads.length,
+                      ),
+                    ),
+                  ],
+
+                  if (hasCompleted) ...[
+                    SliverToBoxAdapter(
+                      child: _buildSectionHeader('Your Library'),
+                    ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildDownloadItem(
+                          provider.downloads[index],
+                          provider,
+                        ),
+                        childCount: provider.downloads.length,
+                      ),
+                    ),
+                  ],
+
+                  SliverToBoxAdapter(
+                    child: _buildSectionHeader('Explore More'),
                   ),
+                  SliverToBoxAdapter(child: _buildRecommendedSection(provider)),
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 120)),
                 ],
               );
             },
           ),
         ],
       ),
-      body: Consumer<DownloadsProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // Check if there are active downloads
-          final hasActiveDownloads = provider.activeDownloads.isNotEmpty;
-          final hasCompletedDownloads = provider.downloads.isNotEmpty;
-
-          if (!hasActiveDownloads && !hasCompletedDownloads) {
-            return _buildEmptyState();
-          }
-
-          return CustomScrollView(
-            slivers: [
-              // Storage info
-              SliverToBoxAdapter(child: _buildStorageInfo(provider)),
-              // Active Downloads Section
-              if (hasActiveDownloads) ...[
-                SliverToBoxAdapter(
-                  child: _buildSectionHeader('Active Downloads'),
-                ),
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    return _buildActiveDownloadItem(
-                      provider.activeDownloads[index],
-                      provider,
-                    );
-                  }, childCount: provider.activeDownloads.length),
-                ),
-              ],
-              // Completed Downloads Section
-              if (hasCompletedDownloads) ...[
-                SliverToBoxAdapter(child: _buildSectionHeader('Downloaded')),
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    return _buildDownloadItem(
-                      provider.downloads[index],
-                      provider,
-                    );
-                  }, childCount: provider.downloads.length),
-                ),
-              ],
-              // Recommended Downloads Section
-              SliverToBoxAdapter(
-                child: _buildSectionHeader('Recommended for Download'),
-              ),
-              SliverToBoxAdapter(child: _buildRecommendedSection(provider)),
-              // Bottom padding
-              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
-            ],
-          );
-        },
-      ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.download_outlined,
-            size: 80,
-            color: AppColors.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No Downloads Yet',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Downloaded recordings will appear here',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
+  Widget _buildHeaderActions() {
+    return Consumer<DownloadsProvider>(
+      builder: (context, provider, _) {
+        if (provider.downloads.isEmpty) return const SizedBox.shrink();
+        return IconButton(
+          icon: const Icon(Icons.delete_sweep_outlined, color: _onVariant),
+          onPressed: () => _showClearAllDialog(),
+        );
+      },
     );
   }
 
   Widget _buildStorageInfo(DownloadsProvider provider) {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
+        color: _surfaceHigh,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+              color: _primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.storage, color: AppColors.primary),
+            child: const Icon(Icons.cloud_done_outlined, color: _primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -170,15 +166,17 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${provider.downloads.length} Downloaded',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  '${provider.downloads.length} Saved Recordings',
+                  style: const TextStyle(
+                    color: _onSurface,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Storage used: ${provider.formatStorageSize(provider.totalStorageUsed)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  'Storage: ${provider.formatStorageSize(provider.totalStorageUsed)}',
+                  style: const TextStyle(color: _onVariant, fontSize: 13),
                 ),
               ],
             ),
@@ -193,158 +191,295 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     DownloadsProvider provider,
   ) {
     return Dismissible(
-      key: Key('download_${download.id}'),
+      key: Key('dl_${download.recordingId}'),
       direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: AppColors.error,
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      confirmDismiss: (direction) async {
-        return await _showDeleteDialog(download.title);
-      },
-      onDismissed: (direction) {
-        provider.deleteDownload(download.recordingId);
-      },
+      background: _buildDismissBackground(),
+      confirmDismiss: (_) => _showDeleteDialog(download.title),
+      onDismissed: (_) => provider.deleteDownload(download.recordingId),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.03)),
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: download.thumbnailUrl != null
-                  ? CustomNetworkImage(imageUrl: download.thumbnailUrl!)
-                  : Container(
-                      color: AppColors.primary.withOpacity(0.2),
-                      child: const Icon(
-                        Icons.headphones,
-                        color: AppColors.primary,
-                      ),
-                    ),
-            ),
-          ),
+          contentPadding: const EdgeInsets.all(12),
+          onTap: () => provider.playDownloaded(download.recordingId),
+          leading: _buildThumbnail(download.thumbnailUrl),
           title: Text(
             download.title,
+            style: const TextStyle(
+              color: _onSurface,
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall,
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: AppColors.textSecondary,
-                  ),
+                  const Icon(Icons.timer_outlined, size: 14, color: _onVariant),
                   const SizedBox(width: 4),
                   Text(
                     download.formattedDuration,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                    style: const TextStyle(color: _onVariant, fontSize: 12),
                   ),
                   const SizedBox(width: 12),
+                  const Icon(Icons.save_outlined, size: 14, color: _onVariant),
+                  const SizedBox(width: 4),
                   Text(
                     download.formattedFileSize,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                    style: const TextStyle(color: _onVariant, fontSize: 12),
                   ),
                 ],
               ),
               if (download.lastPosition > 0) ...[
-                const SizedBox(height: 8),
-                // Progress bar
+                const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: download.progress,
-                    backgroundColor: AppColors.divider,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                    minHeight: 4,
+                    backgroundColor: Colors.white10,
+                    color: _primary,
+                    minHeight: 2,
                   ),
                 ),
               ],
             ],
           ),
-          trailing: PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) async {
-              switch (value) {
-                case 'play':
-                  provider.playDownloaded(download.recordingId);
-                  break;
-                case 'delete':
-                  final confirm = await _showDeleteDialog(download.title);
-                  if (confirm == true) {
-                    provider.deleteDownload(download.recordingId);
-                  }
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'play',
-                child: Row(
-                  children: [
-                    Icon(Icons.play_arrow),
-                    SizedBox(width: 8),
-                    Text('Play'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: AppColors.error)),
-                  ],
-                ),
-              ),
-            ],
+          trailing: const Icon(
+            Icons.play_circle_outline,
+            color: _primary,
+            size: 28,
           ),
-          onTap: () {
-            provider.playDownloaded(download.recordingId);
-          },
         ),
       ),
     );
   }
 
+  Widget _buildActiveDownloadItem(
+    ActiveDownloadTask task,
+    DownloadsProvider provider,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surfaceHigh.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _primary.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          _buildThumbnail(task.thumbnailUrl, isDownloading: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    color: _onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: task.progress,
+                    backgroundColor: Colors.white10,
+                    color: _primary,
+                    minHeight: 6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: _onVariant, size: 20),
+            onPressed: () => provider.cancelDownload(task.recordingId),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(String? url, {bool isDownloading = false}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 54,
+        height: 54,
+        child: url != null
+            ? CustomNetworkImage(imageUrl: url)
+            : Container(
+                color: _primary.withOpacity(0.1),
+                child: Icon(
+                  isDownloading ? Icons.downloading : Icons.headphones,
+                  color: _primary,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: _primary,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDismissBackground() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 24),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: _error,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 80,
+            color: _onVariant.withOpacity(0.2),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'No Downloads',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Your offline library is currently empty.',
+            style: TextStyle(color: _onVariant, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Reuse logic for Recommended Cards but with Volantis Styling
+  Widget _buildRecommendedSection(DownloadsProvider provider) {
+    return SizedBox(
+      height: 160,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _buildRecommendedCard(
+            'Listen Offline',
+            'Favorite recordings',
+            Icons.headphones_rounded,
+          ),
+          _buildRecommendedCard(
+            'Save Data',
+            'Use WiFi only',
+            Icons.wifi_rounded,
+          ),
+          _buildRecommendedCard(
+            'Recent',
+            'Pick up where you left',
+            Icons.history_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendedCard(String title, String subtitle, IconData icon) {
+    return Container(
+      width: 150,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primary.withOpacity(0.15), _primary.withOpacity(0.02)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _primary.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Icon(icon, color: _primary, size: 30),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(color: _onVariant, fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Dialogs ---
   Future<bool?> _showDeleteDialog(String title) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Download'),
-        content: Text('Are you sure you want to delete "$title"?'),
+        backgroundColor: _surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Remove Download?',
+          style: TextStyle(color: _onSurface),
+        ),
+        content: Text(
+          'Delete "$title" from your device?',
+          style: const TextStyle(color: _onVariant),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('Keep', style: TextStyle(color: _onVariant)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: AppColors.error),
-            ),
+            child: const Text('Delete', style: TextStyle(color: _error)),
           ),
         ],
       ),
@@ -355,201 +490,29 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Downloads'),
+        backgroundColor: _surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Clear Library?',
+          style: TextStyle(color: _onSurface),
+        ),
         content: const Text(
-          'This will delete all downloaded recordings. You will need to download them again to listen offline.',
+          'This removes all offline recordings.',
+          style: TextStyle(color: _onVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: _onVariant)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               context.read<DownloadsProvider>().clearAllDownloads();
             },
-            child: const Text(
-              'Clear All',
-              style: TextStyle(color: AppColors.error),
-            ),
+            child: const Text('Clear All', style: TextStyle(color: _error)),
           ),
         ],
-      ),
-    );
-  }
-
-  // Helper methods for new sections
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Text(
-        title,
-        style: Theme.of(
-          context,
-        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildActiveDownloadItem(
-    ActiveDownloadTask download,
-    DownloadsProvider provider,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: download.thumbnailUrl != null
-                ? CustomNetworkImage(imageUrl: download.thumbnailUrl!)
-                : Container(
-                    color: AppColors.primary.withOpacity(0.2),
-                    child: const Icon(
-                      Icons.downloading,
-                      color: AppColors.primary,
-                    ),
-                  ),
-          ),
-        ),
-        title: Text(
-          download.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: download.progress,
-                      backgroundColor: AppColors.divider,
-                      valueColor: const AlwaysStoppedAnimation(
-                        AppColors.primary,
-                      ),
-                      minHeight: 6,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${(download.progress * 100).toInt()}%',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => provider.cancelDownload(download.recordingId),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecommendedSection(DownloadsProvider provider) {
-    return Container(
-      height: 160,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildRecommendedCard(
-            title: 'Listen Offline',
-            subtitle: 'Download your favorite recordings',
-            icon: Icons.headphones,
-            onTap: () {
-              // Could navigate to recordings to browse
-            },
-          ),
-          _buildRecommendedCard(
-            title: 'Save Data',
-            subtitle: 'Download over WiFi only',
-            icon: Icons.wifi,
-            onTap: () {
-              // Could open settings
-            },
-          ),
-          _buildRecommendedCard(
-            title: 'Continue Listening',
-            subtitle: 'Pick up where you left off',
-            icon: Icons.play_circle_outline,
-            onTap: () {
-              // Could show watch history
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendedCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withOpacity(0.3),
-              AppColors.primary.withOpacity(0.1),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Icon(icon, color: AppColors.primary, size: 32),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
