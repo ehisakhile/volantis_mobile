@@ -139,12 +139,34 @@ class DownloadManager {
     String? companyName,
     String? companySlug,
   }) async {
-    // Check if already downloaded or in queue
-    final status = await getDownloadStatus(recording.id);
-    if (status == DownloadStatus.downloaded ||
-        status == DownloadStatus.downloading ||
-        status == DownloadStatus.queued) {
+    // Check if in queue
+    if (_queue.any((t) => t.recording.id == recording.id)) {
       return;
+    }
+
+    // Check if currently downloading
+    if (_currentTask?.recording.id == recording.id && !_isPaused) {
+      return;
+    }
+
+    // Check if already downloaded AND file exists (not stale)
+    final alreadyDownloaded = await isDownloaded(recording.id);
+    if (alreadyDownloaded) {
+      // Emit downloaded status and return
+      _downloadStatusController.add(
+        DownloadStatusUpdate(
+          recordingId: recording.id,
+          status: DownloadStatus.downloaded,
+        ),
+      );
+      return;
+    }
+
+    // Check database for stale records and delete them
+    final dbStatus = await _downloadsService.getDownloadStatus(recording.id);
+    if (dbStatus != DownloadStatus.notDownloaded) {
+      // Stale record - delete it
+      await _downloadsService.deleteDownload(recording.id);
     }
 
     final task = DownloadTask(

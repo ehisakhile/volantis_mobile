@@ -95,6 +95,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
           create: (_) => DownloadsProvider(
             RecordingsDownloadsService.instance,
             DownloadManager.instance,
+            recordingsProvider,
           ),
         ),
       ],

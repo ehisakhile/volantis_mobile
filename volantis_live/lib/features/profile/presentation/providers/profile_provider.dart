@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../../../../services/analytics_service.dart';
 import '../../../../services/offline_service.dart';
+import '../../../recordings/data/services/recordings_downloads_service.dart';
 
 /// Profile provider for managing profile screen state
 class ProfileProvider extends ChangeNotifier {
   final AnalyticsService _analyticsService = AnalyticsService.instance;
   final OfflineService _offlineService = OfflineService.instance;
-  
+
   int _totalListeningTime = 0;
   int _listeningStreak = 0;
   List<Map<String, dynamic>> _mostListenedChannels = [];
@@ -44,10 +45,51 @@ class ProfileProvider extends ChangeNotifier {
       _listeningStreak = await _analyticsService.getListeningStreak();
       _mostListenedChannels = await _analyticsService.getMostListenedChannels();
       _favoriteGenres = await _analyticsService.getFavoriteGenres();
-      _downloads = await _offlineService.getAllDownloads();
-      _storageUsed = await _offlineService.getTotalStorageUsed();
+
+      // Get downloads from both services and combine them
+      // 1. Get stream/channel downloads from OfflineService
+      final streamDownloads = await _offlineService.getAllDownloads();
+
+      // 2. Get recording downloads from RecordingsDownloadsService
+      final recordingDownloads = await RecordingsDownloadsService.instance
+          .getDownloadedRecordings();
+
+      // Combine both lists - convert recordings to map format for consistency
+      final combinedDownloads = <Map<String, dynamic>>[];
+
+      // Add stream downloads
+      for (final download in streamDownloads) {
+        combinedDownloads.add({
+          'id': download['id'],
+          'title': download['channel_name'],
+          'type': 'stream',
+          'local_path': download['local_path'],
+          'file_size': download['file_size'],
+          'downloaded_at': download['downloaded_at'],
+        });
+      }
+
+      // Add recording downloads
+      for (final download in recordingDownloads) {
+        combinedDownloads.add({
+          'id': download.id,
+          'title': download.title,
+          'type': 'recording',
+          'local_path': download.localPath,
+          'file_size': download.fileSizeBytes,
+          'downloaded_at': download.downloadedAt.millisecondsSinceEpoch,
+        });
+      }
+
+      _downloads = combinedDownloads;
+
+      // Calculate total storage from both sources
+      int streamStorage = await _offlineService.getTotalStorageUsed();
+      int recordingStorage = await RecordingsDownloadsService.instance
+          .getTotalStorageUsed();
+      _storageUsed = streamStorage + recordingStorage;
     } catch (e) {
-      // Handle error silently
+      debugPrint('Error loading profile data: $e');
     }
 
     _isLoading = false;
@@ -80,14 +122,38 @@ class ProfileProvider extends ChangeNotifier {
 
   /// Delete download
   Future<void> deleteDownload(int id) async {
-    await _offlineService.deleteDownload(id);
-    await init();
+    try {
+      // Find the download to determine its type
+      final download = _downloads.firstWhere(
+        (d) => d['id'] == id,
+        orElse: () => {},
+      );
+
+      final type = download['type'] as String?;
+
+      if (type == 'recording') {
+        // Delete from RecordingsDownloadsService
+        await RecordingsDownloadsService.instance.deleteDownload(id);
+      } else {
+        // Delete from OfflineService (for streams)
+        await _offlineService.deleteDownload(id);
+      }
+
+      await init();
+    } catch (e) {
+      debugPrint('Error deleting download: $e');
+    }
   }
 
   /// Clear all downloads
   Future<void> clearAllDownloads() async {
-    await _offlineService.clearAllDownloads();
-    await init();
+    try {
+      await _offlineService.clearAllDownloads();
+      await RecordingsDownloadsService.instance.deleteAllDownloads();
+      await init();
+    } catch (e) {
+      debugPrint('Error clearing downloads: $e');
+    }
   }
 
   /// Format storage size

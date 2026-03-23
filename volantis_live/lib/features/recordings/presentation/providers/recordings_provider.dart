@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
@@ -45,10 +46,64 @@ class RecordingsProvider extends ChangeNotifier {
   final Map<int, DownloadStatus> _downloadStatuses = {};
   final Map<int, double> _downloadProgress = {};
 
+  // Stream subscriptions for download updates
+  StreamSubscription? _downloadStatusSubscription;
+  StreamSubscription? _downloadProgressSubscription;
+
   RecordingsProvider(this._service) {
     _initAudioSession();
     _player.playerStateStream.listen(_onPlayerState);
     _player.positionStream.listen(_onPosition);
+    // Load existing downloads on initialization
+    _loadExistingDownloads();
+    // Listen to download manager for status updates
+    _listenToDownloadUpdates();
+  }
+
+  /// Load existing downloads from RecordingsDownloadsService
+  Future<void> _loadExistingDownloads() async {
+    try {
+      final downloadsService = RecordingsDownloadsService.instance;
+      final downloads = await downloadsService.getAllDownloads();
+      for (final download in downloads) {
+        _downloadStatuses[download.recordingId] = download.status;
+        _downloadProgress[download.recordingId] = download.downloadProgress;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading existing downloads: $e');
+    }
+  }
+
+  /// Listen to download manager for real-time status updates
+  void _listenToDownloadUpdates() {
+    final downloadManager = DownloadManager.instance;
+    _downloadStatusSubscription = downloadManager.downloadStatusStream.listen((
+      status,
+    ) {
+      if (status.status == DownloadStatus.downloaded) {
+        _downloadStatuses[status.recordingId] = DownloadStatus.downloaded;
+        _downloadProgress[status.recordingId] = 1.0;
+        notifyListeners();
+      } else if (status.status == DownloadStatus.downloading) {
+        _downloadStatuses[status.recordingId] = DownloadStatus.downloading;
+        _downloadProgress[status.recordingId] =
+            status.download?.downloadProgress ?? 0.0;
+        notifyListeners();
+      } else if (status.status == DownloadStatus.failed) {
+        _downloadStatuses[status.recordingId] = DownloadStatus.failed;
+        notifyListeners();
+      } else if (status.status == DownloadStatus.queued) {
+        _downloadStatuses[status.recordingId] = DownloadStatus.queued;
+        notifyListeners();
+      }
+    });
+
+    _downloadProgressSubscription = downloadManager.downloadProgressStream
+        .listen((progress) {
+          _downloadProgress[progress.recordingId] = progress.progress;
+          notifyListeners();
+        });
   }
 
   /// Initialize audio session with background support
@@ -480,6 +535,8 @@ class RecordingsProvider extends ChangeNotifier {
   @override
   void dispose() {
     _positionTimer?.cancel();
+    _downloadStatusSubscription?.cancel();
+    _downloadProgressSubscription?.cancel();
     _player.dispose();
     super.dispose();
   }

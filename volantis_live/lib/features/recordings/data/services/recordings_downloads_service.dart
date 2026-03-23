@@ -112,10 +112,21 @@ class RecordingsDownloadsService {
     int? durationSeconds,
     Function(double)? onProgress,
   }) async {
-    // Check if already downloaded
+    // Check if already downloaded AND file exists
     final existing = await getDownload(recordingId);
-    if (existing != null) {
-      return existing;
+    if (existing != null && existing.status == DownloadStatus.downloaded) {
+      // Verify the file actually exists
+      final file = File(existing.localPath);
+      if (file.existsSync()) {
+        return existing;
+      }
+      // File doesn't exist - delete stale record and re-download
+      await deleteDownload(recordingId);
+    }
+
+    // Check if there's a failed/incomplete download - delete it and re-download
+    if (existing != null && existing.status != DownloadStatus.downloaded) {
+      await deleteDownload(recordingId);
     }
 
     final downloadsDir = await _getDownloadsDirectory();
