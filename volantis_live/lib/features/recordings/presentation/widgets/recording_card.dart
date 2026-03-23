@@ -7,11 +7,22 @@ import '../../data/models/recording_model.dart';
 import '../providers/recordings_provider.dart';
 import 'package:intl/intl.dart';
 
-/// Card widget for displaying a single recording in a list
+/// Recording card — VolantisLive dark glass design
 class RecordingCard extends StatelessWidget {
   final Recording recording;
   final VoidCallback onTap;
   final int? replayCount;
+
+  // ── Design tokens ────────────────────────────────────────────────────────
+  static const _bg = Color(0xFF171F33);
+  static const _surfaceHigh = Color(0xFF222A3D);
+  static const _primary = Color(0xFF89CEFF);
+  static const _primaryCont = Color(0xFF0EA5E9);
+  static const _onPrimary = Color(0xFF00344D);
+  static const _onSurface = Color(0xFFDAE2FD);
+  static const _onVariant = Color(0xFFBEC8D2);
+  static const _outline = Color(0xFF88929B);
+  static const _outlineVar = Color(0xFF3E4850);
 
   const RecordingCard({
     super.key,
@@ -22,164 +33,162 @@ class RecordingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _bg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Thumbnail
+            _buildThumbnail(),
+            const SizedBox(width: 14),
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: theme.colorScheme.surface,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Thumbnail
-              _buildThumbnail(),
-              const SizedBox(width: 12),
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      recording.title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    recording.title,
+                    style: const TextStyle(
+                      color: _onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
                     ),
-                    const SizedBox(height: 4),
-                    // Duration and date
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Duration + date row
+                  Row(
+                    children: [
+                      _MetaChip(
+                        icon: Icons.access_time_rounded,
+                        label: recording.formattedDuration,
+                      ),
+                      const SizedBox(width: 10),
+                      _MetaChip(
+                        icon: Icons.calendar_today_rounded,
+                        label: _formatDate(recording.createdAt),
+                      ),
+                    ],
+                  ),
+
+                  // Replay count
+                  if (replayCount != null || recording.replayCount != null) ...[
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
+                        const Icon(
+                          Icons.replay_rounded,
+                          size: 12,
+                          color: _primary,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          recording.formattedDuration,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.calendar_today,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDate(recording.createdAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          '${replayCount ?? recording.replayCount} ${AppStrings.replayCount}',
+                          style: const TextStyle(
+                            color: _primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    // Replay count
-                    if (replayCount != null || recording.replayCount != null)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.replay,
-                            size: 14,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${replayCount ?? recording.replayCount} ${AppStrings.replayCount}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
                   ],
-                ),
+                ],
               ),
-              // Download button
-              _buildDownloadButton(context),
-              const SizedBox(width: 8),
-              // Play button
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.play_arrow,
-                  color: theme.colorScheme.onPrimary,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
+            ),
+
+            const SizedBox(width: 10),
+
+            // Download + play
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildDownloadButton(context),
+                const SizedBox(height: 8),
+                _PlayBtn(onTap: onTap),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildThumbnail() {
-    if (recording.hasThumbnail) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: CachedNetworkImage(
-          imageUrl: recording.thumbnailUrl!,
-          width: 80,
-          height: 80,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => _buildPlaceholder(),
-          errorWidget: (context, url, error) => _buildPlaceholder(),
-        ),
-      );
-    }
-    return _buildPlaceholder();
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Icon(Icons.mic, color: AppColors.textSecondary, size: 32),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: recording.hasThumbnail
+          ? CachedNetworkImage(
+              imageUrl: recording.thumbnailUrl!,
+              width: 72,
+              height: 72,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => _placeholder(),
+              errorWidget: (_, __, ___) => _placeholder(),
+            )
+          : _placeholder(),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return DateFormat('MMM d, yyyy').format(date);
+  Widget _placeholder() {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        color: _surfaceHigh,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(Icons.mic_rounded, color: _primary, size: 28),
+    );
   }
+
+  String _formatDate(DateTime date) => DateFormat('MMM d, yyyy').format(date);
 
   Widget _buildDownloadButton(BuildContext context) {
     return Consumer<RecordingsProvider>(
-      builder: (context, provider, _) {
+      builder: (_, provider, __) {
         final status = provider.getDownloadStatus(recording.id);
+        final isDownloaded = status.toString().contains('downloaded');
+        final isInProgress =
+            status.toString().contains('downloading') ||
+            status.toString().contains('queued');
 
         return GestureDetector(
           onTap: () => _handleDownloadTap(provider, status),
           child: Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              shape: BoxShape.circle,
+              color: _surfaceHigh,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: (isDownloaded || isInProgress)
+                    ? _primary.withOpacity(0.3)
+                    : _outlineVar.withOpacity(0.4),
+                width: 1,
+              ),
             ),
             child: Icon(
               _getDownloadIcon(status),
-              color: _getDownloadColor(status),
-              size: 20,
+              color: (isDownloaded || isInProgress) ? _primary : _outline,
+              size: 17,
             ),
           ),
         );
@@ -188,41 +197,86 @@ class RecordingCard extends StatelessWidget {
   }
 
   void _handleDownloadTap(RecordingsProvider provider, dynamic status) {
-    if (status.toString().contains('downloaded')) {
-      // Already downloaded - play offline
+    final s = status.toString();
+    if (s.contains('downloaded')) {
       provider.playDownloadedRecording(recording.id);
-    } else if (status.toString().contains('downloading') ||
-        status.toString().contains('queued')) {
-      // Currently downloading - show info
-      debugPrint('Download in progress for: ${recording.title}');
-    } else {
-      // Not downloaded - start download
+    } else if (!s.contains('downloading') && !s.contains('queued')) {
       provider.downloadRecording(recording, downloadUrl: recording.s3Url);
     }
   }
 
   IconData _getDownloadIcon(dynamic status) {
-    final statusStr = status.toString();
-    if (statusStr.contains('downloaded')) {
-      return Icons.download_done;
-    } else if (statusStr.contains('downloading')) {
-      return Icons.downloading;
-    } else if (statusStr.contains('queued')) {
-      return Icons.hourglass_empty;
-    } else {
-      return Icons.download;
-    }
+    final s = status.toString();
+    if (s.contains('downloaded')) return Icons.download_done_rounded;
+    if (s.contains('downloading')) return Icons.downloading_rounded;
+    if (s.contains('queued')) return Icons.hourglass_empty_rounded;
+    return Icons.download_rounded;
   }
+}
 
-  Color _getDownloadColor(dynamic status) {
-    final statusStr = status.toString();
-    if (statusStr.contains('downloaded')) {
-      return AppColors.primary;
-    } else if (statusStr.contains('downloading') ||
-        statusStr.contains('queued')) {
-      return AppColors.primary;
-    } else {
-      return AppColors.textSecondary;
-    }
+// ── Play button ───────────────────────────────────────────────────────────────
+
+class _PlayBtn extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PlayBtn({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF89CEFF), Color(0xFF0EA5E9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF89CEFF).withOpacity(0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.play_arrow_rounded,
+          color: Color(0xFF00344D),
+          size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Meta chip (icon + label) ──────────────────────────────────────────────────
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MetaChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: const Color(0xFF88929B)),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFBEC8D2),
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }

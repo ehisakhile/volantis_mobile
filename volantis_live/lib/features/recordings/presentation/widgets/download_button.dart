@@ -4,12 +4,17 @@ import '../../data/models/recording_download.dart';
 import '../providers/recordings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 
-/// Download button widget for recording cards
-/// Shows download state and handles download actions
+/// Download button — VolantisLive dark glass design
 class DownloadButton extends StatelessWidget {
   final int recordingId;
   final String? s3Url;
   final VoidCallback? onDownloadComplete;
+
+  // ── Design tokens ────────────────────────────────────────────────────────
+  static const _surfaceHigh = Color(0xFF222A3D);
+  static const _primary = Color(0xFF89CEFF);
+  static const _outline = Color(0xFF88929B);
+  static const _outlineVar = Color(0xFF3E4850);
 
   const DownloadButton({
     super.key,
@@ -21,10 +26,9 @@ class DownloadButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<RecordingsProvider>(
-      builder: (context, provider, _) {
+      builder: (_, provider, __) {
         final status = provider.getDownloadStatus(recordingId);
         final progress = provider.getDownloadProgress(recordingId);
-
         return _buildButton(context, status, progress, provider);
       },
     );
@@ -40,87 +44,156 @@ class DownloadButton extends StatelessWidget {
       case DownloadStatus.notDownloaded:
       case DownloadStatus.failed:
       case DownloadStatus.expired:
-        return IconButton(
-          icon: const Icon(Icons.download_outlined),
-          color: AppColors.textSecondary,
-          onPressed: () => _startDownload(provider),
+        return _IconTile(
+          icon: Icons.download_rounded,
+          color: _outline,
+          onTap: () => _startDownload(provider),
           tooltip: 'Download',
         );
 
       case DownloadStatus.queued:
-        return const Padding(
-          padding: EdgeInsets.all(12),
+        return _CircleTile(
           child: SizedBox(
-            width: 20,
-            height: 20,
+            width: 16,
+            height: 16,
             child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(AppColors.primary),
+              strokeWidth: 1.8,
+              valueColor: const AlwaysStoppedAnimation(_primary),
             ),
           ),
         );
 
       case DownloadStatus.downloading:
-        return Padding(
-          padding: const EdgeInsets.all(8),
+        return _CircleTile(
           child: SizedBox(
-            width: 28,
-            height: 28,
+            width: 24,
+            height: 24,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 CircularProgressIndicator(
                   value: progress,
                   strokeWidth: 2,
-                  backgroundColor: AppColors.divider,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                  backgroundColor: _outlineVar,
+                  valueColor: const AlwaysStoppedAnimation(_primary),
                 ),
                 Text(
-                  '${(progress * 100).toInt()}%',
-                  style: const TextStyle(fontSize: 8, color: AppColors.primary),
+                  '${(progress * 100).toInt()}',
+                  style: const TextStyle(
+                    fontSize: 7,
+                    color: _primary,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
           ),
+          onTap: () => provider.cancelDownload(recordingId),
         );
 
       case DownloadStatus.paused:
-        return IconButton(
-          icon: const Icon(Icons.play_arrow),
-          color: AppColors.primary,
-          onPressed: () {
-            // Resume would require the original download parameters
-            // For now, show cancel option instead
-            provider.cancelDownload(recordingId);
-          },
-          tooltip: 'Resume Download',
+        return _IconTile(
+          icon: Icons.pause_circle_outline_rounded,
+          color: _primary,
+          onTap: () => provider.cancelDownload(recordingId),
+          tooltip: 'Paused — tap to cancel',
         );
 
       case DownloadStatus.downloaded:
-        return IconButton(
-          icon: const Icon(Icons.download_done),
-          color: AppColors.primary,
+        return _IconTile(
+          icon: Icons.download_done_rounded,
+          color: _primary,
+          onTap: () {},
           tooltip: 'Downloaded',
-          onPressed: () {
-            // Could show options like delete, play, etc.
-          },
         );
     }
   }
 
   void _startDownload(RecordingsProvider provider) {
-    // This would be called from the parent with proper recording data
-    // The parent should pass the full Recording object
     debugPrint('Download requested for recording: $recordingId');
   }
 }
 
-/// Download progress indicator for expanded views
+// ── Shared tile shells ────────────────────────────────────────────────────────
+
+class _IconTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  const _IconTile({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFF222A3D),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: color == const Color(0xFF89CEFF)
+                ? color.withOpacity(0.3)
+                : const Color(0xFF3E4850).withOpacity(0.4),
+            width: 1,
+          ),
+        ),
+        child: Icon(icon, color: color, size: 17),
+      ),
+    );
+
+    return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
+  }
+}
+
+class _CircleTile extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _CircleTile({required this.child, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFF222A3D),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: child,
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DOWNLOAD PROGRESS INDICATOR (inline, for expanded views)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Inline progress bar shown in expanded recording views.
 class DownloadProgressIndicator extends StatelessWidget {
   final int recordingId;
   final double progress;
   final DownloadStatus status;
   final VoidCallback? onCancel;
+
+  static const _primary = Color(0xFF89CEFF);
+  static const _primaryCont = Color(0xFF0EA5E9);
+  static const _outlineVar = Color(0xFF3E4850);
+  static const _onVariant = Color(0xFFBEC8D2);
+  static const _outline = Color(0xFF88929B);
 
   const DownloadProgressIndicator({
     super.key,
@@ -138,34 +211,51 @@ class DownloadProgressIndicator extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131B2E),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              // Label
               Expanded(
                 child: Text(
                   status == DownloadStatus.queued
-                      ? 'Waiting to download...'
-                      : 'Downloading... ${(progress * 100).toInt()}%',
-                  style: Theme.of(context).textTheme.bodySmall,
+                      ? 'Waiting to download…'
+                      : 'Downloading… ${(progress * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: _onVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               if (onCancel != null)
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: onCancel,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                GestureDetector(
+                  onTap: onCancel,
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: _outline,
+                    size: 16,
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: AppColors.divider,
-            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+          const SizedBox(height: 8),
+
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 3,
+              backgroundColor: _outlineVar,
+              valueColor: const AlwaysStoppedAnimation(_primary),
+            ),
           ),
         ],
       ),
