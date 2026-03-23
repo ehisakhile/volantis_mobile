@@ -7,7 +7,7 @@ import '../../../../core/widgets/loading_shimmer.dart';
 import '../widgets/full_screen_player_sheet.dart';
 import '../widgets/live_stream_mini_player.dart';
 
-/// Streams screen showing all live streams
+/// Streams screen — VolantisLive dark glass design
 class StreamsScreen extends StatefulWidget {
   const StreamsScreen({super.key});
 
@@ -17,11 +17,23 @@ class StreamsScreen extends StatefulWidget {
 
 class _StreamsScreenState extends State<StreamsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  bool _searchFocused = false;
+
+  // ── Design tokens ─────────────────────────────────────────────────────────
+  static const _bg = Color(0xFF0B1326);
+  static const _glassCard = Color(0xFF171F33);
+  static const _surfaceHigh = Color(0xFF222A3D);
+  static const _primary = Color(0xFF89CEFF);
+  static const _primaryCont = Color(0xFF0EA5E9);
+  static const _onPrimary = Color(0xFF00344D);
+  static const _onSurface = Color(0xFFDAE2FD);
+  static const _onVariant = Color(0xFFBEC8D2);
+  static const _outline = Color(0xFF88929B);
+  static const _outlineVar = Color(0xFF3E4850);
 
   @override
   void initState() {
     super.initState();
-    // Initialize streams data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<StreamsProvider>().init();
     });
@@ -36,22 +48,35 @@ class _StreamsScreenState extends State<StreamsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.allStreams),
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.wifi),
-            onPressed: () {
-              // Refresh streams
-              context.read<StreamsProvider>().refresh();
-            },
-          ),
-        ],
-      ),
+      backgroundColor: _bg,
       body: Stack(
         children: [
+          // ── Ambient glow blobs ─────────────────────────────────────
+          Positioned(
+            top: -40,
+            right: -40,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary.withOpacity(0.05),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 120,
+            left: -50,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFD2BBFF).withOpacity(0.04),
+              ),
+            ),
+          ),
+
           Consumer<StreamsProvider>(
             builder: (context, streamsProvider, _) {
               if (streamsProvider.isLoading) {
@@ -62,51 +87,66 @@ class _StreamsScreenState extends State<StreamsScreen> {
                 return _buildError(streamsProvider.error!);
               }
 
-              // Get streams with followed channels first
-              final streams = streamsProvider.streamsWithFollowedFirst;
               final followedStreams = streamsProvider.followedStreams;
 
-              return RefreshIndicator(
-                onRefresh: streamsProvider.refresh,
-                child: CustomScrollView(
-                  slivers: [
-                    // Search bar
-                    SliverToBoxAdapter(child: _buildSearchBar(streamsProvider)),
+              return SafeArea(
+                child: RefreshIndicator(
+                  color: _primary,
+                  backgroundColor: _glassCard,
+                  onRefresh: streamsProvider.refresh,
+                  child: CustomScrollView(
+                    slivers: [
+                      // ── App Bar ──────────────────────────────────
+                      SliverToBoxAdapter(child: _buildAppBar(streamsProvider)),
 
-                    // Following Section (if user follows any companies with streams)
-                    if (followedStreams.isNotEmpty) ...[
+                      // ── Search bar ───────────────────────────────
                       SliverToBoxAdapter(
-                        child: _buildSectionHeader(
-                          context,
-                          'Following',
-                          followedStreams.length,
-                          isFollowing: true,
-                        ),
+                        child: _buildSearchBar(streamsProvider),
                       ),
-                      SliverToBoxAdapter(
-                        child: _buildFollowedStreamsList(streamsProvider),
+
+                      // ── Following section ─────────────────────────
+                      if (followedStreams.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: _buildSectionHeader(
+                            'Following',
+                            followedStreams.length,
+                            isFollowing: true,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _buildFollowedStreamsList(streamsProvider),
+                        ),
+                      ],
+
+                      // ── Live Now section ──────────────────────────
+                      if (streamsProvider.liveStreams.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: _buildSectionHeader(
+                            AppStrings.liveNow,
+                            streamsProvider.liveStreams.length,
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _buildLiveStreamsList(streamsProvider),
+                        ),
+                      ],
+
+                      // ── Empty state ───────────────────────────────
+                      if (streamsProvider.liveStreams.isEmpty &&
+                          followedStreams.isEmpty)
+                        SliverFillRemaining(child: _buildEmptyState()),
+
+                      const SliverPadding(
+                        padding: EdgeInsets.only(bottom: 100),
                       ),
                     ],
-
-                    // Live Now Section
-                    if (streamsProvider.liveStreams.isNotEmpty) ...[
-                      SliverToBoxAdapter(
-                        child: _buildSectionHeader(
-                          context,
-                          AppStrings.liveNow,
-                          streamsProvider.liveStreams.length,
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildLiveStreamsList(streamsProvider),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               );
             },
           ),
-          // Mini player at the bottom
+
+          // ── Mini player ───────────────────────────────────────────
           const Positioned(
             left: 0,
             right: 0,
@@ -118,86 +158,179 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  Widget _buildSearchBar(StreamsProvider provider) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: TextField(
-        controller: _searchController,
-        onChanged: provider.searchStreams,
-        decoration: InputDecoration(
-          hintText: AppStrings.searchChannels,
-          prefixIcon: const Icon(Icons.search),
-          filled: true,
-          fillColor: AppColors.cardBackground,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-        ),
-      ),
-    );
-  }
+  // ── App bar ───────────────────────────────────────────────────────────────
 
-  Widget _buildSectionHeader(
-    BuildContext context,
-    String title,
-    int count, {
-    bool isFollowing = false,
-  }) {
+  Widget _buildAppBar(StreamsProvider provider) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              if (isFollowing) ...[
-                const Icon(Icons.favorite, size: 18, color: Colors.red),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+          const Expanded(
+            child: Text(
+              AppStrings.allStreams,
+              style: TextStyle(
+                color: Color(0xFFDAE2FD),
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isFollowing
-                      ? Colors.red.withOpacity(0.2)
-                      : AppColors.primary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    color: isFollowing ? Colors.red : AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
+            ),
+          ),
+          // Refresh
+          GestureDetector(
+            onTap: provider.refresh,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: _surfaceHigh,
+                borderRadius: BorderRadius.circular(11),
               ),
-            ],
+              child: const Icon(Icons.wifi_rounded, color: _primary, size: 18),
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Build horizontal list of followed company streams
+  // ── Search bar ────────────────────────────────────────────────────────────
+
+  Widget _buildSearchBar(StreamsProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Focus(
+        onFocusChange: (focused) => setState(() => _searchFocused = focused),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: _surfaceHigh,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _searchFocused
+                  ? _primary.withOpacity(0.6)
+                  : _outlineVar.withOpacity(0.5),
+              width: _searchFocused ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 14),
+              Icon(
+                Icons.search_rounded,
+                color: _searchFocused ? _primary : _outline,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: provider.searchStreams,
+                  style: const TextStyle(
+                    color: _onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: AppStrings.searchChannels,
+                    hintStyle: TextStyle(
+                      color: _outline,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    provider.searchStreams('');
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(Icons.close_rounded, color: _outline, size: 16),
+                  ),
+                )
+              else
+                const SizedBox(width: 14),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Section header ────────────────────────────────────────────────────────
+
+  Widget _buildSectionHeader(
+    String title,
+    int count, {
+    bool isFollowing = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+      child: Row(
+        children: [
+          if (isFollowing) ...[
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.favorite_rounded,
+                size: 14,
+                color: Colors.redAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            title,
+            style: const TextStyle(
+              color: _onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isFollowing
+                  ? Colors.red.withOpacity(0.15)
+                  : _primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: isFollowing ? Colors.redAccent : _primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Followed streams ──────────────────────────────────────────────────────
+
   Widget _buildFollowedStreamsList(StreamsProvider provider) {
     final followedStreams = provider.followedStreams;
-
-    if (followedStreams.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (followedStreams.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
       height: 200,
@@ -206,8 +339,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: followedStreams.length,
         itemBuilder: (context, index) {
-          final stream = followedStreams[index];
-          return _buildLiveStreamCard(stream, isFollowed: true);
+          return _buildLiveStreamCard(followedStreams[index], isFollowed: true);
         },
       ),
     );
@@ -221,12 +353,13 @@ class _StreamsScreenState extends State<StreamsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: provider.liveStreams.length,
         itemBuilder: (context, index) {
-          final stream = provider.liveStreams[index];
-          return _buildLiveStreamCard(stream);
+          return _buildLiveStreamCard(provider.liveStreams[index]);
         },
       ),
     );
   }
+
+  // ── Live stream card (horizontal scroll) ──────────────────────────────────
 
   Widget _buildLiveStreamCard(dynamic stream, {bool isFollowed = false}) {
     return GestureDetector(
@@ -235,91 +368,88 @@ class _StreamsScreenState extends State<StreamsScreen> {
         width: 160,
         margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isFollowed
-                ? [const Color(0xFF8B0000), const Color(0xFF4A0000)]
-                : [const Color(0xFF1E3A5F), const Color(0xFF0D1B2A)],
-          ),
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Stack(
           children: [
-            // Background gradient
+            // Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: stream.thumbnailUrl != null
+                  ? Image.network(
+                      stream.thumbnailUrl!,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _streamPlaceholder(),
+                    )
+                  : _streamPlaceholder(),
+            ),
+
+            // Full gradient overlay
             Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                  colors: [
+                    Colors.black.withOpacity(0.15),
+                    Colors.black.withOpacity(0.75),
+                  ],
                 ),
               ),
             ),
-            // Followed badge
+
+            // LIVE badge (top-left)
+            Positioned(top: 9, left: 9, child: _buildLivePulseBadge()),
+
+            // Following badge (top-right)
             if (isFollowed)
               Positioned(
-                top: 8,
-                right: 8,
+                top: 9,
+                right: 9,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
+                    horizontal: 6,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.red.shade700.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.favorite, size: 8, color: Colors.white),
-                      SizedBox(width: 2),
+                      Icon(
+                        Icons.favorite_rounded,
+                        size: 8,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 3),
                       Text(
                         'Following',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            // Live badge
-            if (!isFollowed)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, size: 6, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // Content
+
+            // Bottom content
             Positioned(
               bottom: 12,
               left: 12,
@@ -331,18 +461,20 @@ class _StreamsScreenState extends State<StreamsScreen> {
                     stream.companyName,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      letterSpacing: -0.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     stream.title,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.75),
+                      fontSize: 11,
+                      height: 1.3,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -356,165 +488,194 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
+  Widget _streamPlaceholder() {
+    return Container(
+      color: _surfaceHigh,
+      child: const Center(
+        child: Icon(Icons.live_tv_rounded, color: _primary, size: 36),
+      ),
+    );
+  }
+
+  Widget _buildLivePulseBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.red.shade700,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PulseDot(),
+          SizedBox(width: 4),
+          Text(
+            'LIVE',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Stream list card (vertical) ───────────────────────────────────────────
+
   Widget _buildStreamCard(dynamic stream, {bool isFollowed = false}) {
     return GestureDetector(
       onTap: () => _navigateToPlayer(stream),
       child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // Thumbnail area
-            Expanded(
-              flex: 3,
+            // Thumbnail
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(14),
+              ),
               child: Stack(
-                fit: StackFit.expand,
                 children: [
                   Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
-                    ),
+                    width: 80,
+                    height: 80,
+                    color: _surfaceHigh,
                     child: stream.thumbnailUrl != null
-                        ? ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12),
-                            ),
-                            child: Image.network(
-                              stream.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(
-                                  Icons.live_tv,
-                                  color: AppColors.primary,
-                                  size: 40,
-                                ),
+                        ? Image.network(
+                            stream.thumbnailUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(
+                                Icons.live_tv_rounded,
+                                color: _primary,
+                                size: 28,
                               ),
                             ),
                           )
                         : const Center(
                             child: Icon(
-                              Icons.live_tv,
-                              color: AppColors.primary,
-                              size: 40,
+                              Icons.live_tv_rounded,
+                              color: _primary,
+                              size: 28,
                             ),
                           ),
                   ),
-                  // Live badge
                   if (stream.isLive)
                     Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 6, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text(
-                              'LIVE',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      bottom: 6,
+                      left: 6,
+                      child: _buildLivePulseBadge(),
                     ),
                 ],
               ),
             ),
-            // Info area
+
+            // Info
             Expanded(
-              flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Followed indicator
                     if (isFollowed)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
                           children: [
-                            Icon(Icons.favorite, size: 10, color: Colors.red),
-                            SizedBox(width: 2),
+                            Icon(
+                              Icons.favorite_rounded,
+                              size: 10,
+                              color: Colors.redAccent,
+                            ),
+                            const SizedBox(width: 4),
                             Text(
                               'Following',
                               style: TextStyle(
-                                color: Colors.red,
+                                color: Colors.redAccent,
                                 fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    Expanded(
-                      child: Text(
-                        stream.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      stream.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        height: 1.2,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
                             stream.companyName,
                             style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
+                              color: _onVariant,
+                              fontSize: 11,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const Icon(
-                          Icons.visibility,
-                          size: 12,
-                          color: AppColors.textSecondary,
+                          Icons.visibility_rounded,
+                          size: 11,
+                          color: _outline,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         Text(
                           '${stream.viewerCount}',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
+                          style: const TextStyle(color: _outline, fontSize: 11),
                         ),
                       ],
                     ),
                   ],
+                ),
+              ),
+            ),
+
+            // Play button
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_primary, _primaryCont],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primary.withOpacity(0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: _onPrimary,
+                  size: 20,
                 ),
               ),
             ),
@@ -524,21 +685,153 @@ class _StreamsScreenState extends State<StreamsScreen> {
     );
   }
 
-  /// Navigate to stream player screen - handles single stream logic
+  // ── Empty state ───────────────────────────────────────────────────────────
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: _surfaceHigh,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              size: 32,
+              color: _outline,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No streams available',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            AppStrings.pullToRefresh,
+            style: const TextStyle(color: _outline, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => context.read<StreamsProvider>().refresh(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 11),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_primary, _primaryCont],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: _primary.withOpacity(0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Text(
+                'Refresh',
+                style: TextStyle(
+                  color: _onPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Error state ───────────────────────────────────────────────────────────
+
+  Widget _buildError(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                size: 32,
+                color: Colors.redAccent,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              error,
+              style: const TextStyle(
+                color: _onVariant,
+                fontSize: 14,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: () => context.read<StreamsProvider>().refresh(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_primary, _primaryCont],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primary.withOpacity(0.25),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(
+                    color: _onPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
-
-    // Open stream - returns true if same stream (continue listening), false if new
     final isSameStream = await provider.openStream(stream);
-
-    if (isSameStream) {
-      // Same stream - just expand the player
-      provider.expand();
-    }
-
+    if (isSameStream) provider.expand();
     if (!context.mounted) return;
-
-    // Use bottom sheet instead of full screen navigation (like recordings player)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -549,50 +842,52 @@ class _StreamsScreenState extends State<StreamsScreen> {
       ),
     );
   }
+}
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.wifi_off, size: 64, color: AppColors.textSecondary),
-          const SizedBox(height: 16),
-          Text(
-            AppStrings.noStreamsAvailable,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              context.read<StreamsProvider>().refresh();
-            },
-            child: const Text(AppStrings.pullToRefresh),
-          ),
-        ],
-      ),
-    );
+// ── Pulse dot ─────────────────────────────────────────────────────────────────
+
+class _PulseDot extends StatefulWidget {
+  const _PulseDot();
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
-  Widget _buildError(String error) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 64, color: AppColors.error),
-          const SizedBox(height: 16),
-          Text(
-            error,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              context.read<StreamsProvider>().refresh();
-            },
-            child: const Text('Retry'),
-          ),
-        ],
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _anim,
+      child: Container(
+        width: 6,
+        height: 6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
