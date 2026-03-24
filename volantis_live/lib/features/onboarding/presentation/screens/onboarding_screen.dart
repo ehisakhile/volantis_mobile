@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/onboarding_provider.dart';
 
-/// Onboarding / Welcome screen — single scrollable page
-/// Matches the VolantisLive HTML design: dark navy, sky-blue primary,
-/// waveform decoration, value-prop list, and auth action buttons.
+/// Onboarding screen — paginated PageView with pinned CTA
+/// • Users swipe through 3 value-prop slides
+/// • "Continue with Email" button is always visible at the bottom
+/// • Animated page indicator dots
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback? onComplete;
 
@@ -16,55 +17,52 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with SingleTickerProviderStateMixin {
+  late final PageController _pageController;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // ── Brand colours (mirrors the HTML token set) ──────────────────────────
-  static const Color _background = Color(0xFF0B1326);
-  static const Color _surface = Color(0xFF131B2E);
-  static const Color _surfaceHigh = Color(0xFF222A3D);
-  static const Color _primary = Color(0xFF89CEFF);
-  static const Color _primaryContainer = Color(0xFF0EA5E9);
-  static const Color _secondary = Color(0xFFD2BBFF);
-  static const Color _tertiary = Color(0xFFFFB3AD);
-  static const Color _onSurface = Color(0xFFDAE2FD);
-  static const Color _onSurfaceVariant = Color(0xFFBEC8D2);
-  static const Color _outlineVariant = Color(0xFF3E4850);
-  static const Color _onPrimaryFixed = Color(0xFF001E2F);
+  int _currentPage = 0;
+  static const int _totalPages = 3;
 
-  // ── Value propositions ───────────────────────────────────────────────────
-  static const List<_ValueProp> _props = [
-    _ValueProp(
-      icon: Icons.podcasts_rounded,
-      color: _primary,
-      text: 'Listen to live audio from anyone, anywhere',
+  static const List<_OnboardingPage> _pages = [
+    _OnboardingPage(
+      icon: Icons.mic_external_on_rounded,
+      iconColor: _OC.primary,
+      title: 'Your world.\nLive.',
+      subtitle: 'Stream live audio to anyone, anywhere — in seconds.',
     ),
-    _ValueProp(
+    _OnboardingPage(
       icon: Icons.auto_awesome_rounded,
-      color: _secondary,
-      text: 'AI-powered tools that make streaming effortless',
+      iconColor: _OC.secondary,
+      title: 'AI that works\nfor you.',
+      subtitle:
+          'Smart tools handle the hard parts so you can focus on your audience.',
     ),
-    _ValueProp(
+    _OnboardingPage(
       icon: Icons.videocam_rounded,
-      color: _tertiary,
-      text: 'Video streaming coming soon',
+      iconColor: _OC.tertiary,
+      title: 'Video is\ncoming.',
+      subtitle:
+          'Full video streaming is on the way. Be first in line when it drops.',
     ),
   ];
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.72, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
@@ -74,170 +72,96 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     widget.onComplete?.call();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: Stack(
-        children: [
-          // ── Scrollable body ──────────────────────────────────────────────
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                _HeroSection(pulseAnimation: _pulseAnimation),
-                _ContentSection(
-                  props: _props,
-                  onGoogle: _completeOnboarding,
-                  onApple: _completeOnboarding,
-                  onEmail: _completeOnboarding,
-                  onGuest: _completeOnboarding,
-                ),
-              ],
-            ),
-          ),
+  void _onPageChanged(int index) => setState(() => _currentPage = index);
 
-          // ── Fixed header ─────────────────────────────────────────────────
-          _Header(),
-        ],
-      ),
-    );
+  void _nextPage() {
+    if (_currentPage < _totalPages - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeInOutCubic,
+      );
+    } else {
+      _completeOnboarding();
+    }
   }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Header
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _Header extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF060E20), Colors.transparent],
-          ),
-        ),
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 16,
-          bottom: 20,
-        ),
-        child: const Center(
-          child: Text(
-            'VolantisLive',
-            style: TextStyle(
-              color: _OnboardingColors.primary,
-              fontWeight: FontWeight.w900,
-              fontStyle: FontStyle.italic,
-              fontSize: 28,
-              letterSpacing: -1.2,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Hero / decorative top section
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _HeroSection extends StatelessWidget {
-  final Animation<double> pulseAnimation;
-
-  const _HeroSection({required this.pulseAnimation});
 
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
     final top = MediaQuery.of(context).padding.top;
 
-    return SizedBox(
-      height: 353 + top,
-      width: double.infinity,
-      child: Stack(
-        alignment: Alignment.center,
+    return Scaffold(
+      backgroundColor: _OC.background,
+      body: Column(
         children: [
-          // Gradient overlay
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x33000000), _OnboardingColors.background],
-                ),
+          // ── Logo header ───────────────────────────────────────────────
+          _LogoHeader(topPadding: top),
+
+          // ── Swipeable page content ────────────────────────────────────
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              itemCount: _totalPages,
+              itemBuilder: (context, index) => _PageSlide(
+                page: _pages[index],
+                pulseAnimation: _pulseAnimation,
+                isActive: index == _currentPage,
               ),
             ),
           ),
 
-          // SVG-style waveform painted by CustomPainter
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomPaint(
-              size: const Size(double.infinity, 160),
-              painter: _WaveformPainter(),
+          // ── Page dots ─────────────────────────────────────────────────
+          _PageDots(current: _currentPage, total: _totalPages),
+
+          const SizedBox(height: 28),
+
+          // ── Pinned CTA ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                _PrimaryButton(
+                  label: _currentPage == _totalPages - 1
+                      ? 'Get Started'
+                      : 'Continue with Email',
+                  onTap: _nextPage,
+                ),
+                const SizedBox(height: 14),
+                _SkipLink(onTap: _completeOnboarding),
+              ],
             ),
           ),
 
-          // Pulsing mic orb
-          AnimatedBuilder(
-            animation: pulseAnimation,
-            builder: (_, __) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(height: top - 30),
-                  _PulseOrb(scale: pulseAnimation.value),
-                ],
-              );
-            },
-          ),
+          SizedBox(height: bottom + 24),
         ],
       ),
     );
   }
 }
 
-class _PulseOrb extends StatelessWidget {
-  final double scale;
+// ──────────────────────────────────────────────────────────────────────────────
+// Logo header
+// ──────────────────────────────────────────────────────────────────────────────
 
-  const _PulseOrb({required this.scale});
+class _LogoHeader extends StatelessWidget {
+  final double topPadding;
+
+  const _LogoHeader({required this.topPadding});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 128,
-      height: 128,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: _OnboardingColors.primary.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Center(
-        child: Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _OnboardingColors.primary.withOpacity(0.12),
-            ),
-            child: const Icon(
-              Icons.mic_external_on_rounded,
-              color: _OnboardingColors.primary,
-              size: 48,
-            ),
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding + 16, bottom: 8),
+      child: const Center(
+        child: Text(
+          'VolantisLive',
+          style: TextStyle(
+            color: _OC.primary,
+            fontWeight: FontWeight.w900,
+            fontStyle: FontStyle.italic,
+            fontSize: 26,
+            letterSpacing: -1.2,
           ),
         ),
       ),
@@ -246,132 +170,70 @@ class _PulseOrb extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Content section
+// Individual page slide
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _ContentSection extends StatelessWidget {
-  final List<_ValueProp> props;
-  final VoidCallback onGoogle;
-  final VoidCallback onApple;
-  final VoidCallback onEmail;
-  final VoidCallback onGuest;
+class _PageSlide extends StatelessWidget {
+  final _OnboardingPage page;
+  final Animation<double> pulseAnimation;
+  final bool isActive;
 
-  const _ContentSection({
-    required this.props,
-    required this.onGoogle,
-    required this.onApple,
-    required this.onEmail,
-    required this.onGuest,
+  const _PageSlide({
+    required this.page,
+    required this.pulseAnimation,
+    required this.isActive,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 8),
-
-          // ── Headline ─────────────────────────────────────────────────────
-          const Text(
-            'Your world. \nLive.',
-            style: TextStyle(
-              color: _OnboardingColors.onSurface,
-              fontSize: 38,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.5,
-              height: 1.1,
+          // ── Pulsing orb ───────────────────────────────────────────────
+          AnimatedBuilder(
+            animation: pulseAnimation,
+            builder: (_, __) => _PulseOrb(
+              icon: page.icon,
+              iconColor: page.iconColor,
+              scale: isActive ? pulseAnimation.value : 0.85,
             ),
-            textAlign: TextAlign.center,
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 48),
 
-          const Text(
-            'Stream, listen, and connect with your people.',
-            style: TextStyle(
-              color: _OnboardingColors.onSurfaceVariant,
-              fontSize: 24,
-              height: 1.55,
-            ),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 36),
-
-          // ── Value props ───────────────────────────────────────────────────
-          ...props.map((p) => _ValuePropTile(prop: p)),
-
-          const SizedBox(height: 36),
-
-          // ── Action buttons ────────────────────────────────────────────────
-          // _GoogleButton(onTap: onGoogle),
-          // const SizedBox(height: 12),
-          // _AppleButton(onTap: onApple),
-          const SizedBox(height: 12),
-          _EmailButton(onTap: onEmail),
-
-          // const SizedBox(height: 20),
-          // _GuestLink(onTap: onGuest),
-          const SizedBox(height: 32),
-
-          // ── Footer ────────────────────────────────────────────────────────
-          Opacity(
-            opacity: 0.4,
+          // ── Title ──────────────────────────────────────────────────────
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
             child: Text(
-              'PREMIUM LIVE EXPERIENCE  •  EST. 2026',
-              style: TextStyle(
-                color: _OnboardingColors.onSurfaceVariant,
-                fontSize: 9,
-                letterSpacing: 2.0,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Value prop row
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _ValuePropTile extends StatelessWidget {
-  final _ValueProp prop;
-
-  const _ValuePropTile({required this.prop});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _OnboardingColors.surfaceHigh,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(prop.icon, color: prop.color, size: 24),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Text(
-              prop.text,
+              page.title,
+              key: ValueKey(page.title),
               style: const TextStyle(
-                color: _OnboardingColors.onSurface,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                height: 1.35,
+                color: _OC.onSurface,
+                fontSize: 40,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.8,
+                height: 1.05,
               ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Subtitle ──────────────────────────────────────────────────
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: Text(
+              page.subtitle,
+              key: ValueKey(page.subtitle),
+              style: const TextStyle(
+                color: _OC.onSurfaceVariant,
+                fontSize: 17,
+                height: 1.55,
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
         ],
@@ -381,109 +243,154 @@ class _ValuePropTile extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Auth buttons
+// Pulse orb
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _GoogleButton extends StatelessWidget {
-  final VoidCallback onTap;
+class _PulseOrb extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final double scale;
 
-  const _GoogleButton({required this.onTap});
+  const _PulseOrb({
+    required this.icon,
+    required this.iconColor,
+    required this.scale,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return _AuthButton(
-      onTap: onTap,
+    return Container(
+      width: 140,
+      height: 140,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            _OnboardingColors.primary,
-            _OnboardingColors.primaryContainer,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: _OnboardingColors.primary.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        shape: BoxShape.circle,
+        border: Border.all(color: iconColor.withOpacity(0.15), width: 1.5),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _GoogleLogo(),
-          const SizedBox(width: 12),
-          const Text(
-            'Continue with Google',
-            style: TextStyle(
-              color: _OnboardingColors.onPrimaryFixed,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+      child: Center(
+        child: Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 104,
+            height: 104,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconColor.withOpacity(0.10),
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withOpacity(0.20),
+                  blurRadius: 32,
+                  spreadRadius: 4,
+                ),
+              ],
             ),
+            child: Icon(icon, color: iconColor, size: 52),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _AppleButton extends StatelessWidget {
-  final VoidCallback onTap;
+// ──────────────────────────────────────────────────────────────────────────────
+// Page dots indicator
+// ──────────────────────────────────────────────────────────────────────────────
 
-  const _AppleButton({required this.onTap});
+class _PageDots extends StatelessWidget {
+  final int current;
+  final int total;
+
+  const _PageDots({required this.current, required this.total});
 
   @override
   Widget build(BuildContext context) {
-    return _AuthButton(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(total, (i) {
+        final isActive = i == current;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: isActive ? 24 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: isActive ? _OC.primary : _OC.primary.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Primary CTA button
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _PrimaryButton({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
       onTap: onTap,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.apple_rounded, color: Colors.black, size: 22),
-          SizedBox(width: 10),
-          Text(
-            'Continue with Apple',
-            style: TextStyle(
-              color: Colors.black,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 56,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [_OC.primary, _OC.primaryContainer],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _OC.primary.withOpacity(0.25),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            label,
+            key: ValueKey(label),
+            style: const TextStyle(
+              color: _OC.onPrimaryFixed,
               fontSize: 16,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _EmailButton extends StatelessWidget {
+// ──────────────────────────────────────────────────────────────────────────────
+// Skip / guest link
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _SkipLink extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _EmailButton({required this.onTap});
+  const _SkipLink({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return _AuthButton(
+    return GestureDetector(
       onTap: onTap,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            _OnboardingColors.primary,
-            _OnboardingColors.primaryContainer,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _OnboardingColors.outlineVariant),
-      ),
       child: const Text(
-        'Continue with Email',
+        'Skip for now',
         style: TextStyle(
-          color: _OnboardingColors.onSurface,
-          fontSize: 16,
+          color: _OC.onSurfaceVariant,
+          fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -491,119 +398,11 @@ class _EmailButton extends StatelessWidget {
   }
 }
 
-class _AuthButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final BoxDecoration decoration;
-  final Widget child;
-
-  const _AuthButton({
-    required this.onTap,
-    required this.decoration,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        height: 56,
-        decoration: decoration,
-        alignment: Alignment.center,
-        child: child,
-      ),
-    );
-  }
-}
-
-class _GuestLink extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _GuestLink({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Text(
-            'Browse without account',
-            style: TextStyle(
-              color: _OnboardingColors.onSurfaceVariant,
-              fontSize: 14,
-            ),
-          ),
-          SizedBox(width: 4),
-          Icon(
-            Icons.arrow_right_alt_rounded,
-            color: _OnboardingColors.onSurfaceVariant,
-            size: 20,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
-// Google logo painter (4-colour SVG path recreation)
+// Colour constants
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _GoogleLogo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(width: 20, height: 20);
-  }
-}
-// ──────────────────────────────────────────────────────────────────────────────
-// Waveform painter
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _WaveformPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final primary = Paint()
-      ..color = const Color(0xFF89CEFF).withOpacity(0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-
-    final secondary = Paint()
-      ..color = const Color(0xFFD2BBFF).withOpacity(0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    // Primary wave
-    final p1 = Path();
-    p1.moveTo(0, h * 0.5);
-    p1.cubicTo(w * 0.12, h * 0.1, w * 0.25, h * 0.9, w * 0.375, h * 0.5);
-    p1.cubicTo(w * 0.5, h * 0.1, w * 0.625, h * 0.9, w * 0.75, h * 0.5);
-    p1.cubicTo(w * 0.875, h * 0.1, w * 0.95, h * 0.7, w, h * 0.3);
-    canvas.drawPath(p1, primary);
-
-    // Secondary wave (offset)
-    final p2 = Path();
-    p2.moveTo(0, h * 0.6);
-    p2.cubicTo(w * 0.15, h * 0.3, w * 0.3, h * 0.85, w * 0.45, h * 0.6);
-    p2.cubicTo(w * 0.6, h * 0.35, w * 0.75, h * 0.75, w, h * 0.4);
-    canvas.drawPath(p2, secondary);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Shared colour constants (avoids referencing app_colors for isolated use)
-// ──────────────────────────────────────────────────────────────────────────────
-
-abstract class _OnboardingColors {
+abstract class _OC {
   static const background = Color(0xFF0B1326);
   static const surfaceHigh = Color(0xFF222A3D);
   static const primary = Color(0xFF89CEFF);
@@ -620,14 +419,16 @@ abstract class _OnboardingColors {
 // Data model
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _ValueProp {
+class _OnboardingPage {
   final IconData icon;
-  final Color color;
-  final String text;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
 
-  const _ValueProp({
+  const _OnboardingPage({
     required this.icon,
-    required this.color,
-    required this.text,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
   });
 }
