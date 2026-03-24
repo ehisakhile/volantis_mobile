@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../../../recordings/data/models/recording_model.dart';
+import '../../../recordings/data/models/recording_download.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../../core/constants/app_colors.dart';
 
@@ -225,12 +226,12 @@ class RecordingCard extends StatelessWidget {
     );
   }
 
-  void _handleDownloadTap(RecordingsProvider provider, dynamic status) {
-    if (status.toString().contains('downloaded')) {
+  void _handleDownloadTap(RecordingsProvider provider, DownloadStatus status) {
+    if (status == DownloadStatus.downloaded) {
       // Already downloaded - play offline
       provider.playDownloadedRecording(recording.id);
-    } else if (status.toString().contains('downloading') ||
-        status.toString().contains('queued')) {
+    } else if (status == DownloadStatus.downloading ||
+        status == DownloadStatus.queued) {
       // Currently downloading - show info or cancel
       _showDownloadInfo();
     } else {
@@ -244,28 +245,28 @@ class RecordingCard extends StatelessWidget {
     debugPrint('Download in progress for: ${recording.title}');
   }
 
-  IconData _getDownloadIcon(dynamic status) {
-    final statusStr = status.toString();
-    if (statusStr.contains('downloaded')) {
-      return Icons.download_done;
-    } else if (statusStr.contains('downloading')) {
-      return Icons.downloading;
-    } else if (statusStr.contains('queued')) {
-      return Icons.hourglass_empty;
-    } else {
-      return Icons.download;
+  IconData _getDownloadIcon(DownloadStatus status) {
+    switch (status) {
+      case DownloadStatus.downloaded:
+        return Icons.download_done;
+      case DownloadStatus.downloading:
+        return Icons.downloading;
+      case DownloadStatus.queued:
+        return Icons.hourglass_empty;
+      default:
+        return Icons.download;
     }
   }
 
-  Color _getDownloadColor(dynamic status) {
-    final statusStr = status.toString();
-    if (statusStr.contains('downloaded')) {
-      return AppColors.primary;
-    } else if (statusStr.contains('downloading') ||
-        statusStr.contains('queued')) {
-      return AppColors.primary;
-    } else {
-      return Colors.white;
+  Color _getDownloadColor(DownloadStatus status) {
+    switch (status) {
+      case DownloadStatus.downloaded:
+        return AppColors.primary;
+      case DownloadStatus.downloading:
+      case DownloadStatus.queued:
+        return AppColors.primary;
+      default:
+        return Colors.white;
     }
   }
 }

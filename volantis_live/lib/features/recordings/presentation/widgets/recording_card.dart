@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../data/models/recording_model.dart';
+import '../../data/models/recording_download.dart';
 import '../providers/recordings_provider.dart';
 import 'package:intl/intl.dart';
 
@@ -165,10 +166,10 @@ class RecordingCard extends StatelessWidget {
     return Consumer<RecordingsProvider>(
       builder: (_, provider, __) {
         final status = provider.getDownloadStatus(recording.id);
-        final isDownloaded = status.toString().contains('downloaded');
+        final isDownloaded = status == DownloadStatus.downloaded;
         final isInProgress =
-            status.toString().contains('downloading') ||
-            status.toString().contains('queued');
+            status == DownloadStatus.downloading ||
+            status == DownloadStatus.queued;
 
         return GestureDetector(
           onTap: () => _handleDownloadTap(provider, status),

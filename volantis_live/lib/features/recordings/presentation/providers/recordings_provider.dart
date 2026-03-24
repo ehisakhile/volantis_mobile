@@ -93,6 +93,10 @@ class RecordingsProvider extends ChangeNotifier {
       } else if (status.status == DownloadStatus.failed) {
         _downloadStatuses[status.recordingId] = DownloadStatus.failed;
         notifyListeners();
+      } else if (status.status == DownloadStatus.notDownloaded) {
+        _downloadStatuses[status.recordingId] = DownloadStatus.notDownloaded;
+        _downloadProgress[status.recordingId] = 0.0;
+        notifyListeners();
       } else if (status.status == DownloadStatus.queued) {
         _downloadStatuses[status.recordingId] = DownloadStatus.queued;
         notifyListeners();
