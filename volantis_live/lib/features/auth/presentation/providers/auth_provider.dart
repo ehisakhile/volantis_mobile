@@ -42,38 +42,57 @@ class AuthProvider extends ChangeNotifier {
   Future<void> init() async {
     _state = AuthState.loading;
     notifyListeners();
+    print('AuthProvider: init() started, state = loading');
 
     try {
       final isLoggedIn = await _repository.isLoggedIn();
+      print('AuthProvider: isLoggedIn result: $isLoggedIn');
+
       if (isLoggedIn) {
+        print('AuthProvider: User is logged in, checking connectivity...');
         // Check connectivity
         final isConnected = await _connectivityService.isConnected();
         _isOffline = !isConnected;
+        print(
+          'AuthProvider: isConnected: $isConnected, isOffline: $_isOffline',
+        );
 
         if (isConnected) {
           // Online - try to fetch profile
           try {
             _user = await _repository.getProfile();
             _state = AuthState.authenticated;
+            print(
+              'AuthProvider: Online auth successful, state = authenticated',
+            );
           } catch (e) {
             // Network error but token exists - allow offline access
             _state = AuthState.offlineAuthenticated;
             _errorMessage = 'Working offline - some features may be limited';
+            print(
+              'AuthProvider: Network error but token exists, state = offlineAuthenticated',
+            );
           }
         } else {
           // Offline but token exists - allow access to offline features
           _state = AuthState.offlineAuthenticated;
           _errorMessage = 'You are offline. Accessing downloaded content only.';
+          print(
+            'AuthProvider: Offline with token, state = offlineAuthenticated',
+          );
         }
       } else {
         _state = AuthState.unauthenticated;
+        print('AuthProvider: Not logged in, state = unauthenticated');
       }
     } catch (e) {
       _state = AuthState.unauthenticated;
       _errorMessage = e.toString();
+      print('AuthProvider: Exception during init: $e, state = unauthenticated');
     }
 
     notifyListeners();
+    print('AuthProvider: init() completed, final state = $_state');
   }
 
   /// Try to refresh profile when coming back online

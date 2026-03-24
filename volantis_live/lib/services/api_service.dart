@@ -1,21 +1,24 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/api_constants.dart';
 
 /// API Service for making HTTP requests
 class ApiService {
   late final Dio _dio;
   static ApiService? _instance;
-  
-  // In-memory fallback for when secure storage is unavailable
+
+  // In-memory token storage
   static String? _memoryToken;
   static String? _memoryRefreshToken;
   static String? _memoryUserId;
-  
+
   // Secure storage - initialized lazily
   static FlutterSecureStorage? get _secureStorage {
     try {
-      return const FlutterSecureStorage();
+      return const FlutterSecureStorage(
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
     } catch (e) {
       return null;
     }
@@ -30,8 +33,12 @@ class ApiService {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(milliseconds: ApiConstants.connectionTimeout),
-        receiveTimeout: const Duration(milliseconds: ApiConstants.receiveTimeout),
+        connectTimeout: const Duration(
+          milliseconds: ApiConstants.connectionTimeout,
+        ),
+        receiveTimeout: const Duration(
+          milliseconds: ApiConstants.receiveTimeout,
+        ),
         headers: {
           'Content-Type': ApiConstants.contentType,
           'Accept': ApiConstants.jsonContentType,
@@ -40,14 +47,16 @@ class ApiService {
     );
 
     // Add logging interceptor for debugging
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (object) {
-        // ignore: avoid_print
-        print('API: $object');
-      },
-    ));
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (object) {
+          // ignore: avoid_print
+          print('API: $object');
+        },
+      ),
+    );
 
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -89,52 +98,121 @@ class ApiService {
     return _instance!;
   }
 
-  // Token management with secure storage (with in-memory fallback)
+  // Token management with dual storage (secure + SharedPreferences fallback)
   static Future<void> saveToken(String token) async {
+    print(
+      'API Service: saveToken called with token: ${token.substring(0, 20)}...',
+    );
     _memoryToken = token;
+    print('API Service: _memoryToken set');
+
+    // Save to secure storage
     try {
       final storage = _secureStorage;
+      print('API Service: _secureStorage: ${storage != null}');
       if (storage != null) {
         await storage.write(key: _tokenKey, value: token);
+        print('API Service: Token written to secure storage');
       }
     } catch (e) {
-      // Fallback to in-memory storage
+      print('API Service: saveToken secure storage error: $e');
     }
+
+    // Also save to SharedPreferences as fallback
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, token);
+      print('API Service: Token written to SharedPreferences');
+    } catch (e) {
+      print('API Service: saveToken SharedPreferences error: $e');
+    }
+
+    print('API Service: saveToken completed');
   }
 
   static Future<String?> getToken() async {
-    if (_memoryToken != null) return _memoryToken;
+    if (_memoryToken != null) {
+      print('API Service: getToken returning from memory');
+      return _memoryToken;
+    }
+
+    // Try secure storage first
     try {
       final storage = _secureStorage;
       if (storage != null) {
-        return await storage.read(key: _tokenKey);
+        final token = await storage.read(key: _tokenKey);
+        print('API Service: getToken from secure storage: ${token != null}');
+        if (token != null) {
+          _memoryToken = token;
+          return token;
+        }
       }
-      return null;
     } catch (e) {
+      print('API Service: getToken secure storage error: $e');
+    }
+
+    // Fallback to SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_tokenKey);
+      print('API Service: getToken from SharedPreferences: ${token != null}');
+      if (token != null) {
+        _memoryToken = token;
+      }
+      return token;
+    } catch (e) {
+      print('API Service: getToken SharedPreferences error: $e');
       return null;
     }
   }
 
   static Future<void> saveRefreshToken(String token) async {
     _memoryRefreshToken = token;
+
+    // Save to secure storage
     try {
       final storage = _secureStorage;
       if (storage != null) {
         await storage.write(key: _refreshTokenKey, value: token);
       }
     } catch (e) {
-      // Fallback to in-memory storage
+      // Fallback to SharedPreferences
+    }
+
+    // Also save to SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_refreshTokenKey, token);
+    } catch (e) {
+      // Ignore
     }
   }
 
   static Future<String?> getRefreshToken() async {
     if (_memoryRefreshToken != null) return _memoryRefreshToken;
+
+    // Try secure storage first
     try {
       final storage = _secureStorage;
       if (storage != null) {
-        return await storage.read(key: _refreshTokenKey);
+        final token = await storage.read(key: _refreshTokenKey);
+        if (token != null) {
+          _memoryRefreshToken = token;
+          return token;
+        }
       }
-      return null;
+    } catch (e) {
+      // Fallback to SharedPreferences
+    }
+
+    // Fallback to SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_refreshTokenKey);
+      if (token != null) {
+        _memoryRefreshToken = token;
+      }
+      return token;
     } catch (e) {
       return null;
     }
@@ -173,9 +251,7 @@ class ApiService {
       final response = await Dio().post(
         '${ApiConstants.baseUrl}${ApiConstants.refreshToken}',
         data: {'refresh_token': refreshToken},
-        options: Options(
-          headers: {'Content-Type': ApiConstants.contentType},
-        ),
+        options: Options(headers: {'Content-Type': ApiConstants.contentType}),
       );
 
       if (response.statusCode == 200) {
@@ -194,7 +270,7 @@ class ApiService {
     _memoryToken = null;
     _memoryRefreshToken = null;
     _memoryUserId = null;
-    
+
     try {
       final storage = _secureStorage;
       if (storage != null) {
@@ -205,10 +281,28 @@ class ApiService {
     } catch (e) {
       // Ignore errors
     }
+
+    // Also clear SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_refreshTokenKey);
+      await prefs.remove(_userIdKey);
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
+    print(
+      'API Service: isLoggedIn check - token exists: ${token != null && token.isNotEmpty}',
+    );
+    if (token != null && token.isNotEmpty) {
+      print('API Service: Token found: ${token.substring(0, 20)}...');
+    } else {
+      print('API Service: No token found');
+    }
     return token != null && token.isNotEmpty;
   }
 
@@ -227,7 +321,12 @@ class ApiService {
     Map<String, dynamic>? queryParameters,
     Options? options,
   }) async {
-    return _dio.post(path, data: data, queryParameters: queryParameters, options: options);
+    return _dio.post(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   Future<Response> put(
@@ -236,7 +335,12 @@ class ApiService {
     Map<String, dynamic>? queryParameters,
     Options? options,
   }) async {
-    return _dio.put(path, data: data, queryParameters: queryParameters, options: options);
+    return _dio.put(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   Future<Response> delete(
@@ -245,7 +349,12 @@ class ApiService {
     Map<String, dynamic>? queryParameters,
     Options? options,
   }) async {
-    return _dio.delete(path, data: data, queryParameters: queryParameters, options: options);
+    return _dio.delete(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   Future<Response> uploadFile(

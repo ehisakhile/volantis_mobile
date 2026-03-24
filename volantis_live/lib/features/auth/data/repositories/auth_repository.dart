@@ -26,6 +26,10 @@ class AuthRepository {
 
       // Save tokens in secure storage
       await ApiService.saveToken(loginResponse.accessToken);
+      print('API: Token saved, verifying...');
+      final saved = await ApiService.isLoggedIn();
+      print('API: Token verified after save: $saved');
+
       if (loginResponse.refreshToken.isNotEmpty) {
         await ApiService.saveRefreshToken(loginResponse.refreshToken);
       }

@@ -134,17 +134,46 @@ class AppRouter {
       ),
     ],
     redirect: (context, state) {
+      // Check if auth provider has completed initialization
+      // If auth state is still initial or loading, wait for it to complete
+      final authState = authProvider.state;
+      print('AppRouter: Redirect called - authState: $authState');
+
+      if (authState == AuthState.initial || authState == AuthState.loading) {
+        print(
+          'AppRouter: Auth still initializing, returning null (no redirect)',
+        );
+        return null; // Wait for auth initialization to complete
+      }
+
       final isLoggedIn = authProvider.isAuthenticated;
       final hasCompletedOnboarding = onboardingProvider.hasCompletedOnboarding;
       final isLoading = authProvider.isLoading || onboardingProvider.isLoading;
 
-      if (isLoading) return null;
+      print(
+        'AppRouter: isLoggedIn: $isLoggedIn, hasCompletedOnboarding: $hasCompletedOnboarding, isLoading: $isLoading',
+      );
+
+      if (isLoading) {
+        print('AppRouter: Still loading, returning null');
+        return null;
+      }
 
       final currentPath = state.matchedLocation;
+      print('AppRouter: currentPath: $currentPath');
 
       if (currentPath == '/' || currentPath == AppRoutes.splash) {
-        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
-        if (!isLoggedIn) return AppRoutes.login;
+        if (!hasCompletedOnboarding) {
+          print('AppRouter: Redirecting to onboarding');
+          return AppRoutes.onboarding;
+        }
+        if (!isLoggedIn) {
+          print('AppRouter: Not logged in, redirecting to login');
+          return AppRoutes.login;
+        }
+        print(
+          'AppRouter: Logged in and onboarding complete, redirecting to home',
+        );
         return AppRoutes.home;
       }
 

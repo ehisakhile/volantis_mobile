@@ -41,13 +41,19 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
   }
 
   Future<void> _initializeProviders() async {
+    print('App: Starting provider initialization...');
+
     // Initialize onboarding first
     await _onboardingProvider.init();
+    print('App: Onboarding provider initialized');
+
     // Then initialize auth
     await _authProvider.init();
+    print('App: Auth provider initialized');
 
     // Create router after providers are initialized
     if (mounted) {
+      print('App: Creating router...');
       setState(() {
         _appRouter = AppRouter(
           authProvider: _authProvider,
@@ -55,6 +61,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         );
         _isInitialized = true;
       });
+      print('App: Router created, _isInitialized = true');
     }
   }
 
