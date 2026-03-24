@@ -859,7 +859,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     final endIndex = startIndex + _streamsPageSize;
     if (startIndex >= _inactiveStreams.length) return [];
     return _inactiveStreams.sublist(
-      startIndex,
+      0,
       endIndex > _inactiveStreams.length ? _inactiveStreams.length : endIndex,
     );
   }
