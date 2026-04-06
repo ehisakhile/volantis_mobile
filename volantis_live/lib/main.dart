@@ -7,6 +7,7 @@ import 'services/encryption_service.dart';
 import 'services/connectivity_service.dart';
 import 'features/recordings/data/services/recordings_downloads_service.dart';
 import 'services/download_manager.dart';
+import 'services/update_service.dart';
 import 'package:dio/dio.dart';
 import 'core/constants/api_constants.dart';
 
@@ -63,6 +64,14 @@ void main() async {
 
   // Initialize download manager
   await DownloadManager.init(dio);
+
+  // Check for Shorebird updates on app start
+  try {
+    await UpdateService().checkAndUpdate();
+  } catch (error) {
+    // Silently handle update errors to avoid blocking app startup
+    print('Shorebird update check failed: $error');
+  }
 
   runApp(const VolantisLiveApp());
 }
