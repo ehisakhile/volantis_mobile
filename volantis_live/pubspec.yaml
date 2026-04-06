@@ -59,6 +59,9 @@ dependencies:
   # Navigation & Deep Linking
   go_router: ^14.6.2
 
+  # Shorebird Code Push for silent updates
+  shorebird_code_push: ^2.0.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
