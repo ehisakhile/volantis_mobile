@@ -232,6 +232,75 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Update user profile
+  Future<bool> updateProfile(String username) async {
+    if (!isAuthenticated) {
+      _errorMessage = 'User not authenticated';
+      notifyListeners();
+      return false;
+    }
+
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.updateProfile(username);
+
+      // Update the local user object with new username
+      if (_user != null) {
+        _user = User(
+          id: _user!.id,
+          email: _user!.email,
+          username: username,
+          role: _user!.role,
+          isActive: _user!.isActive,
+          createdAt: _user!.createdAt,
+        );
+      }
+
+      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Delete user account
+  Future<bool> deleteAccount() async {
+    if (!isAuthenticated) {
+      _errorMessage = 'User not authenticated';
+      notifyListeners();
+      return false;
+    }
+
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.deleteAccount();
+
+      // Clear all auth data
+      _user = null;
+      _pendingUserId = null;
+      _pendingEmail = null;
+      _isOffline = false;
+      _state = AuthState.unauthenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     _state = AuthState.loading;

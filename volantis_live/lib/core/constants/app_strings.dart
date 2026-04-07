@@ -72,9 +72,17 @@ class AppStrings {
   static const String downloadOverWifiOnly = 'Download over WiFi only';
   static const String notifications = 'Notifications';
   static const String darkMode = 'Dark Mode';
-  static const String logout = 'Logout';
-  static const String editProfile = 'Edit Profile';
-  static const String memberSince = 'Member since';
+   static const String logout = 'Logout';
+   static const String editProfile = 'Edit Profile';
+   static const String memberSince = 'Member since';
+   static const String username = 'Username';
+   static const String save = 'Save';
+   static const String cancel = 'Cancel';
+   static const String deleteAccount = 'Delete Account';
+   static const String confirmDeleteAccount = 'Delete my Account';
+   static const String deleteAccountWarning = 'This action cannot be undone. This will permanently delete your account and remove your data from our servers.';
+   static const String profileUpdated = 'Profile updated successfully';
+   static const String accountDeleted = 'Account deleted successfully';
 
   // Player
   static const String play = 'Play';

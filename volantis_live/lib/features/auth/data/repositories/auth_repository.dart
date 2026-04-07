@@ -194,6 +194,49 @@ class AuthRepository {
     }
   }
 
+  /// Update user profile
+  Future<Map<String, dynamic>> updateProfile(String username) async {
+    try {
+      print(
+        'API: Updating profile to ${ApiConstants.baseUrl}${ApiConstants.updateProfile}',
+      );
+      print('API: Profile update payload - username: $username');
+
+      final response = await _apiService.put(
+        ApiConstants.updateProfile,
+        data: {'username': username},
+        options: Options(contentType: Headers.jsonContentType),
+      );
+
+      print('API: Profile update response: ${response.data}');
+
+      return response.data;
+    } on DioException catch (e) {
+      print('API: Profile update error - ${e.message}');
+      print('API: Profile update error response - ${e.response?.data}');
+      throw _handleError(e);
+    }
+  }
+
+  /// Delete user account
+  Future<Map<String, dynamic>> deleteAccount() async {
+    try {
+      print(
+        'API: Deleting account at ${ApiConstants.baseUrl}${ApiConstants.deleteAccount}',
+      );
+
+      final response = await _apiService.delete(ApiConstants.deleteAccount);
+
+      print('API: Account deletion response: ${response.data}');
+
+      return response.data;
+    } on DioException catch (e) {
+      print('API: Account deletion error - ${e.message}');
+      print('API: Account deletion error response - ${e.response?.data}');
+      throw _handleError(e);
+    }
+  }
+
   /// Check if user is logged in
   Future<bool> isLoggedIn() async {
     return await ApiService.isLoggedIn();
