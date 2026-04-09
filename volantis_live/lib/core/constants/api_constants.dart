@@ -114,6 +114,9 @@ class ApiConstants {
   static const String categories = '/categories';
   static const String categoryPreferences = '/categories/preferences/me';
 
+  // Recommendations endpoint
+  static const String recommendations = '/recommendations';
+
   /// Get categories endpoint with pagination
   static String getCategoriesEndpoint({int page = 1, int limit = 20}) {
     return '/categories?page=$page&limit=$limit';

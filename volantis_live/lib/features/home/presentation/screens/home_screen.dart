@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../data/models/recommendations_model.dart';
 import '../providers/home_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
-import '../widgets/recording_card.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../categories/presentation/providers/category_preferences_provider.dart';
 
@@ -62,13 +62,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _checkUserPreferences() async {
     final categoryProvider = context.read<CategoryPreferencesProvider>();
-    
+
     if (categoryProvider.preferencesPromptShown) {
       return;
     }
-    
+
     await categoryProvider.checkUserPreferences();
-    
+
     if (!categoryProvider.hasUserPreferences && mounted) {
       categoryProvider.markPreferencesPromptShown();
       context.push('/set-preferences');
@@ -157,15 +157,24 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
         children: [
-          // Wordmark
-          const Text(
-            'VolantisLive',
-            style: TextStyle(
-              color: _primary,
-              fontWeight: FontWeight.w900,
-              fontStyle: FontStyle.italic,
-              fontSize: 22,
-              letterSpacing: -1.0,
+          // Logo
+          Container(
+            height: 36,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+            clipBehavior: Clip.hardEdge,
+            child: Image.asset(
+              'assets/images/volantislive_logo.jpeg',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Text(
+                'VolantisLive',
+                style: TextStyle(
+                  color: _primary,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 20,
+                  letterSpacing: -1.0,
+                ),
+              ),
             ),
           ),
           const Spacer(),
@@ -178,12 +187,12 @@ class _HomeScreenState extends State<HomeScreen>
 
           const SizedBox(width: 8),
 
-          // Notification badge placeholder
-          _IconBtn(
-            icon: Icons.notifications_outlined,
-            onTap: () {},
-            badge: true,
-          ),
+          // Notification badge placeholder - commented out for now
+          // _IconBtn(
+          //   icon: Icons.notifications_outlined,
+          //   onTap: () {},
+          //   badge: true,
+          // ),
         ],
       ),
     );
@@ -197,14 +206,23 @@ class _HomeScreenState extends State<HomeScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: _surfaceHigh,
+          color: _glassCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _searchFocused
-                ? _primary.withOpacity(0.6)
-                : Colors.transparent,
+                ? _primary.withOpacity(0.8)
+                : _outlineVar.withOpacity(0.4),
             width: 1.5,
           ),
+          boxShadow: _searchFocused
+              ? [
+                  BoxShadow(
+                    color: _primary.withOpacity(0.15),
+                    blurRadius: 12,
+                    spreadRadius: 0,
+                  ),
+                ]
+              : null,
         ),
         child: Focus(
           onFocusChange: (f) => setState(() => _searchFocused = f),
@@ -339,87 +357,42 @@ class _HomeScreenState extends State<HomeScreen>
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
-        // Following horizontal strip
-        if (hp.followedCompanies.isNotEmpty)
-          SliverToBoxAdapter(child: _buildFollowingStrip(hp)),
+        // For You - Recommended Companies from user's selected categories
+        if (hp.recommendedCompanies.isNotEmpty)
+          SliverToBoxAdapter(child: _buildRecommendedCompaniesStrip(hp)),
 
-        // Latest recordings from followed channels
-        if (hp.followedCompanies.isNotEmpty)
-          SliverToBoxAdapter(
-            child: hp.followedRecordings.isEmpty && hp.isLoadingRecordings
-                ? _buildRecordingsLoading()
-                : (hp.followedRecordings.isNotEmpty
-                      ? _buildRecordingsStrip(hp)
-                      : const SizedBox.shrink()),
-          ),
+        // Recommendations - Current Live Streams from subscribed companies
+        if (hp.subscribedLivestreams.isNotEmpty)
+          SliverToBoxAdapter(child: _buildLivestreamsStrip(hp)),
 
-        // Section label
-        SliverToBoxAdapter(
-          child: _buildSectionLabel(
-            hp.followedCompanies.isNotEmpty
-                ? AppStrings.recommended
-                : AppStrings.companies,
-            hp.companies.length,
-          ),
-        ),
+        // Recordings - Recent recordings from subscribed companies
+        if (hp.subscribedRecordings.isNotEmpty)
+          SliverToBoxAdapter(child: _buildSubscribedRecordingsStrip(hp)),
 
-        // 2-column grid
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.82,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (_, i) => _buildCompanyCard(hp.companies[i], hp),
-              childCount: hp.companies.length,
-            ),
-          ),
-        ),
-
-        // Load-more spinner
-        if (hp.isLoadingMore)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    color: _primary,
-                    strokeWidth: 2,
-                  ),
-                ),
-              ),
-            ),
-          ),
+        // Creators section - Subscribed + Suggested
+        if (_getCreatorsToShow(hp).isNotEmpty)
+          SliverToBoxAdapter(child: _buildCreatorsSection(hp)),
 
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
   }
 
-  // ── Following strip ───────────────────────────────────────────────────────
+  // ── Recommendations strip (current livestreams from subscriptions) ───────
 
-  Widget _buildFollowingStrip(HomeProvider hp) {
+  Widget _buildLivestreamsStrip(HomeProvider hp) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel(
-          AppStrings.yourFollowing,
-          hp.followedCompanies.length,
-        ),
+        _buildSectionLabel('Recommendations', hp.subscribedLivestreams.length),
         SizedBox(
-          height: 108,
+          height: 200,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: hp.followedCompanies.length,
-            itemBuilder: (_, i) => _buildFollowingChip(hp.followedCompanies[i]),
+            itemCount: hp.subscribedLivestreams.length,
+            itemBuilder: (_, i) =>
+                _buildLivestreamCard(hp.subscribedLivestreams[i]),
           ),
         ),
         const SizedBox(height: 8),
@@ -427,9 +400,309 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildFollowingChip(company) {
+  Widget _buildLivestreamCard(SubscribedLivestream livestream) {
     return GestureDetector(
-      onTap: () => _navigateToCompany(company),
+      onTap: () => context.push('/stream/${livestream.slug}'),
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: _surfaceHigh,
+                      child: livestream.thumbnailUrl != null
+                          ? Image.network(
+                              livestream.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.play_circle_outline,
+                                color: _primary,
+                                size: 40,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: _primary,
+                              size: 40,
+                            ),
+                    ),
+                  ),
+                  // Live badge
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF6C66),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, color: Colors.white, size: 5),
+                          SizedBox(width: 3),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Viewer count
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.visibility,
+                            color: Colors.white,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${livestream.viewerCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      livestream.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Text(
+                      livestream.companyName,
+                      style: const TextStyle(color: _onVariant, fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Subscribed Recordings strip ────────────────────────────────────────────
+
+  Widget _buildSubscribedRecordingsStrip(HomeProvider hp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('Recordings', hp.subscribedRecordings.length),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: hp.subscribedRecordings.length,
+            itemBuilder: (_, i) =>
+                _buildSubscribedRecordingCard(hp.subscribedRecordings[i]),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildSubscribedRecordingCard(SubscribedRecording recording) {
+    return GestureDetector(
+      onTap: () => _playRecording(recording.id),
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: _surfaceHigh,
+                      child: recording.thumbnailUrl != null
+                          ? Image.network(
+                              recording.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.play_circle_outline,
+                                color: _primary,
+                                size: 36,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: _primary,
+                              size: 36,
+                            ),
+                    ),
+                  ),
+                  // Duration badge
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        recording.formattedDuration,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recording.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Text(
+                      recording.companyName,
+                      style: const TextStyle(color: _onVariant, fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Recommended Companies strip ────────────────────────────────────────────
+
+  Widget _buildRecommendedCompaniesStrip(HomeProvider hp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('For You', hp.recommendedCompanies.length),
+        SizedBox(
+          height: 108,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: hp.recommendedCompanies.length,
+            itemBuilder: (_, i) =>
+                _buildRecommendedCompanyChip(hp.recommendedCompanies[i], hp),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedCompanyChip(
+    RecommendedCompany company,
+    HomeProvider hp,
+  ) {
+    final isFollowed = hp.isCompanySubscribed(company.companySlug);
+    return GestureDetector(
+      onTap: () => context.push('/company/${company.companySlug}'),
       child: Container(
         width: 80,
         margin: const EdgeInsets.only(right: 12),
@@ -441,13 +714,34 @@ class _HomeScreenState extends State<HomeScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _surfaceHigh,
-                border: Border.all(color: _primary.withOpacity(0.5), width: 2),
+                border: Border.all(
+                  color: isFollowed
+                      ? _primary.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.1),
+                  width: 2,
+                ),
               ),
-              child: ClipOval(child: _CompanyLogoContent(company: company)),
+              child: ClipOval(
+                child: company.hasLogo
+                    ? Image.network(
+                        company.companyLogoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.business_rounded,
+                          color: _primary,
+                          size: 28,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.business_rounded,
+                        color: _primary,
+                        size: 28,
+                      ),
+              ),
             ),
             const SizedBox(height: 6),
             Text(
-              company.name,
+              company.companyName,
               style: const TextStyle(
                 color: _onVariant,
                 fontSize: 11,
@@ -463,109 +757,152 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Recordings strip (latest from followed channels) ─────────────────────────
-
-  Widget _buildRecordingsStrip(HomeProvider hp) {
-    if (hp.followedRecordings.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel('Latest Recordings', hp.followedRecordings.length),
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: hp.followedRecordings.length,
-            itemBuilder: (_, i) => RecordingCard(
-              recording: hp.followedRecordings[i],
-              onTap: () => _playRecording(hp.followedRecordings[i].id),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
   /// Play a recording
   void _playRecording(int recordingId) {
-    // Get the recordings provider from the context
     final recordingsProvider = context.read<RecordingsProvider>();
     recordingsProvider.openRecording(recordingId);
   }
 
-  /// Build loading shimmer for recordings
-  Widget _buildRecordingsLoading() {
+  /// Get creators to show: subscribed + suggested (from For You recommendations)
+  List<dynamic> _getCreatorsToShow(HomeProvider hp) {
+    final List<dynamic> creators = [];
+
+    // Add subscribed creators
+    for (final company in hp.followedCompanies) {
+      creators.add({'type': 'subscribed', 'company': company});
+    }
+
+    // Add suggested creators (from For You recommendations that are not subscribed)
+    for (final rec in hp.recommendedCompanies) {
+      if (!hp.isCompanySubscribed(rec.companySlug)) {
+        creators.add({'type': 'suggested', 'company': rec});
+      }
+    }
+
+    return creators;
+  }
+
+  /// Build the Creators section with subscribed + suggested
+  Widget _buildCreatorsSection(HomeProvider hp) {
+    final creators = _getCreatorsToShow(hp);
+    if (creators.isEmpty) return const SizedBox.shrink();
+
+    final subscribedCount = hp.followedCompanies.length;
+    final suggestedCount = creators.length - subscribedCount;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel('Latest Recordings', 0),
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: 3,
-            itemBuilder: (_, __) => Container(
-              width: 140,
-              height: 180,
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: _glassCard,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: _surfaceHigh,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 12,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: _surfaceHigh,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            height: 8,
-                            width: 60,
-                            decoration: BoxDecoration(
-                              color: _surfaceHigh,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+        // Subscribed creators
+        if (subscribedCount > 0) ...[
+          _buildSectionLabel('Your Creators', subscribedCount),
+          SizedBox(
+            height: 108,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: hp.followedCompanies.length,
+              itemBuilder: (_, i) => _buildCreatorChip(
+                hp.followedCompanies[i].name,
+                hp.followedCompanies[i].hasLogo
+                    ? hp.followedCompanies[i].logoUrl
+                    : null,
+                true,
+                () => _navigateToCompany(hp.followedCompanies[i]),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 8),
+        ],
+
+        // Suggested creators
+        if (suggestedCount > 0) ...[
+          _buildSectionLabel('Suggested for You', suggestedCount),
+          SizedBox(
+            height: 108,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: hp.recommendedCompanies.length,
+              itemBuilder: (_, i) {
+                final rec = hp.recommendedCompanies[i];
+                if (hp.isCompanySubscribed(rec.companySlug)) {
+                  return const SizedBox.shrink();
+                }
+                return _buildCreatorChip(
+                  rec.companyName,
+                  rec.hasLogo ? rec.companyLogoUrl : null,
+                  false,
+                  () => context.push('/company/${rec.companySlug}'),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
       ],
+    );
+  }
+
+  Widget _buildCreatorChip(
+    String name,
+    String? logoUrl,
+    bool isSubscribed,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _surfaceHigh,
+                border: Border.all(
+                  color: isSubscribed
+                      ? _primary.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.1),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: logoUrl != null
+                    ? Image.network(
+                        logoUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.business_rounded,
+                          color: _primary,
+                          size: 28,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.business_rounded,
+                        color: _primary,
+                        size: 28,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              name,
+              style: const TextStyle(
+                color: _onVariant,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

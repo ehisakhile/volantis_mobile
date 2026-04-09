@@ -4,7 +4,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/subscriptions_service.dart';
 import '../../data/models/company_model.dart';
-import '../../../recordings/data/models/recording_model.dart';
+import '../../data/models/recommendations_model.dart';
 
 /// Home provider for managing home screen state - Companies listing
 class HomeProvider extends ChangeNotifier {
@@ -29,9 +29,9 @@ class HomeProvider extends ChangeNotifier {
   String _searchQuery = '';
   bool _isSearching = false;
 
-  // Recordings from followed companies
-  List<Recording> _followedRecordings = [];
-  bool _isLoadingRecordings = false;
+  // Recommendations from API
+  RecommendationsResponse? _recommendations;
+  bool _isLoadingRecommendations = false;
 
   // State
   bool _isLoading = false;
@@ -45,8 +45,14 @@ class HomeProvider extends ChangeNotifier {
   List<CompanyModel> get followedCompanies =>
       _allCompanies.where((c) => _subscribedSlugs.contains(c.slug)).toList();
   Set<String> get subscribedSlugs => _subscribedSlugs;
-  List<Recording> get followedRecordings => _followedRecordings;
-  bool get isLoadingRecordings => _isLoadingRecordings;
+  bool get isLoadingRecommendations => _isLoadingRecommendations;
+  RecommendationsResponse? get recommendations => _recommendations;
+  List<RecommendedCompany> get recommendedCompanies =>
+      _recommendations?.recommendedCompanies ?? [];
+  List<SubscribedLivestream> get subscribedLivestreams =>
+      _recommendations?.subscribedLivestreams ?? [];
+  List<SubscribedRecording> get subscribedRecordings =>
+      _recommendations?.subscribedRecordings ?? [];
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get isSearchingLoading => _isSearchingLoading;
@@ -70,8 +76,8 @@ class HomeProvider extends ChangeNotifier {
       // Fetch companies
       await _fetchCompanies();
 
-      // Fetch recordings for followed companies
-      await _fetchFollowedRecordings();
+      // Fetch recommendations from API
+      await _fetchRecommendations();
 
       _error = null;
     } catch (e) {
@@ -94,54 +100,21 @@ class HomeProvider extends ChangeNotifier {
     }
   }
 
-  /// Fetch recordings for followed companies
-  Future<void> _fetchFollowedRecordings() async {
-    if (_subscribedSlugs.isEmpty) return;
-
-    _isLoadingRecordings = true;
+  /// Fetch recommendations from API
+  Future<void> _fetchRecommendations() async {
+    _isLoadingRecommendations = true;
     notifyListeners();
 
     try {
-      final followed = followedCompanies;
-      final List<Recording> allRecordings = [];
-
-      // Fetch recordings for each followed company (limit to 3 most recent per company)
-      for (final company in followed) {
-        try {
-          final response = await _apiService.get(
-            ApiConstants.companyRecordings.replaceAll(
-              '{company_slug}',
-              company.slug,
-            ),
-            queryParameters: {'limit': 3, 'offset': 0},
-          );
-
-          if (response.data is List) {
-            final recordings = (response.data as List)
-                .map((json) => Recording.fromJson(json as Map<String, dynamic>))
-                .toList();
-
-            // Add company info to each recording
-            for (final recording in recordings) {
-              allRecordings.add(recording);
-            }
-          }
-        } catch (e) {
-          // Continue with other companies if one fails
-          debugPrint('Failed to fetch recordings for ${company.name}: $e');
-        }
-      }
-
-      // Sort by created date (newest first)
-      allRecordings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      // Keep only the latest 10 recordings
-      _followedRecordings = allRecordings.take(10).toList();
+      final response = await _apiService.get(ApiConstants.recommendations);
+      _recommendations = RecommendationsResponse.fromJson(response.data);
+      print('API: Recommendations loaded successfully');
     } catch (e) {
-      debugPrint('Error fetching followed recordings: $e');
+      debugPrint('API: Error fetching recommendations - $e');
+      _recommendations = null;
     }
 
-    _isLoadingRecordings = false;
+    _isLoadingRecommendations = false;
     notifyListeners();
   }
 
@@ -287,18 +260,14 @@ class HomeProvider extends ChangeNotifier {
       final success = await _subscriptionsService.unsubscribe(companySlug);
       if (success) {
         _subscribedSlugs.remove(companySlug);
-        // Remove recordings from unsubscribed company
-        if (companyId != null) {
-          _followedRecordings.removeWhere((r) => r.companyId == companyId);
-        }
       }
     } else {
       // Subscribe
       final success = await _subscriptionsService.subscribe(companySlug);
       if (success) {
         _subscribedSlugs.add(companySlug);
-        // Fetch recordings for the newly subscribed company
-        await _fetchFollowedRecordings();
+        // Refresh recommendations after subscribing
+        await _fetchRecommendations();
       }
     }
 
@@ -313,9 +282,9 @@ class HomeProvider extends ChangeNotifier {
     }
   }
 
-  /// Refresh recordings for followed companies
+  /// Refresh recommendations
   Future<void> refreshRecordings() async {
-    await _fetchFollowedRecordings();
+    await _fetchRecommendations();
   }
 
   /// Refresh home data

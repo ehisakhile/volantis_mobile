@@ -155,10 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _primary.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: _primary.withOpacity(0.3), width: 1),
             ),
             child: Row(
               children: [
@@ -200,7 +197,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: _primary,
                     borderRadius: BorderRadius.circular(10),
@@ -702,23 +702,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 _buildDivider(),
 
-                // Notifications
-                _buildSwitchTile(
-                  icon: Icons.notifications_outlined,
-                  title: AppStrings.notifications,
-                  value: profileProvider.notificationsEnabled,
-                  onChanged: profileProvider.setNotificationsEnabled,
-                ),
-                _buildDivider(),
+                // Notifications - commented out for now
+                // _buildSwitchTile(
+                //   icon: Icons.notifications_outlined,
+                //   title: AppStrings.notifications,
+                //   value: profileProvider.notificationsEnabled,
+                //   onChanged: profileProvider.setNotificationsEnabled,
+                // ),
+                // _buildDivider(),
 
-                // Dark mode
-                _buildSwitchTile(
-                  icon: Icons.dark_mode_outlined,
-                  title: AppStrings.darkMode,
-                  value: profileProvider.darkMode,
-                  onChanged: profileProvider.setDarkMode,
-                ),
-                _buildDivider(),
+                // Dark mode - commented out for now
+                // _buildSwitchTile(
+                //   icon: Icons.dark_mode_outlined,
+                //   title: AppStrings.darkMode,
+                //   value: profileProvider.darkMode,
+                //   onChanged: profileProvider.setDarkMode,
+                // ),
+                // _buildDivider(),
 
                 // Category Preferences
                 _buildPreferencesTile(
@@ -907,19 +907,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: _outline,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: _outline, fontSize: 11),
                   ),
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: _outline,
-              size: 20,
-            ),
+            const Icon(Icons.chevron_right_rounded, color: _outline, size: 20),
           ],
         ),
       ),

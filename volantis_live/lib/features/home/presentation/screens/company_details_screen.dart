@@ -224,6 +224,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               // ── Live streams content ──────────────────────────
               SliverToBoxAdapter(child: _buildContent()),
 
+              // ── Recordings section ────────────────────────────
+              SliverToBoxAdapter(
+                child: RecordingsSection(companySlug: widget.companySlug),
+              ),
+
               // ── Previous streams ──────────────────────────────
               if (_inactiveStreams.isNotEmpty) ...[
                 SliverToBoxAdapter(
@@ -234,11 +239,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 ),
                 SliverToBoxAdapter(child: _buildPreviousStreamsSection()),
               ],
-
-              // ── Recordings section ────────────────────────────
-              SliverToBoxAdapter(
-                child: RecordingsSection(companySlug: widget.companySlug),
-              ),
 
               const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
             ],
@@ -674,11 +674,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   // ── Stream card ───────────────────────────────────────────────────────────
 
-  Widget _buildStreamCard(CompanyStream stream) {
+  Widget _buildStreamCard(CompanyStream stream, {bool isClickable = true}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: GestureDetector(
-        onTap: () => _playStream(stream),
+        onTap: isClickable ? () => _playStream(stream) : null,
         child: Container(
           decoration: BoxDecoration(
             color: _glassCard,
@@ -896,7 +896,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
     return Column(
       children: [
-        ..._paginatedStreams.map((stream) => _buildStreamCard(stream)),
+        ..._paginatedStreams.map(
+          (stream) => _buildStreamCard(stream, isClickable: false),
+        ),
         if (_hasMoreStreams) ...[
           const SizedBox(height: 12),
           _isLoadingMoreStreams
@@ -1110,7 +1112,7 @@ class _FollowButton extends StatelessWidget {
             ),
             const SizedBox(width: 5),
             Text(
-              isFollowed ? AppStrings.followed : AppStrings.follow,
+              isFollowed ? AppStrings.following : AppStrings.follow,
               style: TextStyle(
                 color: isFollowed ? _onPrimary : const Color(0xFFBEC8D2),
                 fontSize: 13,
