@@ -6,6 +6,7 @@ import '../providers/home_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 import '../widgets/recording_card.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
+import '../../../categories/presentation/providers/category_preferences_provider.dart';
 
 /// Home screen — VolantisLive dark glass design
 class HomeScreen extends StatefulWidget {
@@ -54,8 +55,24 @@ class _HomeScreenState extends State<HomeScreen>
       if (provider.companies.isEmpty && !provider.isLoading) {
         provider.init();
       }
+      _checkUserPreferences();
     });
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _checkUserPreferences() async {
+    final categoryProvider = context.read<CategoryPreferencesProvider>();
+    
+    if (categoryProvider.preferencesPromptShown) {
+      return;
+    }
+    
+    await categoryProvider.checkUserPreferences();
+    
+    if (!categoryProvider.hasUserPreferences && mounted) {
+      categoryProvider.markPreferencesPromptShown();
+      context.push('/set-preferences');
+    }
   }
 
   @override

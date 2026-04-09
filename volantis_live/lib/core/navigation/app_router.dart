@@ -10,6 +10,7 @@ import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/home/presentation/screens/company_details_screen.dart';
 import '../../features/downloads/presentation/screens/downloads_screen.dart';
+import '../../features/categories/presentation/screens/set_preferences_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
 
@@ -131,6 +132,11 @@ class AppRouter {
         path: '/downloads',
         name: 'downloads',
         builder: (context, state) => const DownloadsScreen(),
+      ),
+      GoRoute(
+        path: '/set-preferences',
+        name: 'setPreferences',
+        builder: (context, state) => const SetPreferencesScreen(),
       ),
     ],
     redirect: (context, state) {

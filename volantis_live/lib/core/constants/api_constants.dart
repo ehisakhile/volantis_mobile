@@ -110,6 +110,15 @@ class ApiConstants {
     return '/$companySlug/live';
   }
 
+  // Category endpoints
+  static const String categories = '/categories';
+  static const String categoryPreferences = '/categories/preferences/me';
+
+  /// Get categories endpoint with pagination
+  static String getCategoriesEndpoint({int page = 1, int limit = 20}) {
+    return '/categories?page=$page&limit=$limit';
+  }
+
   // Timeouts
   static const int connectionTimeout = 30000; // 30 seconds
   static const int receiveTimeout = 30000; // 30 seconds

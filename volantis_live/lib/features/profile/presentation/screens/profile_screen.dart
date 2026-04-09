@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/network_image.dart';
 import '../../../../services/analytics_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../downloads/presentation/screens/downloads_screen.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/edit_profile_dialog.dart';
 
@@ -78,6 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   slivers: [
                     _buildAppBar(),
                     _buildUserInfo(),
+                    _buildCategoryPreferencesButton(),
                     // _buildAnalyticsSection(profileProvider),
                     _buildDownloadsSection(profileProvider),
                     _buildSettingsSection(profileProvider),
@@ -131,6 +130,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Category Preferences Button ───────────────────────────────────────────
+
+  Widget _buildCategoryPreferencesButton() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: GestureDetector(
+          onTap: () => context.push('/set-preferences'),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _primary.withOpacity(0.15),
+                  _primaryCont.withOpacity(0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _primary.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _primary.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.tune_rounded,
+                    color: _primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Category Preferences',
+                        style: TextStyle(
+                          color: _onSurface,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Customize your content feed',
+                        style: TextStyle(
+                          color: _onVariant.withOpacity(0.8),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Update',
+                    style: TextStyle(
+                      color: _onPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -634,6 +720,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 _buildDivider(),
 
+                // Category Preferences
+                _buildPreferencesTile(
+                  icon: Icons.category_rounded,
+                  title: 'Content Preferences',
+                  subtitle: 'Update your category preferences',
+                  onTap: () => context.push('/set-preferences'),
+                ),
+                _buildDivider(),
+
                 // Account deletion
                 _buildAccountDeletionTile(),
               ],
@@ -771,6 +866,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
             trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreferencesTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: _surfaceHigh,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: _onVariant, size: 17),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: _onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: _outline,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: _outline,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
