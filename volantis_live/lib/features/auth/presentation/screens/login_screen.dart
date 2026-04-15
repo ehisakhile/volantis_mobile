@@ -242,6 +242,37 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                               ),
+
+                              const SizedBox(height: 20),
+
+                              Center(
+                                child: GestureDetector(
+                                  onTap: () => context.go('/home/guest'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AuthColors.outlineVar
+                                            .withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Explore as Guest',
+                                      style: TextStyle(
+                                        color: AuthColors.onVariant,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),

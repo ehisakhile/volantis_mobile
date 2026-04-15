@@ -61,11 +61,17 @@ class _MainScreenState extends State<MainScreen>
     ),
   ];
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    StreamsScreen(),
-    ProfileScreen(),
-  ];
+  bool _isGuestMode = false;
+
+  List<Widget> _getScreens() {
+    final location = GoRouterState.of(context).matchedLocation;
+    _isGuestMode = location.contains('/guest');
+    return [
+      HomeScreen(isGuestMode: _isGuestMode),
+      const StreamsScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   void initState() {
@@ -85,6 +91,14 @@ class _MainScreenState extends State<MainScreen>
   void _onTabTapped(int index) {
     if (widget.currentIndex == index) return;
 
+    final location = GoRouterState.of(context).matchedLocation;
+    final isGuest = location.contains('/guest');
+
+    if (isGuest && (index == 1 || index == 2)) {
+      _showGuestAuthDialog(index);
+      return;
+    }
+
     _indicatorCtrl.forward(from: 0);
 
     if (widget.onTabChanged != null) {
@@ -94,13 +108,115 @@ class _MainScreenState extends State<MainScreen>
     }
   }
 
+  void _showGuestAuthDialog(int tabIndex) {
+    final isProfile = tabIndex == 2;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF171F33),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF89CEFF).withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Color(0xFF89CEFF),
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Sign in Required',
+                style: TextStyle(
+                  color: Color(0xFFDAE2FD),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isProfile
+                    ? 'Sign in to access your profile'
+                    : 'Sign in to access live streams',
+                style: const TextStyle(color: Color(0xFFBEC8D2), fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.go('/login');
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF89CEFF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Sign In',
+                    style: TextStyle(
+                      color: Color(0xFF00344D),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFF3E4850).withOpacity(0.5),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Continue as Guest',
+                    style: TextStyle(
+                      color: Color(0xFFBEC8D2),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _surface,
       body: Stack(
         children: [
-          IndexedStack(index: widget.currentIndex, children: _screens),
+          IndexedStack(index: widget.currentIndex, children: _getScreens()),
           // Persistent mini player at bottom - recordings
           Positioned(
             left: 0,

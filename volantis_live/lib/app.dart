@@ -7,6 +7,7 @@ import 'core/constants/api_constants.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'features/home/presentation/providers/home_provider.dart';
+import 'features/home/presentation/providers/guest_home_provider.dart';
 import 'features/streams/presentation/providers/streams_provider.dart';
 import 'features/profile/presentation/providers/profile_provider.dart';
 import 'features/splash/presentation/splash_screen.dart';
@@ -94,6 +95,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
           value: _onboardingProvider,
         ),
         ChangeNotifierProvider(create: (_) => HomeProvider()),
+        ChangeNotifierProvider(create: (_) => GuestHomeProvider()),
         ChangeNotifierProvider(create: (_) => StreamsProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider<RecordingsProvider>.value(

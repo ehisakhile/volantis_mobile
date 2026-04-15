@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../../shared/widgets/auth_required_dialog.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/chat_repository.dart';
@@ -83,7 +85,11 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
     }
 
     try {
-      final data = await _repository.getMessages(widget.slug, page: 1, size: 50);
+      final data = await _repository.getMessages(
+        widget.slug,
+        page: 1,
+        size: 50,
+      );
 
       if (!mounted) return;
 
@@ -205,11 +211,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.login,
-                    color: Colors.grey[500],
-                    size: 40,
-                  ),
+                  Icon(Icons.login, color: Colors.grey[500], size: 40),
                   const SizedBox(height: 16),
                   const Text(
                     'Join the conversation',
@@ -222,10 +224,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
                   const SizedBox(height: 4),
                   Text(
                     'Sign in to chat with the stream',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
                   ),
                 ],
               ),
@@ -313,10 +312,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
               padding: const EdgeInsets.only(left: 8),
               child: Text(
                 '${_messages.length}',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 11),
               ),
             ),
         ],
@@ -339,11 +335,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              color: Colors.grey[700],
-              size: 32,
-            ),
+            Icon(Icons.chat_bubble_outline, color: Colors.grey[700], size: 32),
             const SizedBox(height: 8),
             Text(
               'No messages yet',
@@ -404,7 +396,11 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 14),
+            const Icon(
+              Icons.keyboard_arrow_down,
+              color: Colors.white,
+              size: 14,
+            ),
             const SizedBox(width: 4),
             const Text(
               'New messages',
@@ -475,10 +471,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
                   ),
                   TextSpan(
                     text: _replyTo!.content,
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],
               ),
@@ -490,11 +483,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
             onTap: () => setState(() => _replyTo = null),
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Icon(
-                Icons.close,
-                color: Colors.grey[500],
-                size: 14,
-              ),
+              child: Icon(Icons.close, color: Colors.grey[500], size: 14),
             ),
           ),
         ],
@@ -510,9 +499,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.05)),
-        ),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
       ),
       child: Row(
         children: [
@@ -666,10 +653,14 @@ class _ChatMessageItem extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF38BDF8).withOpacity(0.2),
+                                  color: const Color(
+                                    0xFF38BDF8,
+                                  ).withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: const Color(0xFF38BDF8).withOpacity(0.3),
+                                    color: const Color(
+                                      0xFF38BDF8,
+                                    ).withOpacity(0.3),
                                   ),
                                 ),
                                 child: const Text(
@@ -695,10 +686,7 @@ class _ChatMessageItem extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       _formatTime(message.createdAt),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 10,
-                      ),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
                     ),
                   ],
                 ),
@@ -710,10 +698,11 @@ class _ChatMessageItem extends StatelessWidget {
                     color: message.isDeleted
                         ? Colors.grey[600]
                         : message.isCreator
-                            ? Colors.grey[100]
-                            : Colors.grey[300],
-                    fontStyle:
-                        message.isDeleted ? FontStyle.italic : FontStyle.normal,
+                        ? Colors.grey[100]
+                        : Colors.grey[300],
+                    fontStyle: message.isDeleted
+                        ? FontStyle.italic
+                        : FontStyle.normal,
                   ),
                 ),
               ],
@@ -798,9 +787,7 @@ class _ChatMessageItem extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: colors,
-        ),
+        gradient: LinearGradient(colors: colors),
       ),
       child: Center(
         child: Text(

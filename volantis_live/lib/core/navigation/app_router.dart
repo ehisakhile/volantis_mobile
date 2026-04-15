@@ -93,6 +93,11 @@ class AppRouter {
             builder: (context, state) => const SizedBox.shrink(),
           ),
           GoRoute(
+            path: '/home/guest',
+            name: 'homeGuest',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
             path: '/streams',
             name: 'streams',
             builder: (context, state) => const SizedBox.shrink(),
@@ -108,8 +113,8 @@ class AppRouter {
         path: '/stream/:id',
         name: 'streamDetail',
         builder: (context, state) {
-          final streamId = state.pathParameters['id'] ?? '';
-          return _StreamDeepLinkHandler(streamId: streamId);
+          final streamSlug = state.pathParameters['id'] ?? '';
+          return _StreamToCompanyHandler(streamSlug: streamSlug);
         },
       ),
       GoRoute(
@@ -195,11 +200,30 @@ class AppRouter {
         return null;
       }
 
-      if (currentPath.startsWith('/home') ||
-          currentPath.startsWith('/streams') ||
+      if (currentPath.startsWith('/home')) {
+        print(
+          'AppRouter: /home check - currentPath: $currentPath, contains /guest: ${currentPath.contains('/guest')}',
+        );
+        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
+        if (!isLoggedIn && !currentPath.contains('/guest')) {
+          print(
+            'AppRouter: Redirecting to login - not logged in and not guest',
+          );
+          return AppRoutes.login;
+        }
+        print('AppRouter: Allowing /home (logged in or guest mode)');
+        return null;
+      }
+
+      if (currentPath.startsWith('/streams') ||
           currentPath.startsWith('/profile')) {
         if (!hasCompletedOnboarding) return AppRoutes.onboarding;
         if (!isLoggedIn) return AppRoutes.login;
+        return null;
+      }
+
+      if (currentPath.startsWith('/stream/')) {
+        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
         return null;
       }
 
@@ -282,16 +306,16 @@ class _MainShellState extends State<_MainShell> {
   }
 }
 
-/// Deep link handler for stream
-class _StreamDeepLinkHandler extends StatelessWidget {
-  final String streamId;
+/// Handler for stream - redirects to discover since we need company slug
+class _StreamToCompanyHandler extends StatelessWidget {
+  final String streamSlug;
 
-  const _StreamDeepLinkHandler({required this.streamId});
+  const _StreamToCompanyHandler({required this.streamSlug});
 
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) context.go('/streams');
+      if (context.mounted) context.go('/home');
     });
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }

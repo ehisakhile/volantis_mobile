@@ -70,21 +70,33 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     });
 
     try {
-      final homeProvider = context.read<HomeProvider>();
-      final company = homeProvider.companies.firstWhere(
-        (c) => c.slug == widget.companySlug,
-        orElse: () => throw Exception('Company not found'),
-      );
+      final apiService = ApiService.instance;
+      final response = await apiService.get('/${widget.companySlug}');
 
-      setState(() {
-        _company = company;
-        _isLoading = false;
-      });
+      if (response.statusCode == 200 && response.data != null) {
+        final companyData = response.data['company'];
+        final livestreamData = response.data['livestream'];
 
-      await Future.wait([_loadCompanyStreams(), _loadCompanyStats()]);
+        final company = CompanyModel(
+          id: companyData['id'],
+          name: companyData['name'],
+          slug: companyData['slug'],
+          logoUrl: companyData['logo_url'],
+          description: companyData['description'],
+        );
+
+        setState(() {
+          _company = company;
+          _isLoading = false;
+        });
+
+        await Future.wait([_loadCompanyStreams(), _loadCompanyStats()]);
+      } else {
+        throw Exception('Company not found');
+      }
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = 'Company not found';
         _isLoading = false;
       });
     }

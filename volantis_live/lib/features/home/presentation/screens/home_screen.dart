@@ -3,14 +3,19 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../data/models/recommendations_model.dart';
+import '../../data/models/company_model.dart';
+import '../../data/models/guest_home_models.dart';
 import '../providers/home_provider.dart';
+import '../providers/guest_home_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../categories/presentation/providers/category_preferences_provider.dart';
 
 /// Home screen — VolantisLive dark glass design
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool isGuestMode;
+
+  const HomeScreen({super.key, this.isGuestMode = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -23,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _searchFocused = false;
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
+  late GuestHomeProvider _guestProvider;
 
   // ── Design tokens (mirroring the VolantisLive auth system) ───────────────
   static const _bg = Color(0xFF0B1326);
@@ -51,11 +57,18 @@ class _HomeScreenState extends State<HomeScreen>
     _fadeCtrl.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<HomeProvider>();
-      if (provider.companies.isEmpty && !provider.isLoading) {
-        provider.init();
+      if (widget.isGuestMode) {
+        _guestProvider = context.read<GuestHomeProvider>();
+        if (_guestProvider.companies.isEmpty && !_guestProvider.isLoading) {
+          _guestProvider.init();
+        }
+      } else {
+        final provider = context.read<HomeProvider>();
+        if (provider.companies.isEmpty && !provider.isLoading) {
+          provider.init();
+        }
+        _checkUserPreferences();
       }
-      _checkUserPreferences();
     });
     _scrollController.addListener(_onScroll);
   }
@@ -92,6 +105,62 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isGuestMode) {
+      return _buildGuestHome();
+    }
+    return _buildAuthenticatedHome();
+  }
+
+  Widget _buildGuestHome() {
+    return Scaffold(
+      backgroundColor: _bg,
+      body: Stack(
+        children: [
+          const Positioned(
+            top: -40,
+            right: -60,
+            child: _GlowBlob(color: Color(0x0D89CEFF), size: 260),
+          ),
+          const Positioned(
+            bottom: 120,
+            left: -80,
+            child: _GlowBlob(color: Color(0x08D2BBFF), size: 220),
+          ),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  _buildSearchBar(),
+                  Expanded(
+                    child: Consumer<GuestHomeProvider>(
+                      builder: (context, ghp, _) {
+                        if (ghp.isLoading) {
+                          return const LoadingShimmer();
+                        }
+                        if (ghp.error != null) {
+                          return _buildError(ghp.error!);
+                        }
+                        return RefreshIndicator(
+                          color: _primary,
+                          backgroundColor: _glassCard,
+                          onRefresh: ghp.refresh,
+                          child: _buildGuestContent(ghp),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthenticatedHome() {
     return Scaffold(
       backgroundColor: _bg,
       body: Stack(
@@ -1037,6 +1106,256 @@ class _HomeScreenState extends State<HomeScreen>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestContent(GuestHomeProvider ghp) {
+    return CustomScrollView(
+      controller: _scrollController,
+      slivers: [
+        if (ghp.companies.isNotEmpty)
+          SliverToBoxAdapter(child: _buildChannelsStrip(ghp)),
+        if (ghp.livestreams.isNotEmpty)
+          SliverToBoxAdapter(child: _buildGuestLivestreamsStrip(ghp)),
+        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+      ],
+    );
+  }
+
+  Widget _buildChannelsStrip(GuestHomeProvider ghp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('All Channels', ghp.companies.length),
+        SizedBox(
+          height: 108,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: ghp.companies.length,
+            itemBuilder: (_, i) => _buildGuestChannelChip(ghp.companies[i]),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildGuestChannelChip(CompanyModel company) {
+    return GestureDetector(
+      onTap: () => context.push('/company/${company.slug}'),
+      child: Container(
+        width: 80,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _surfaceHigh,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: company.hasLogo
+                    ? Image.network(
+                        company.logoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.business_rounded,
+                          color: _primary,
+                          size: 28,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.business_rounded,
+                        color: _primary,
+                        size: 28,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              company.name,
+              style: const TextStyle(
+                color: _onVariant,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestLivestreamsStrip(GuestHomeProvider ghp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('Live Now', ghp.livestreams.length),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: ghp.livestreams.length,
+            itemBuilder: (_, i) =>
+                _buildGuestLivestreamCard(ghp.livestreams[i]),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildGuestLivestreamCard(ActiveLivestream livestream) {
+    return GestureDetector(
+      onTap: () => context.push('/company/${livestream.companySlug}'),
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: _surfaceHigh,
+                      child: livestream.thumbnailUrl != null
+                          ? Image.network(
+                              livestream.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.play_circle_outline,
+                                color: _primary,
+                                size: 40,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: _primary,
+                              size: 40,
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF6C66),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, color: Colors.white, size: 5),
+                          SizedBox(width: 3),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.visibility,
+                            color: Colors.white,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${livestream.viewerCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      livestream.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Text(
+                      livestream.companyName,
+                      style: const TextStyle(color: _onVariant, fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
