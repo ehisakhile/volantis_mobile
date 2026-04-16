@@ -78,5 +78,11 @@
 	<string>Volantis Live uses the camera for video streaming. This feature will be available in a future update.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+	<string>applinks:www.volantislive.com</string>
+	</array>
 </dict>
 </plist>

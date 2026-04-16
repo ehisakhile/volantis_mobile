@@ -11,7 +11,7 @@ class ConnectivityService {
 
   final Connectivity _connectivity = Connectivity();
 
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   /// Stream controller for connectivity changes (bool)
   final StreamController<bool> _connectionChangeController =
@@ -35,13 +35,13 @@ class ConnectivityService {
 
     // Get initial connectivity status
     final result = await _connectivity.checkConnectivity();
-    _updateConnectionStatus([result]);
+    _updateConnectionStatus(result);
 
     // Listen for changes
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-      (result) => _updateConnectionStatus([result]),
+      (result) => _updateConnectionStatus(result),
       onError: (_) {
-        _updateConnectionStatus(const [ConnectivityResult.none]);
+        _updateConnectionStatus([ConnectivityResult.none]);
       },
     );
   }
@@ -76,7 +76,7 @@ class ConnectivityService {
     if (_isConnected != null) return _isConnected!;
 
     final result = await _connectivity.checkConnectivity();
-    _updateConnectionStatus([result]);
+    _updateConnectionStatus(result);
     return _isConnected ?? false;
   }
 

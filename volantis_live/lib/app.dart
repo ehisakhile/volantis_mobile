@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'core/theme/app_theme.dart';
 import 'core/navigation/app_router.dart';
 import 'core/constants/api_constants.dart';
+import 'core/deeplink/app_links_handler.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/onboarding/presentation/providers/onboarding_provider.dart';
 import 'features/home/presentation/providers/home_provider.dart';
@@ -62,8 +63,11 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
           onboardingProvider: _onboardingProvider,
         );
         _isInitialized = true;
+        AppLinksHandler.setRouter(_appRouter!.router);
       });
       print('App: Router created, _isInitialized = true');
+
+      AppLinksHandler.init();
     }
   }
 

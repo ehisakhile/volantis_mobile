@@ -134,6 +134,30 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/company/:slug/stream/:streamSlug',
+        name: 'streamPlayer',
+        builder: (context, state) {
+          final companySlug = state.pathParameters['slug'] ?? '';
+          final streamSlug = state.pathParameters['streamSlug'] ?? '';
+          return _StreamPlayerHandler(
+            companySlug: companySlug,
+            streamSlug: streamSlug,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/company/:slug/recording/:id',
+        name: 'recordingViewer',
+        builder: (context, state) {
+          final companySlug = state.pathParameters['slug'] ?? '';
+          final recordingId = state.pathParameters['id'] ?? '';
+          return _RecordingHandler(
+            companySlug: companySlug,
+            recordingId: recordingId,
+          );
+        },
+      ),
+      GoRoute(
         path: '/downloads',
         name: 'downloads',
         builder: (context, state) => const DownloadsScreen(),
@@ -345,5 +369,40 @@ class _CompanyDetailsHandler extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CompanyDetailsScreen(companySlug: companySlug);
+  }
+}
+
+class _StreamPlayerHandler extends StatelessWidget {
+  final String companySlug;
+  final String streamSlug;
+
+  const _StreamPlayerHandler({
+    required this.companySlug,
+    required this.streamSlug,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        context.push('/stream/$streamSlug?companySlug=$companySlug');
+      }
+    });
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+class _RecordingHandler extends StatelessWidget {
+  final String companySlug;
+  final String recordingId;
+
+  const _RecordingHandler({
+    required this.companySlug,
+    required this.recordingId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _CompanyDetailsHandler(companySlug: companySlug);
   }
 }
