@@ -111,24 +111,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            GestureDetector(
-              onTap: () {
-                // TODO: Navigate to settings
-              },
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: _surfaceHigh,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(
-                  Icons.settings_outlined,
-                  color: _onVariant,
-                  size: 18,
-                ),
-              ),
-            ),
+            // GestureDetector(
+            //   onTap: () {
+            //     // TODO: Navigate to settings
+            //   },
+            //   child: Container(
+            //     width: 38,
+            //     height: 38,
+            //     decoration: BoxDecoration(
+            //       color: _surfaceHigh,
+            //       borderRadius: BorderRadius.circular(11),
+            //     ),
+            //     child: const Icon(
+            //       Icons.settings_outlined,
+            //       color: _onVariant,
+            //       size: 18,
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -1023,7 +1023,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showLogoutDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF171F33),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text(
@@ -1036,7 +1036,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text(
               'Cancel',
               style: TextStyle(color: _outline, fontWeight: FontWeight.w600),
@@ -1044,9 +1044,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               await context.read<AuthProvider>().logout();
-              if (context.mounted) context.go('/login');
+              if (mounted) context.go('/login');
             },
             child: const Text(
               AppStrings.logout,
