@@ -66,7 +66,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
 
   void _onScroll() {
     final position = _scrollController.position;
-    final atBottom = position.maxScrollExtent - position.pixels < 80;
+    final atBottom = position.pixels < 80;
     if (atBottom != _isAtBottom) {
       setState(() {
         _isAtBottom = atBottom;
@@ -176,7 +176,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
     Future.delayed(const Duration(milliseconds: 50), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -351,24 +351,30 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
       );
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        final message = _messages[index];
-        return _ChatMessageItem(
-          message: message,
-          isCreator: widget.isCreator,
-          companyName: widget.companyName,
-          currentUsername: context.read<AuthProvider>().user?.username,
-          onReply: (msg) {
-            setState(() => _replyTo = msg);
-            _focusNode.requestFocus();
-          },
-          onDelete: widget.isCreator ? (id) => _deleteMessage(id) : null,
-        );
-      },
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        reverse: true,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        itemCount: _messages.length,
+        itemBuilder: (context, index) {
+          final message = _messages[_messages.length - 1 - index];
+          return _ChatMessageItem(
+            message: message,
+            isCreator: widget.isCreator,
+            companyName: widget.companyName,
+            currentUsername: context.read<AuthProvider>().user?.username,
+            onReply: (msg) {
+              setState(() => _replyTo = msg);
+              _focusNode.requestFocus();
+            },
+            onDelete: widget.isCreator ? (id) => _deleteMessage(id) : null,
+          );
+        },
+      ),
     );
   }
 
@@ -492,76 +498,176 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
   }
 
   Widget _buildInput(AuthProvider authProvider) {
-    final placeholder = _replyTo != null
-        ? 'Reply to ${_replyTo!.isCreator ? (widget.companyName ?? 'Host') : '@${_replyTo!.username}'}…'
-        : 'Send a message…';
+    return GestureDetector(
+      onTap: () => _showChatInputModal(context),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.05)),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B).withOpacity(0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.chat_bubble_outline,
+                color: Colors.grey[500],
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Send a message…',
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+  void _showChatInputModal(BuildContext ctx) {
+    final replyTo = _replyTo;
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              focusNode: _focusNode,
-              maxLength: 500,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: placeholder,
-                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                filled: true,
-                fillColor: const Color(0xFF1E293B).withOpacity(0.6),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-                ),
-                counterText: '',
-              ),
-              onSubmitted: (_) => _sendMessage(),
-            ),
+      builder: (modalCtx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(modalCtx).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _messageController.text.trim().isEmpty || _isSending
-                ? null
-                : _sendMessage,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _messageController.text.trim().isEmpty || _isSending
-                    ? const Color(0xFF38BDF8).withOpacity(0.4)
-                    : const Color(0xFF38BDF8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: _isSending
-                  ? const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (replyTo != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.reply,
+                          color: Color(0xFF38BDF8),
+                          size: 14,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            replyTo.isCreator
+                                ? (widget.companyName ?? 'Host')
+                                : '@${replyTo.username}',
+                            style: const TextStyle(
+                              color: Color(0xFF38BDF8),
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      autofocus: true,
+                      maxLength: 500,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Type a message…',
+                        hintStyle: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 14,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF1E293B),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Colors.white.withOpacity(0.1),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF38BDF8),
+                          ),
+                        ),
+                        counterText: '',
                       ),
-                    )
-                  : const Icon(Icons.send, color: Colors.white, size: 16),
-            ),
+                      onSubmitted: (_) async {
+                        await _sendMessage();
+                        if (modalCtx.mounted) Navigator.pop(modalCtx);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  StatefulBuilder(
+                    builder: (context, setBtnState) {
+                      return GestureDetector(
+                        onTap: () async {
+                          await _sendMessage();
+                          if (modalCtx.mounted) Navigator.pop(modalCtx);
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF38BDF8),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

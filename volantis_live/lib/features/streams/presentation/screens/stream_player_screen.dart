@@ -294,6 +294,7 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen>
       child: Scaffold(
         backgroundColor: _bg,
         extendBodyBehindAppBar: true,
+        resizeToAvoidBottomInset: true,
         body: FadeTransition(
           opacity: _fadeAnim,
           child: Stack(
