@@ -84,5 +84,14 @@
 	<array>
 	<string>applinks:www.volantislive.com</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+	<dict>
+		<key>CFBundleURLSchemes</key>
+		<array>
+		<string>volantislive</string>
+		</array>
+	</dict>
+</array>
 </dict>
 </plist>
