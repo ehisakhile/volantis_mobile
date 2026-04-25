@@ -29,6 +29,9 @@ dependencies:
   audio_service: ^0.18.12
   audio_session: ^0.1.21
   
+  # Audio Recording
+  # record: ^5.1.2  # Temporarily disabled due to compatibility issues
+  
   # WebRTC for live stream playback
   flutter_webrtc: ^0.12.8
   

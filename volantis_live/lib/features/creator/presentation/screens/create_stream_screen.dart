@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/creator_provider.dart';
 import '../../data/models/creator_stream_model.dart';
+import '../widgets/audio_visualizer.dart';
 
 class CreateStreamScreen extends StatefulWidget {
   final StreamType streamType;
@@ -16,6 +18,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   bool _isStarting = false;
+  bool _isInitializing = true;
 
   static const _bg = Color(0xFF0B1326);
   static const _surface = Color(0xFF131B2E);
@@ -25,12 +28,42 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
   static const _onPrimary = Color(0xFF00344D);
   static const _onSurface = Color(0xFFDAE2FD);
   static const _onVariant = Color(0xFFBEC8D2);
+  static const _success = Color(0xFF00E5A0);
+  static const _error = Color(0xFFFF6B6B);
+
+  bool _showRecordingPrompt = false;
+  bool _wantsToRecord = false;
+  bool _autoUpload = false;
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initializeProviderIfNeeded();
+  }
+
+  Future<void> _initializeProviderIfNeeded() async {
+    final provider = context.read<CreatorProvider>();
+    if (provider.state == CreatorState.initial) {
+      await provider.init();
+    }
+    if (mounted) {
+      setState(() => _isInitializing = false);
+    }
+  }
+
+  Widget _buildLoadingView() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: _primary,
+      ),
+    );
   }
 
   @override
@@ -54,21 +87,68 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPreviewCard(),
-            const SizedBox(height: 24),
-            _buildTitleField(),
-            const SizedBox(height: 16),
-            _buildDescriptionField(),
-            const SizedBox(height: 32),
-            _buildStartButton(),
-          ],
-        ),
+      body: Consumer<CreatorProvider>(
+        builder: (context, provider, child) {
+          if (_isInitializing) {
+            return _buildLoadingView();
+          }
+          if (provider.state == CreatorState.loading) {
+            return _buildLoadingView();
+          }
+          if (provider.isStreaming) {
+            return _buildLiveStreamingView(provider);
+          }
+          return _buildCreateStreamView(provider);
+        },
       ),
+    );
+  }
+
+  Widget _buildCreateStreamView(CreatorProvider provider) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPreviewCard(),
+          const SizedBox(height: 24),
+          _buildTitleField(),
+          const SizedBox(height: 16),
+          _buildDescriptionField(),
+          const SizedBox(height: 24),
+          _buildAudioSourceSection(provider),
+          const SizedBox(height: 24),
+          _buildRecordingSection(),
+          const SizedBox(height: 32),
+          _buildStartButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveStreamingView(CreatorProvider provider) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildLiveHeader(provider),
+                const SizedBox(height: 24),
+                _buildVisualizerSection(provider),
+                const SizedBox(height: 24),
+                _buildStatsSection(provider),
+                const SizedBox(height: 24),
+                _buildMixerControls(provider),
+                const SizedBox(height: 24),
+                _buildStreamControls(provider),
+              ],
+            ),
+          ),
+        ),
+        _buildBottomControls(provider),
+      ],
     );
   }
 
@@ -198,6 +278,238 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
     );
   }
 
+  Widget _buildAudioSourceSection(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Audio Sources',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildAudioSourceToggle(
+            'Microphone',
+            Icons.mic,
+            provider.useMicrophone,
+            (value) => provider.setUseMicrophone(value),
+          ),
+          if (provider.useMicrophone && provider.availableMicDevices.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildMicDeviceSelector(provider),
+          ],
+          const SizedBox(height: 12),
+          _buildAudioSourceToggle(
+            'System Audio',
+            Icons.speaker,
+            provider.useSystemAudio,
+            (value) => provider.setUseSystemAudio(value),
+            subtitle: 'Requires screen sharing',
+          ),
+          const SizedBox(height: 12),
+          _buildAudioSourceToggle(
+            'Background Music',
+            Icons.music_note,
+            provider.mixAudio,
+            (value) => provider.setMixAudio(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioSourceToggle(
+    String title,
+    IconData icon,
+    bool value,
+    ValueChanged<bool> onChanged, {
+    String? subtitle,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: value ? _primary.withOpacity(0.1) : _surfaceHigh,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: value ? _primary : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: value ? _primary : _onVariant, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: value ? _primary : _onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: _onVariant.withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: _primary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMicDeviceSelector(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _surfaceHigh,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButton<String>(
+        value: provider.selectedMicDeviceId,
+        isExpanded: true,
+        dropdownColor: _surfaceHigh,
+        underline: const SizedBox(),
+        hint: const Text(
+          'Select microphone',
+          style: TextStyle(color: _onVariant),
+        ),
+        items: provider.availableMicDevices.map((device) {
+          return DropdownMenuItem<String>(
+            value: device.deviceId,
+            child: Text(
+              device.label ?? 'Microphone',
+              style: const TextStyle(color: _onSurface),
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (value) => provider.setSelectedMicDevice(value),
+      ),
+    );
+  }
+
+  Widget _buildRecordingSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Recording',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Record your stream to save or upload automatically',
+            style: TextStyle(color: _onVariant, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          _buildRecordingOption(
+            'No thanks',
+            Icons.close,
+            !_wantsToRecord,
+            () => setState(() {
+              _wantsToRecord = false;
+              _autoUpload = false;
+            }),
+          ),
+          const SizedBox(height: 8),
+          _buildRecordingOption(
+            'Save locally',
+            Icons.save,
+            _wantsToRecord && !_autoUpload,
+            () => setState(() {
+              _wantsToRecord = true;
+              _autoUpload = false;
+            }),
+          ),
+          const SizedBox(height: 8),
+          _buildRecordingOption(
+            'Save & auto-upload',
+            Icons.cloud_upload,
+            _wantsToRecord && _autoUpload,
+            () => setState(() {
+              _wantsToRecord = true;
+              _autoUpload = true;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecordingOption(
+    String title,
+    IconData icon,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? _primary.withOpacity(0.1) : _surfaceHigh,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? _primary : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: selected ? _primary : _onVariant, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: TextStyle(
+                color: selected ? _primary : _onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            if (selected)
+              const Icon(Icons.check_circle, color: _primary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildStartButton() {
     return GestureDetector(
       onTap: _isStarting ? null : _startStream,
@@ -241,6 +553,349 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
     );
   }
 
+  Widget _buildLiveHeader(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _success.withOpacity(0.3), width: 2),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: _success,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'LIVE',
+                style: TextStyle(
+                  color: _success,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            provider.currentStream?.title ?? 'Untitled Stream',
+            style: const TextStyle(
+              color: _onSurface,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            provider.formattedDuration,
+            style: const TextStyle(
+              color: _onVariant,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.visibility, color: _onVariant, size: 18),
+              const SizedBox(width: 4),
+              Text(
+                '${provider.streamingStats.viewerCount} viewers',
+                style: const TextStyle(color: _onVariant),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVisualizerSection(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Audio Level',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 100,
+            child: AudioVisualizer(
+              audioEngine: provider.mixerEngine,
+              config: VisualizerConfig(
+                barCount: 32,
+                barSpacing: 3,
+                barRadius: 4,
+                accentColor: _primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _buildStatRow('Bitrate', '${provider.streamingStats.bitrate} kbps'),
+          _buildStatRow('Codec', provider.streamingStats.codec),
+          _buildStatRow('ICE State', provider.streamingStats.iceState),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: _onVariant, fontSize: 14),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMixerControls(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Audio Mixer',
+            style: TextStyle(
+              color: _onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildVolumeSlider(
+            'Microphone',
+            provider.microphoneVolume,
+            provider.useMicrophone,
+            (value) => provider.setMicrophoneVolume(value),
+          ),
+          const SizedBox(height: 12),
+          _buildVolumeSlider(
+            'System Audio',
+            provider.systemAudioVolume,
+            provider.useSystemAudio,
+            (value) => provider.setSystemAudioVolume(value),
+          ),
+          const SizedBox(height: 12),
+          _buildVolumeSlider(
+            'Background',
+            provider.backgroundAudioVolume,
+            provider.mixAudio,
+            (value) => provider.setBackgroundAudioVolume(value),
+          ),
+          const SizedBox(height: 12),
+          _buildVolumeSlider(
+            'Master',
+            provider.masterVolume,
+            true,
+            (value) => provider.setMasterVolume(value),
+            isMaster: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVolumeSlider(
+    String label,
+    double value,
+    bool enabled,
+    ValueChanged<double> onChanged, {
+    bool isMaster = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: enabled ? _onSurface : _onVariant,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              '${value.toInt()}%',
+              style: TextStyle(
+                color: enabled ? _primary : _onVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: isMaster ? _primary : _primary.withOpacity(0.7),
+            inactiveTrackColor: _surfaceHigh,
+            thumbColor: isMaster ? _primary : _primary.withOpacity(0.9),
+            overlayColor: _primary.withOpacity(0.2),
+            trackHeight: 4,
+          ),
+          child: Slider(
+            value: value,
+            min: 0,
+            max: 150,
+            onChanged: enabled ? onChanged : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStreamControls(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          _buildControlRow(
+            provider.isMuted ? 'Unmute' : 'Mute',
+            provider.isMuted ? Icons.mic_off : Icons.mic,
+            provider.isMuted ? _error : _primary,
+            provider.toggleMute,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlRow(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomControls(CreatorProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        child: GestureDetector(
+          onTap: _stopStream,
+          child: Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              color: _error,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            alignment: Alignment.center,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.stop,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'End Stream',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _startStream() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -258,6 +913,8 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
     final provider = context.read<CreatorProvider>();
     final description = _descriptionController.text.trim();
 
+    provider.acceptRecording(withAutoUpload: _autoUpload);
+
     bool success;
     if (widget.streamType == StreamType.audio) {
       success = await provider.startAudioStream(
@@ -274,15 +931,49 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
     if (mounted) {
       setState(() => _isStarting = false);
 
-      if (success) {
-        Navigator.of(context).pop();
-      } else {
+      if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(provider.errorMessage ?? 'Failed to start stream'),
             backgroundColor: Colors.red,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _stopStream() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _surface,
+        title: const Text(
+          'End Stream?',
+          style: TextStyle(color: _onSurface),
+        ),
+        content: const Text(
+          'Are you sure you want to end your stream?',
+          style: TextStyle(color: _onVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: _error),
+            child: const Text('End Stream'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final provider = context.read<CreatorProvider>();
+      final success = await provider.stopStream();
+      if (success && mounted) {
+        Navigator.of(context).pop();
       }
     }
   }
