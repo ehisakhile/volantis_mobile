@@ -131,4 +131,42 @@ class ApiConstants {
   static const String jsonContentType = 'application/json';
   static const String authorization = 'Authorization';
   static const String bearer = 'Bearer';
+
+  // Creator Streaming Endpoints
+  static const String startAudioStream = '/livestreams/start/audio';
+  static const String startVideoStream = '/livestreams/start/video';
+  static const String stopStream = '/livestreams/{slug}/stop';
+  static const String getUserStreams = '/livestreams';
+  static const String getStreamBySlug = '/livestreams/{slug}';
+  static const String uploadRecording = '/livestreams/{slug}/upload-recording';
+  static const String getRealtimeStats = '/stream/{slug}/realtime';
+  static const String getViewerCount = '/livestream/{slug}/viewers/count';
+
+  // Chat endpoints
+  static const String getChatMessages = '/livestream-chat/{slug}/messages';
+  static const String sendChatMessage = '/livestream-chat/{slug}/messages';
+  static const String editChatMessage =
+      '/livestream-chat/messages/{messageId}/edit';
+  static const String deleteChatMessage =
+      '/livestream-chat/messages/{messageId}';
+
+  static String getStopStreamEndpoint(String slug) => '/livestreams/$slug/stop';
+  static String getStreamBySlugEndpoint(String slug) => '/livestreams/$slug';
+  static String getUploadRecordingEndpoint(String slug) =>
+      '/livestreams/$slug/upload-recording';
+  static String getRealtimeStatsEndpoint(String slug) =>
+      '/stream/$slug/realtime';
+  static String getViewerCountEndpoint(String slug, int companyId) =>
+      '/livestream/$slug/viewers/count?company_id=$companyId';
+  static String getChatMessagesEndpoint(
+    String slug, {
+    int page = 1,
+    int size = 50,
+  }) => '/livestream-chat/$slug/messages?page=$page&size=$size';
+  static String getSendChatMessageEndpoint(String slug) =>
+      '/livestream-chat/$slug/messages';
+  static String getEditChatMessageEndpoint(String messageId) =>
+      '/livestream-chat/messages/$messageId/edit';
+  static String getDeleteChatMessageEndpoint(String messageId) =>
+      '/livestream-chat/messages/$messageId';
 }

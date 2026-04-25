@@ -98,6 +98,11 @@ class AppRouter {
             builder: (context, state) => const SizedBox.shrink(),
           ),
           GoRoute(
+            path: '/creator',
+            name: 'creator',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
             path: '/streams',
             name: 'streams',
             builder: (context, state) => const SizedBox.shrink(),
@@ -206,21 +211,28 @@ class AppRouter {
           print('AppRouter: Not logged in, redirecting to login');
           return AppRoutes.login;
         }
+        final isCreator = authProvider.isCreator;
+        final destination = isCreator ? '/creator' : AppRoutes.home;
         print(
-          'AppRouter: Logged in and onboarding complete, redirecting to home',
+          'AppRouter: Logged in and onboarding complete, redirecting to $destination',
         );
-        return AppRoutes.home;
+        return destination;
       }
 
       if (currentPath == AppRoutes.onboarding && hasCompletedOnboarding) {
-        return isLoggedIn ? AppRoutes.home : AppRoutes.login;
+        final isCreator = authProvider.isCreator;
+        return isLoggedIn
+            ? (isCreator ? '/creator' : AppRoutes.home)
+            : AppRoutes.login;
       }
 
       if (currentPath == AppRoutes.login ||
           currentPath == AppRoutes.register ||
           currentPath == AppRoutes.forgotPassword) {
         if (!hasCompletedOnboarding) return AppRoutes.onboarding;
-        if (isLoggedIn) return AppRoutes.home;
+        if (isLoggedIn) {
+          return authProvider.isCreator ? '/creator' : AppRoutes.home;
+        }
         return null;
       }
 
@@ -276,8 +288,14 @@ class AppRouter {
   );
 
   void navigateToMain({int tabIndex = 0}) {
-    final tabs = ['home', 'streams', 'profile'];
-    router.go('/${tabs[tabIndex]}');
+    final isCreator = authProvider.isCreator;
+    if (isCreator) {
+      final creatorTabs = ['creator', 'home', 'profile'];
+      router.go('/${creatorTabs[tabIndex]}');
+    } else {
+      final tabs = ['home', 'streams', 'profile'];
+      router.go('/${tabs[tabIndex]}');
+    }
   }
 
   void navigateToStream(String streamId) => router.push('/stream/$streamId');

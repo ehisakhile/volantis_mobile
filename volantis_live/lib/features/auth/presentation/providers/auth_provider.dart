@@ -38,6 +38,13 @@ class AuthProvider extends ChangeNotifier {
   String? get pendingEmail => _pendingEmail;
   bool get isOffline => _isOffline;
 
+  bool get isCreator {
+    if (_user == null) return false;
+    final role = _user?.role?.toLowerCase() ?? '';
+    final hasCompany = _user?.companyId != null;
+    return role == 'creator' || role == 'host' || hasCompany;
+  }
+
   /// Initialize auth state
   Future<void> init() async {
     _state = AuthState.loading;
@@ -259,11 +266,15 @@ class AuthProvider extends ChangeNotifier {
         );
       }
 
-      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      _state = _isOffline
+          ? AuthState.offlineAuthenticated
+          : AuthState.authenticated;
       notifyListeners();
       return true;
     } catch (e) {
-      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      _state = _isOffline
+          ? AuthState.offlineAuthenticated
+          : AuthState.authenticated;
       _errorMessage = e.toString();
       notifyListeners();
       return false;
@@ -294,7 +305,9 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _state = _isOffline ? AuthState.offlineAuthenticated : AuthState.authenticated;
+      _state = _isOffline
+          ? AuthState.offlineAuthenticated
+          : AuthState.authenticated;
       _errorMessage = e.toString();
       notifyListeners();
       return false;

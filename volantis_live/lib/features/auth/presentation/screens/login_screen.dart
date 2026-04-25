@@ -49,7 +49,8 @@ class _LoginScreenState extends State<LoginScreen>
     );
     if (!mounted) return;
     if (ok) {
-      context.go('/home');
+      final destination = auth.isCreator ? '/creator' : '/home';
+      context.go(destination);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

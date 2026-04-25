@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/home/presentation/screens/home_screen.dart';
 import '../features/streams/presentation/screens/streams_screen.dart';
 import '../features/streams/presentation/providers/streams_provider.dart';
@@ -8,6 +9,7 @@ import '../features/streams/presentation/widgets/live_stream_mini_player.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/recordings/presentation/providers/recordings_provider.dart';
 import '../features/recordings/presentation/widgets/mini_player.dart';
+import '../features/creator/presentation/screens/creator_home_screen.dart';
 
 /// Main screen with bottom navigation — VolantisLive dark glass design
 class MainScreen extends StatefulWidget {
@@ -61,16 +63,54 @@ class _MainScreenState extends State<MainScreen>
     ),
   ];
 
+  static const _creatorNavItems = [
+    _NavItem(
+      label: 'Studio',
+      icon: Icons.broadcast_on_personal_outlined,
+      activeIcon: Icons.broadcast_on_personal,
+      route: '/creator',
+    ),
+    _NavItem(
+      label: 'Discover',
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore_rounded,
+      route: '/home',
+    ),
+    _NavItem(
+      label: 'Profile',
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+      route: '/profile',
+    ),
+  ];
+
   bool _isGuestMode = false;
 
   List<Widget> _getScreens() {
     final location = GoRouterState.of(context).matchedLocation;
     _isGuestMode = location.contains('/guest');
+
+    final authProvider = context.read<AuthProvider>();
+    final isCreator = authProvider.isCreator;
+
+    if (isCreator) {
+      return [
+        const CreatorHomeScreen(),
+        HomeScreen(isGuestMode: _isGuestMode),
+        const ProfileScreen(),
+      ];
+    }
+
     return [
       HomeScreen(isGuestMode: _isGuestMode),
       const StreamsScreen(),
       const ProfileScreen(),
     ];
+  }
+
+  List<_NavItem> _getNavItems() {
+    final authProvider = context.read<AuthProvider>();
+    return authProvider.isCreator ? _creatorNavItems : _navItems;
   }
 
   @override
@@ -93,6 +133,9 @@ class _MainScreenState extends State<MainScreen>
 
     final location = GoRouterState.of(context).matchedLocation;
     final isGuest = location.contains('/guest');
+    final authProvider = context.read<AuthProvider>();
+    final isCreator = authProvider.isCreator;
+    final items = isCreator ? _creatorNavItems : _navItems;
 
     if (isGuest && (index == 1 || index == 2)) {
       _showGuestAuthDialog(index);
@@ -104,7 +147,7 @@ class _MainScreenState extends State<MainScreen>
     if (widget.onTabChanged != null) {
       widget.onTabChanged!(index);
     } else {
-      context.go(_navItems[index].route);
+      context.go(items[index].route);
     }
   }
 
@@ -247,10 +290,15 @@ class _MainScreenState extends State<MainScreen>
           ),
         ],
       ),
-      bottomNavigationBar: _VolantisNavBar(
-        currentIndex: widget.currentIndex,
-        items: _navItems,
-        onTap: _onTabTapped,
+      bottomNavigationBar: Consumer<AuthProvider>(
+        builder: (context, authProvider, _) {
+          final items = authProvider.isCreator ? _creatorNavItems : _navItems;
+          return _VolantisNavBar(
+            currentIndex: widget.currentIndex,
+            items: items,
+            onTap: _onTabTapped,
+          );
+        },
       ),
     );
   }

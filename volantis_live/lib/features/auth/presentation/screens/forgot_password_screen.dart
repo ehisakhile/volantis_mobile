@@ -122,7 +122,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         ),
       );
       // Navigate to home - user is already authenticated
-      context.go('/home');
+      final destination = auth.isCreator ? '/creator' : '/home';
+      context.go(destination);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
