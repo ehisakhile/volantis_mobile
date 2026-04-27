@@ -251,6 +251,13 @@ class HomeProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Check if a company has an active livestream
+  bool companyHasActiveLivestream(String companySlug) {
+    return _recommendations?.subscribedLivestreams
+            .any((livestream) => livestream.companySlug == companySlug) ??
+        false;
+  }
+
   /// Toggle subscription status for a company (using slug)
   Future<void> toggleSubscription(String companySlug, {int? companyId}) async {
     final isCurrentlySubscribed = _subscribedSlugs.contains(companySlug);
