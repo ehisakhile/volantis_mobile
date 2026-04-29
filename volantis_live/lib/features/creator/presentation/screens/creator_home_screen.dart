@@ -310,14 +310,14 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
           ),
         ),
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _glassCard,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.notifications_outlined, color: _onVariant),
-        ),
+        // Container(
+        //   padding: const EdgeInsets.all(8),
+        //   decoration: BoxDecoration(
+        //     color: _glassCard,
+        //     borderRadius: BorderRadius.circular(8),
+        //   ),
+        //   child: const Icon(Icons.notifications_outlined, color: _onVariant),
+        // ),
       ],
     );
   }

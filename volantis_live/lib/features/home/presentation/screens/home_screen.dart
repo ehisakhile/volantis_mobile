@@ -10,6 +10,8 @@ import '../providers/guest_home_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../categories/presentation/providers/category_preferences_provider.dart';
+import '../../../streams/presentation/providers/streams_provider.dart';
+import '../../../streams/presentation/widgets/full_screen_player_sheet.dart';
 
 /// Home screen — VolantisLive dark glass design
 class HomeScreen extends StatefulWidget {
@@ -471,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildLivestreamCard(SubscribedLivestream livestream) {
     return GestureDetector(
-      onTap: () => context.push('/company/${livestream.companySlug}/stream/${livestream.slug}'),
+      onTap: () => _playStream(livestream),
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 12),
@@ -612,6 +614,43 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _playStream(SubscribedLivestream livestream) {
+    final liveStream = LiveStream(
+      id: livestream.id,
+      title: livestream.title,
+      slug: livestream.slug,
+      companyId: livestream.companyId,
+      companySlug: livestream.companySlug,
+      companyName: livestream.companyName,
+      isLive: livestream.isLive,
+      viewerCount: livestream.viewerCount,
+      thumbnailUrl: livestream.thumbnailUrl,
+    );
+    _navigateToPlayer(liveStream);
+  }
+
+  Future<void> _navigateToPlayer(stream) async {
+    final provider = context.read<StreamsProvider>();
+
+    final isSameStream = await provider.openStream(stream);
+
+    if (isSameStream) {
+      provider.expand();
+    }
+
+    if (!context.mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ChangeNotifierProvider.value(
+        value: provider,
+        child: const FullScreenPlayerSheet(),
       ),
     );
   }
