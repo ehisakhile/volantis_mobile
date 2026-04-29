@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:volantis_live/features/creator/data/services/audio_source_manager.dart';
 import '../../data/models/creator_stream_model.dart';
 import '../../data/services/creator_streaming_service.dart';
 import '../../data/services/webrtc_service.dart';
-import '../../data/services/audio_source_manager.dart';
-import '../../data/services/audio_mixer_engine.dart';
 import '../../data/services/stream_recorder.dart';
 
 enum CreatorState { initial, loading, loaded, error, streaming }
@@ -47,9 +46,11 @@ class StreamingStats {
 class CreatorProvider extends ChangeNotifier {
   final CreatorStreamingService _service = CreatorStreamingService();
   final WebRTCService _webrtcService = WebRTCService.instance;
-  final AudioSourceManager _audioSourceManager = AudioSourceManager();
-  final AudioMixerEngine _mixerEngine = AudioMixerEngine.instance;
   final StreamRecorder _streamRecorder = StreamRecorder();
+
+  void _log(String message) {
+    debugPrint('[CreatorProvider] $message');
+  }
 
   CreatorState _state = CreatorState.initial;
   CreatorStream? _currentStream;
@@ -61,7 +62,6 @@ class CreatorProvider extends ChangeNotifier {
   Timer? _durationTimer;
   Timer? _viewerCountTimer;
   Timer? _chatPollingTimer;
-  Timer? _audioLevelTimer;
 
   bool _useMicrophone = true;
   bool _isMuted = false;
@@ -100,33 +100,42 @@ class CreatorProvider extends ChangeNotifier {
   bool get autoUploadRecording => _autoUploadRecording;
   StreamRecorder get streamRecorder => _streamRecorder;
 
-  AudioSourceManager get audioSourceManager => _audioSourceManager;
-  AudioMixerEngine get mixerEngine => _mixerEngine;
   WebRTCService get webrtcService => _webrtcService;
 
   Future<void> init() async {
+    _log('init() - Starting initialization');
     _state = CreatorState.loading;
     notifyListeners();
 
     try {
-      await _audioSourceManager.initialize();
-      await _audioSourceManager.enumerateInputDevices();
-      notifyListeners();
-
+      _log('init() - Getting active stream from service');
       _currentStream = await _service.getActiveStream();
+
       if (_currentStream != null) {
+        _log('init() - Active stream found: ${_currentStream!.slug}');
         _state = CreatorState.streaming;
         _setupWebRTCListeners();
         _startTimers();
       } else {
+        _log('init() - No active stream, loading past streams');
         await _loadPastStreams();
         _state = CreatorState.loaded;
       }
     } catch (e) {
+      _log('init() - Error: $e');
       _errorMessage = e.toString();
       _state = CreatorState.error;
     }
     notifyListeners();
+    _log('init() - Initialization complete, state: $_state');
+  }
+
+  void _startAudioLevelPolling() {
+    // Audio level polling removed - using WebRTC service stats instead
+  }
+
+  void _stopAudioLevelPolling() {
+    // Audio level polling removed - using WebRTC service stats instead
   }
 
   void _setupWebRTCListeners() {
@@ -169,20 +178,6 @@ class CreatorProvider extends ChangeNotifier {
     });
   }
 
-  void _startAudioLevelPolling() {
-    _audioLevelTimer?.cancel();
-    _audioLevelTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      final level = _mixerEngine.masterAudioLevel;
-      _streamingStats = _streamingStats.copyWith(audioLevel: level);
-      notifyListeners();
-    });
-  }
-
-  void _stopAudioLevelPolling() {
-    _audioLevelTimer?.cancel();
-    _audioLevelTimer = null;
-  }
-
   Future<void> _loadPastStreams() async {
     try {
       _pastStreams = await _service.getUserStreams();
@@ -195,48 +190,48 @@ class CreatorProvider extends ChangeNotifier {
     required String title,
     String? description,
   }) async {
+    _log('startAudioStream() - Starting audio stream: title=$title');
     _state = CreatorState.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      _log('startAudioStream() - Creating stream via API');
       _currentStream = await _service.startAudioStream(
         title: title,
         description: description,
       );
+      _log('startAudioStream() - Stream created: ${_currentStream?.slug}');
 
       if (_currentStream?.cfWebrtcPublishUrl == null) {
+        _log('startAudioStream() - ERROR: No WebRTC publish URL available');
         throw Exception('No WebRTC publish URL available');
       }
+      _log(
+        'startAudioStream() - WHIP endpoint: ${_currentStream!.cfWebrtcPublishUrl}',
+      );
 
-      await _mixerEngine.startMixing();
-
-      MediaStream? microphoneStream;
-      if (_useMicrophone) {
-        microphoneStream = await _audioSourceManager.startMicrophoneCapture();
-        await _mixerEngine.setMicrophoneEnabled(true);
-      }
-
-      _mixerEngine.setMicrophoneVolume(_microphoneVolume);
-      _mixerEngine.setMasterVolume(_masterVolume);
-
+      _log('startAudioStream() - Connecting to WebRTC service');
       await _webrtcService.connect(
         streamSlug: _currentStream!.slug,
         whipEndpoint: _currentStream!.cfWebrtcPublishUrl!,
-        providedStream: microphoneStream,
       );
+      _log('startAudioStream() - WebRTC connected successfully');
 
       if (_wantsToRecord) {
+        _log('startAudioStream() - Starting recording');
         await _streamRecorder.startRecording();
       }
 
       _state = CreatorState.streaming;
       _streamDuration = 0;
       _startTimers();
-      _startAudioLevelPolling();
       notifyListeners();
+      _log('startAudioStream() - Stream started successfully');
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log('startAudioStream() - ERROR: $e');
+      _log('startAudioStream() - StackTrace: $stackTrace');
       _errorMessage = e.toString();
       _state = CreatorState.error;
       notifyListeners();
@@ -252,28 +247,38 @@ class CreatorProvider extends ChangeNotifier {
   }
 
   Future<bool> stopStream() async {
-    if (_currentStream == null) return false;
+    _log('stopStream() - Stopping stream');
+    if (_currentStream == null) {
+      _log('stopStream() - No current stream to stop');
+      return false;
+    }
 
     _state = CreatorState.loading;
     notifyListeners();
 
     try {
       if (_wantsToRecord) {
+        _log('stopStream() - Stopping recording');
         await _streamRecorder.stopRecording();
       }
 
+      _log('stopStream() - Disconnecting WebRTC');
       await _webrtcService.disconnect();
-      await _mixerEngine.stopMixing();
-      await _audioSourceManager.stopAll();
-      _stopAudioLevelPolling();
+      _log('stopStream() - WebRTC disconnected');
 
+      _log('stopStream() - Notifying API to stop stream');
       _currentStream = await _service.stopStream(_currentStream!.slug);
+      _log('stopStream() - Stream stopped via API');
+
       _stopTimers();
       await _loadPastStreams();
       _state = CreatorState.loaded;
       notifyListeners();
+      _log('stopStream() - Stream stopped successfully');
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log('stopStream() - ERROR: $e');
+      _log('stopStream() - StackTrace: $stackTrace');
       _errorMessage = e.toString();
       _state = CreatorState.error;
       notifyListeners();
@@ -349,28 +354,20 @@ class CreatorProvider extends ChangeNotifier {
   }
 
   void setUseMicrophone(bool value) {
+    _log('setUseMicrophone() - value: $value, isStreaming: $isStreaming');
     _useMicrophone = value;
-    if (isStreaming) {
-      if (value) {
-        _audioSourceManager.startMicrophoneCapture();
-        _mixerEngine.setMicrophoneEnabled(true);
-      } else {
-        _audioSourceManager.stopMicrophoneCapture();
-        _mixerEngine.setMicrophoneEnabled(false);
-      }
-    }
     notifyListeners();
   }
 
   void setMicrophoneVolume(double volume) {
+    _log('setMicrophoneVolume() - volume: $volume');
     _microphoneVolume = volume;
-    _mixerEngine.setMicrophoneVolume(volume);
     notifyListeners();
   }
 
   void setMasterVolume(double volume) {
+    _log('setMasterVolume() - volume: $volume');
     _masterVolume = volume;
-    _mixerEngine.setMasterVolume(volume);
     notifyListeners();
   }
 
@@ -429,13 +426,14 @@ class CreatorProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _log('dispose() - Cleaning up provider');
     _stopTimers();
-    _stopAudioLevelPolling();
     _webrtcService.setStateCallback(null);
     _webrtcService.setStatsCallback(null);
     _webrtcStateSubscription?.cancel();
     _webrtcStatsSubscription?.cancel();
     _audioLevelSubscription?.cancel();
     super.dispose();
+    _log('dispose() - Provider disposed');
   }
 }

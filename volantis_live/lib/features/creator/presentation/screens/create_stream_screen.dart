@@ -134,10 +134,10 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
                 const SizedBox(height: 24),
                 _buildVisualizerSection(provider),
                 const SizedBox(height: 24),
-                _buildStatsSection(provider),
-                const SizedBox(height: 24),
-                _buildMixerControls(provider),
-                const SizedBox(height: 24),
+                // _buildStatsSection(provider),
+                // const SizedBox(height: 24),
+                // _buildMixerControls(provider),
+                // const SizedBox(height: 24),
                 _buildStreamControls(provider),
               ],
             ),
@@ -586,7 +586,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
           SizedBox(
             height: 100,
             child: AudioVisualizer(
-              audioEngine: provider.mixerEngine,
+              // audioEngine: provider.mixerEngine,
               config: VisualizerConfig(
                 barCount: 32,
                 barSpacing: 3,
