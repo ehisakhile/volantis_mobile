@@ -398,6 +398,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
     if (stream != null) {
       ShareService().shareStream(
         streamSlug: stream.slug,
+        companySlug: stream.companySlug,
         streamTitle: stream.title,
         companyName: stream.companyName,
       );
@@ -511,6 +512,8 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                           icon: const Icon(Icons.share, color: Colors.white),
                           onPressed: () =>
                               ShareService().shareStreamWithSharePlus(
+                                companySlug:
+                                    provider.currentStream!.companySlug,
                                 streamSlug: provider.currentStream!.slug,
                                 streamTitle: provider.currentStream!.title,
                                 companyName:

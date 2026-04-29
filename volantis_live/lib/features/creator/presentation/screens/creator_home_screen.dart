@@ -496,6 +496,7 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
     final stream = provider.currentStream;
     if (stream != null) {
       ShareService().shareStream(
+        companySlug: stream.companySlug ?? "",
         streamSlug: stream.slug,
         streamTitle: stream.title,
         companyName: stream.companyName,

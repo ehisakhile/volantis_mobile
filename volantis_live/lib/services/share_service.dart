@@ -86,8 +86,9 @@ class ShareService {
     required String streamTitle,
     String? companyName,
     String? baseUrl,
+    required String companySlug,
   }) async {
-    final streamUrl = _buildStreamUrl(streamSlug, baseUrl);
+    final streamUrl = _buildStreamUrl(streamSlug, companySlug, baseUrl);
     final subject = companyName != null
         ? '$companyName is live: $streamTitle'
         : 'Join live stream: $streamTitle';
@@ -98,19 +99,24 @@ class ShareService {
     await shareLink(link: streamUrl, subject: subject, text: text);
   }
 
-  String _buildStreamUrl(String streamSlug, String? baseUrl) {
+  String _buildStreamUrl(
+    String streamSlug,
+    String companySlug,
+    String? baseUrl,
+  ) {
     final base = baseUrl ?? 'https://volantislive.com';
-    return '$base/stream/$streamSlug';
+    return '$base/$companySlug/$streamSlug';
   }
 
   Future<void> shareStreamWithSharePlus({
     required String streamSlug,
     required String streamTitle,
+    required String companySlug,
     String? companyName,
     String? baseUrl,
     String? imageUrl,
   }) async {
-    final streamUrl = _buildStreamUrl(streamSlug, baseUrl);
+    final streamUrl = _buildStreamUrl(streamSlug, companySlug, baseUrl);
     final subject = companyName != null
         ? '$companyName is live: $streamTitle'
         : 'Join live stream: $streamTitle';
