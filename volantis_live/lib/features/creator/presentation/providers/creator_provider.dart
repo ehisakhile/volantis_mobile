@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../data/models/creator_stream_model.dart';
 import '../../data/services/creator_streaming_service.dart';
 import '../../data/services/webrtc_service.dart';
@@ -63,12 +64,8 @@ class CreatorProvider extends ChangeNotifier {
   Timer? _audioLevelTimer;
 
   bool _useMicrophone = true;
-  bool _useSystemAudio = false;
-  bool _mixAudio = false;
   bool _isMuted = false;
   double _microphoneVolume = 100.0;
-  double _systemAudioVolume = 100.0;
-  double _backgroundAudioVolume = 100.0;
   double _masterVolume = 100.0;
 
   String? _selectedMicDeviceId;
@@ -92,12 +89,8 @@ class CreatorProvider extends ChangeNotifier {
   bool get isStreaming => _currentStream?.isActive ?? false;
 
   bool get useMicrophone => _useMicrophone;
-  bool get useSystemAudio => _useSystemAudio;
-  bool get mixAudio => _mixAudio;
   bool get isMuted => _isMuted;
   double get microphoneVolume => _microphoneVolume;
-  double get systemAudioVolume => _systemAudioVolume;
-  double get backgroundAudioVolume => _backgroundAudioVolume;
   double get masterVolume => _masterVolume;
   String? get selectedMicDeviceId => _selectedMicDeviceId;
   List<AudioDevice> get availableMicDevices => _availableMicDevices;
@@ -218,24 +211,19 @@ class CreatorProvider extends ChangeNotifier {
 
       await _mixerEngine.startMixing();
 
+      MediaStream? microphoneStream;
       if (_useMicrophone) {
-        await _audioSourceManager.startMicrophoneCapture();
+        microphoneStream = await _audioSourceManager.startMicrophoneCapture();
         await _mixerEngine.setMicrophoneEnabled(true);
       }
 
-      if (_useSystemAudio) {
-        await _audioSourceManager.startSystemAudioCapture();
-        await _mixerEngine.setSystemAudioEnabled(true);
-      }
-
       _mixerEngine.setMicrophoneVolume(_microphoneVolume);
-      _mixerEngine.setSystemAudioVolume(_systemAudioVolume);
-      _mixerEngine.setBackgroundMusicVolume(_backgroundAudioVolume);
       _mixerEngine.setMasterVolume(_masterVolume);
 
       await _webrtcService.connect(
         streamSlug: _currentStream!.slug,
         whipEndpoint: _currentStream!.cfWebrtcPublishUrl!,
+        providedStream: microphoneStream,
       );
 
       if (_wantsToRecord) {
@@ -374,40 +362,9 @@ class CreatorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setUseSystemAudio(bool value) {
-    _useSystemAudio = value;
-    if (isStreaming) {
-      if (value) {
-        _audioSourceManager.startSystemAudioCapture();
-        _mixerEngine.setSystemAudioEnabled(true);
-      } else {
-        _audioSourceManager.stopSystemAudioCapture();
-        _mixerEngine.setSystemAudioEnabled(false);
-      }
-    }
-    notifyListeners();
-  }
-
-  void setMixAudio(bool value) {
-    _mixAudio = value;
-    notifyListeners();
-  }
-
   void setMicrophoneVolume(double volume) {
     _microphoneVolume = volume;
     _mixerEngine.setMicrophoneVolume(volume);
-    notifyListeners();
-  }
-
-  void setSystemAudioVolume(double volume) {
-    _systemAudioVolume = volume;
-    _mixerEngine.setSystemAudioVolume(volume);
-    notifyListeners();
-  }
-
-  void setBackgroundAudioVolume(double volume) {
-    _backgroundAudioVolume = volume;
-    _mixerEngine.setBackgroundMusicVolume(volume);
     notifyListeners();
   }
 
@@ -419,18 +376,6 @@ class CreatorProvider extends ChangeNotifier {
 
   void setSelectedMicDevice(String? deviceId) {
     _selectedMicDeviceId = deviceId;
-    if (isStreaming && _useMicrophone) {
-      AudioDevice? selectedDevice;
-      for (final device in _availableMicDevices) {
-        if (device.deviceId == deviceId) {
-          selectedDevice = device;
-          break;
-        }
-      }
-      if (selectedDevice != null) {
-        _audioSourceManager.selectInputDevice(selectedDevice);
-      }
-    }
     notifyListeners();
   }
 
@@ -464,18 +409,6 @@ class CreatorProvider extends ChangeNotifier {
     _wantsToRecord = false;
     _autoUploadRecording = false;
     _streamRecorder.declineRecording();
-    notifyListeners();
-  }
-
-  Future<void> startBackgroundAudio(String filePath) async {
-    await _audioSourceManager.startBackgroundAudio(filePath);
-    await _mixerEngine.setBackgroundMusicEnabled(true);
-    notifyListeners();
-  }
-
-  Future<void> stopBackgroundAudio() async {
-    await _audioSourceManager.stopBackgroundAudio();
-    await _mixerEngine.setBackgroundMusicEnabled(false);
     notifyListeners();
   }
 

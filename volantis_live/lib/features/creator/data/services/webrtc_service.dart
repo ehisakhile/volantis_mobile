@@ -121,13 +121,7 @@ class WebRTCService {
 
   Map<String, dynamic> _getMediaConstraints() {
     return {
-      'audio': {
-        'autoGainControl': true,
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'sampleRate': 48000,
-        'channelCount': 1,
-      },
+      'audio': true,
       'video': false,
     };
   }
@@ -135,6 +129,7 @@ class WebRTCService {
   Future<void> connect({
     required String streamSlug,
     required String whipEndpoint,
+    MediaStream? providedStream,
   }) async {
     if (_state == WebRTCServiceState.connecting ||
         _state == WebRTCServiceState.connected) {
@@ -147,13 +142,13 @@ class WebRTCService {
     _reconnectAttempts = 0;
 
     try {
-      await _initializeConnection();
+      await _initializeConnection(providedStream: providedStream);
     } catch (e) {
       _handleConnectionError(e);
     }
   }
 
-  Future<void> _initializeConnection() async {
+  Future<void> _initializeConnection({MediaStream? providedStream}) async {
     _updateState(WebRTCServiceState.connecting);
 
     try {
@@ -171,9 +166,13 @@ class WebRTCService {
       _peerConnection!.onIceCandidate = _handleIceCandidate;
       _peerConnection!.onConnectionState = _handleConnectionState;
 
-      _localStream = await navigator.mediaDevices.getUserMedia(
-        _getMediaConstraints(),
-      );
+      if (providedStream != null) {
+        _localStream = providedStream;
+      } else {
+        _localStream = await navigator.mediaDevices.getUserMedia(
+          _getMediaConstraints(),
+        );
+      }
 
       _audioTrack = _localStream!.getAudioTracks().firstOrNull;
       if (_audioTrack == null) {

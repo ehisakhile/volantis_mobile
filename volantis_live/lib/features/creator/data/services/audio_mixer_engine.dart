@@ -4,7 +4,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:rxdart/rxdart.dart';
 
-enum AudioSourceType { microphone, systemAudio, backgroundMusic }
+enum AudioSourceType { microphone }
 
 class AudioMixerChannel {
   final String id;
@@ -146,22 +146,6 @@ class AudioMixerEngine {
       volume: 100.0,
       isMuted: false,
     );
-
-    _channels['system_audio'] = AudioMixerChannel(
-      id: 'system_audio',
-      type: AudioSourceType.systemAudio,
-      name: 'System Audio',
-      volume: 100.0,
-      isMuted: true,
-    );
-
-    _channels['background_music'] = AudioMixerChannel(
-      id: 'background_music',
-      type: AudioSourceType.backgroundMusic,
-      name: 'Background Music',
-      volume: 80.0,
-      isMuted: false,
-    );
   }
 
   AudioMixerChannel? getChannel(String channelId) {
@@ -220,7 +204,6 @@ class AudioMixerEngine {
     await initialize();
 
     _isActive = true;
-    await _setupOutputStream();
 
     _startMetering();
     _startMixingSimulation();
@@ -229,8 +212,12 @@ class AudioMixerEngine {
   }
 
   Future<void> _setupOutputStream() async {
-    _videoRenderer = RTCVideoRenderer();
-    await _videoRenderer!.initialize();
+    try {
+      _videoRenderer = RTCVideoRenderer();
+      await _videoRenderer!.initialize();
+    } catch (e) {
+      _videoRenderer = null;
+    }
 
     final audioConstraints = <String, dynamic>{
       'audio': true,
@@ -298,26 +285,7 @@ class AudioMixerEngine {
     _meteringTimer = null;
     _mixingTimer = null;
 
-    await _cleanupOutputStream();
-
     _notifyStateChange();
-  }
-
-  Future<void> _cleanupOutputStream() async {
-    if (_audioTrack != null) {
-      _audioTrack!.stop();
-    }
-    _audioTrack = null;
-
-    if (_outputStream != null) {
-      _outputStream!.dispose();
-    }
-    _outputStream = null;
-
-    if (_videoRenderer != null) {
-      await _videoRenderer!.dispose();
-    }
-    _videoRenderer = null;
   }
 
   double getChannelVolume(String channelId) {
@@ -357,33 +325,8 @@ class AudioMixerEngine {
     setChannelMuted('microphone', !enabled);
   }
 
-  Future<void> setSystemAudioEnabled(bool enabled) async {
-    setChannelMuted('system_audio', !enabled);
-  }
-
-  Future<void> setBackgroundMusicEnabled(bool enabled) async {
-    setChannelMuted('background_music', !enabled);
-  }
-
-  Future<void> loadBackgroundMusic(String filePath) async {
-    final channel = _channels['background_music'];
-    if (channel != null) {
-      channel.volume = 80.0;
-      channel.isMuted = false;
-      _notifyStateChange();
-    }
-  }
-
   Future<void> setMicrophoneVolume(double volume) async {
     setChannelVolume('microphone', volume);
-  }
-
-  Future<void> setSystemAudioVolume(double volume) async {
-    setChannelVolume('system_audio', volume);
-  }
-
-  Future<void> setBackgroundMusicVolume(double volume) async {
-    setChannelVolume('background_music', volume);
   }
 
   Future<void> dispose() async {

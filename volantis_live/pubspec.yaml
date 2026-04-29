@@ -37,6 +37,9 @@ dependencies:
   
   # Local Storage
   shared_preferences: ^2.2.2
+  
+  # In-App Review
+  in_app_review: ^2.0.9
   sqflite: ^2.3.2
   path_provider: ^2.1.2
   path: ^1.8.3

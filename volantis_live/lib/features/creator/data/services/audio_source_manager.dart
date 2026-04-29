@@ -2,9 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:just_audio/just_audio.dart';
 
-enum AudioSourceType { microphone, system, background }
+enum AudioSourceType { microphone }
 
 enum AudioSourceState { idle, starting, running, stopped, error }
 
@@ -23,7 +22,7 @@ class AudioDevice {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is AudioDevice &&
-          runtimeType == other.runtimeType &&
+          runtimeType == runtimeType &&
           deviceId == other.deviceId;
 
   @override
@@ -77,16 +76,12 @@ class AudioSourceManager {
 
   AudioSession? _audioSession;
   final Map<AudioSourceType, AudioSourceState> _sourceStates = {};
-  final Map<AudioSourceType, StreamSubscription?> _sourceSubscriptions = {};
 
   AudioConfiguration _configuration;
   AudioDevice? _selectedInputDevice;
   List<AudioDevice> _availableInputDevices = [];
 
-  AudioPlayer? _backgroundPlayer;
   MediaStream? _microphoneStream;
-  MediaStreamTrack? _systemAudioTrack;
-  bool _isSystemAudioSupported = false;
 
   final _inputDevicesController =
       StreamController<List<AudioDevice>>.broadcast();
@@ -98,9 +93,6 @@ class AudioSourceManager {
   AudioSourceManager._internal(AudioConfiguration configuration)
     : _configuration = configuration {
     _sourceStates[AudioSourceType.microphone] = AudioSourceState.idle;
-    _sourceStates[AudioSourceType.system] = AudioSourceState.idle;
-    _sourceStates[AudioSourceType.background] = AudioSourceState.idle;
-    _initializeSystemAudioSupport();
   }
 
   factory AudioSourceManager({
@@ -135,39 +127,9 @@ class AudioSourceManager {
 
   AudioSourceState getMicrophoneState() =>
       _sourceStates[AudioSourceType.microphone] ?? AudioSourceState.idle;
-  AudioSourceState getSystemAudioState() =>
-      _sourceStates[AudioSourceType.system] ?? AudioSourceState.idle;
-  AudioSourceState getBackgroundAudioState() =>
-      _sourceStates[AudioSourceType.background] ?? AudioSourceState.idle;
 
   bool get isMicrophoneActive =>
       _sourceStates[AudioSourceType.microphone] == AudioSourceState.running;
-  bool get isSystemAudioActive =>
-      _sourceStates[AudioSourceType.system] == AudioSourceState.running;
-  bool get isBackgroundAudioActive =>
-      _sourceStates[AudioSourceType.background] == AudioSourceState.running;
-
-  Future<void> _initializeSystemAudioSupport() async {
-    if (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
-      _isSystemAudioSupported = true;
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      _isSystemAudioSupported = await _checkAndroidSystemAudioSupport();
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      _isSystemAudioSupported = false;
-    }
-  }
-
-  Future<bool> _checkAndroidSystemAudioSupport() async {
-    try {
-      final devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.any((device) => device.kind == 'audiooutput');
-    } catch (_) {
-      return false;
-    }
-  }
-
-  bool get isSystemAudioSupported => _isSystemAudioSupported;
 
   Future<void> updateConfiguration(AudioConfiguration newConfiguration) async {
     _configuration = newConfiguration;
@@ -260,16 +222,9 @@ class AudioSourceManager {
       await _audioSession!.setActive(true);
 
       final constraints = <String, dynamic>{
-        'audio': _configuration.toWebRtcConstraints(),
+        'audio': true,
         'video': false,
       };
-
-      if (_selectedInputDevice != null) {
-        constraints['audio'] = {
-          ...constraints['audio'] as Map<String, dynamic>,
-          'deviceId': {'exact': _selectedInputDevice!.deviceId},
-        };
-      }
 
       final stream = await navigator.mediaDevices.getUserMedia(constraints);
       _microphoneStream = stream;
@@ -279,83 +234,6 @@ class AudioSourceManager {
     } catch (e) {
       _updateSourceState(AudioSourceType.microphone, AudioSourceState.error);
       debugPrint('Error starting microphone capture: $e');
-      rethrow;
-    }
-  }
-
-  Future<MediaStream?> startSystemAudioCapture() async {
-    if (!_isSystemAudioSupported) {
-      throw UnsupportedError(
-        'System audio capture is not supported on this platform',
-      );
-    }
-
-    if (_sourceStates[AudioSourceType.system] == AudioSourceState.running) {
-      return null;
-    }
-
-    _updateSourceState(AudioSourceType.system, AudioSourceState.starting);
-
-    try {
-      final constraints = <String, dynamic>{
-        'audio': {
-          'echoCancellation': false,
-          'noiseSuppression': false,
-          'autoGainControl': false,
-          'sampleRate': _configuration.sampleRate,
-          'channelCount': _configuration.channelCount,
-          'deviceId': {'exact': 'default'},
-          'mandatory': {
-            'goToEchoCancellation': false,
-            'goToNoiseSuppression': false,
-            'goToAutoGainControl': false,
-          },
-        },
-        'video': false,
-      };
-
-      final stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
-      _updateSourceState(AudioSourceType.system, AudioSourceState.running);
-
-      final audioTrack = stream.getAudioTracks().firstOrNull;
-      if (audioTrack != null) {
-        _systemAudioTrack = audioTrack;
-        audioTrack.onEnded = () {
-          stopSystemAudioCapture();
-        };
-      }
-
-      return stream;
-    } catch (e) {
-      _updateSourceState(AudioSourceType.system, AudioSourceState.error);
-      debugPrint('Error starting system audio capture: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> startBackgroundAudio(String filePath) async {
-    if (_sourceStates[AudioSourceType.background] == AudioSourceState.running) {
-      return;
-    }
-
-    _updateSourceState(AudioSourceType.background, AudioSourceState.starting);
-
-    try {
-      _audioSession ??= await AudioSession.instance;
-      await _audioSession!.setActive(true);
-
-      _backgroundPlayer = AudioPlayer();
-      await _backgroundPlayer!.setFilePath(filePath);
-      await _backgroundPlayer!.setLoopMode(LoopMode.one);
-      await _backgroundPlayer!.play();
-
-      _updateSourceState(AudioSourceType.background, AudioSourceState.running);
-    } catch (e) {
-      _updateSourceState(AudioSourceType.background, AudioSourceState.error);
-      debugPrint('Error starting background audio: $e');
-      await _backgroundPlayer?.dispose();
-      _backgroundPlayer = null;
       rethrow;
     }
   }
@@ -371,24 +249,6 @@ class AudioSourceManager {
     _updateSourceState(AudioSourceType.microphone, AudioSourceState.stopped);
   }
 
-  Future<void> stopSystemAudioCapture() async {
-    await _sourceSubscriptions[AudioSourceType.system]?.cancel();
-    _sourceSubscriptions[AudioSourceType.system] = null;
-
-    _systemAudioTrack?.onEnded = null;
-    _systemAudioTrack = null;
-
-    _updateSourceState(AudioSourceType.system, AudioSourceState.stopped);
-  }
-
-  Future<void> stopBackgroundAudio() async {
-    await _backgroundPlayer?.stop();
-    await _backgroundPlayer?.dispose();
-    _backgroundPlayer = null;
-
-    _updateSourceState(AudioSourceType.background, AudioSourceState.stopped);
-  }
-
   Future<void> restartMicrophone() async {
     if (isMicrophoneActive) {
       await stopMicrophoneCapture();
@@ -398,8 +258,6 @@ class AudioSourceManager {
 
   Future<void> stopAll() async {
     await stopMicrophoneCapture();
-    await stopSystemAudioCapture();
-    await stopBackgroundAudio();
   }
 
   Future<void> setMicrophoneEnabled(bool enabled) async {
@@ -410,42 +268,13 @@ class AudioSourceManager {
     }
   }
 
-  Future<void> setSystemAudioEnabled(bool enabled) async {
-    if (!_isSystemAudioSupported) return;
-
-    if (enabled && !isSystemAudioActive) {
-      await startSystemAudioCapture();
-    } else if (!enabled && isSystemAudioActive) {
-      await stopSystemAudioCapture();
-    }
-  }
-
-  Future<void> setBackgroundAudioEnabled(bool enabled) async {
-    if (enabled && !isBackgroundAudioActive) {
-      throw StateError(
-        'Background audio file not set. Call startBackgroundAudio first.',
-      );
-    } else if (!enabled && isBackgroundAudioActive) {
-      await stopBackgroundAudio();
-    }
-  }
-
   MediaStream? getMicrophoneStream() => _microphoneStream;
-  AudioPlayer? getBackgroundPlayer() => _backgroundPlayer;
 
   double getMicrophoneVolume() {
     return 100.0;
   }
 
   Future<void> setMicrophoneVolume(double volume) async {}
-
-  double getBackgroundAudioVolume() {
-    return _backgroundPlayer?.volume ?? 0.0;
-  }
-
-  Future<void> setBackgroundAudioVolume(double volume) async {
-    await _backgroundPlayer?.setVolume(volume.clamp(0.0, 1.0));
-  }
 
   void _updateSourceState(AudioSourceType type, AudioSourceState state) {
     _sourceStates[type] = state;

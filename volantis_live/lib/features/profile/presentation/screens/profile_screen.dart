@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/network_image.dart';
 import '../../../../services/analytics_service.dart';
+import '../../../../services/review_manager.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/edit_profile_dialog.dart';
@@ -726,6 +727,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Content Preferences',
                   subtitle: 'Update your category preferences',
                   onTap: () => context.push('/set-preferences'),
+                ),
+                _buildDivider(),
+
+                // Rate Us
+                _buildPreferencesTile(
+                  icon: Icons.star_rounded,
+                  title: 'Rate the App',
+                  subtitle: 'Share your feedback',
+                  onTap: () => ReviewManager().openStoreListing(),
                 ),
                 _buildDivider(),
 

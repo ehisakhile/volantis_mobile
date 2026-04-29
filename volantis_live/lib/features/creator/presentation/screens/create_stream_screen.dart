@@ -59,11 +59,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
   }
 
   Widget _buildLoadingView() {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: _primary,
-      ),
-    );
+    return const Center(child: CircularProgressIndicator(color: _primary));
   }
 
   @override
@@ -117,8 +113,8 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
           _buildDescriptionField(),
           const SizedBox(height: 24),
           _buildAudioSourceSection(provider),
-          const SizedBox(height: 24),
-          _buildRecordingSection(),
+          // const SizedBox(height: 24),
+          // _buildRecordingSection(),
           const SizedBox(height: 32),
           _buildStartButton(),
         ],
@@ -289,7 +285,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Audio Sources',
+            'Audio Source',
             style: TextStyle(
               color: _onSurface,
               fontSize: 16,
@@ -302,25 +298,6 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
             Icons.mic,
             provider.useMicrophone,
             (value) => provider.setUseMicrophone(value),
-          ),
-          if (provider.useMicrophone && provider.availableMicDevices.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildMicDeviceSelector(provider),
-          ],
-          const SizedBox(height: 12),
-          _buildAudioSourceToggle(
-            'System Audio',
-            Icons.speaker,
-            provider.useSystemAudio,
-            (value) => provider.setUseSystemAudio(value),
-            subtitle: 'Requires screen sharing',
-          ),
-          const SizedBox(height: 12),
-          _buildAudioSourceToggle(
-            'Background Music',
-            Icons.music_note,
-            provider.mixAudio,
-            (value) => provider.setMixAudio(value),
           ),
         ],
       ),
@@ -372,44 +349,9 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
                 ],
               ),
             ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: _primary,
-            ),
+            Switch(value: value, onChanged: onChanged, activeColor: _primary),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildMicDeviceSelector(CreatorProvider provider) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: _surfaceHigh,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButton<String>(
-        value: provider.selectedMicDeviceId,
-        isExpanded: true,
-        dropdownColor: _surfaceHigh,
-        underline: const SizedBox(),
-        hint: const Text(
-          'Select microphone',
-          style: TextStyle(color: _onVariant),
-        ),
-        items: provider.availableMicDevices.map((device) {
-          return DropdownMenuItem<String>(
-            value: device.deviceId,
-            child: Text(
-              device.label ?? 'Microphone',
-              style: const TextStyle(color: _onSurface),
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }).toList(),
-        onChanged: (value) => provider.setSelectedMicDevice(value),
       ),
     );
   }
@@ -681,10 +623,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: _onVariant, fontSize: 14),
-          ),
+          Text(label, style: const TextStyle(color: _onVariant, fontSize: 14)),
           Text(
             value,
             style: const TextStyle(
@@ -722,20 +661,6 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
             provider.microphoneVolume,
             provider.useMicrophone,
             (value) => provider.setMicrophoneVolume(value),
-          ),
-          const SizedBox(height: 12),
-          _buildVolumeSlider(
-            'System Audio',
-            provider.systemAudioVolume,
-            provider.useSystemAudio,
-            (value) => provider.setSystemAudioVolume(value),
-          ),
-          const SizedBox(height: 12),
-          _buildVolumeSlider(
-            'Background',
-            provider.backgroundAudioVolume,
-            provider.mixAudio,
-            (value) => provider.setBackgroundAudioVolume(value),
           ),
           const SizedBox(height: 12),
           _buildVolumeSlider(
@@ -842,10 +767,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
             const SizedBox(width: 8),
             Text(
               label,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -874,11 +796,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.stop,
-                  color: Colors.white,
-                  size: 24,
-                ),
+                Icon(Icons.stop, color: Colors.white, size: 24),
                 SizedBox(width: 8),
                 Text(
                   'End Stream',
@@ -947,10 +865,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: _surface,
-        title: const Text(
-          'End Stream?',
-          style: TextStyle(color: _onSurface),
-        ),
+        title: const Text('End Stream?', style: TextStyle(color: _onSurface)),
         content: const Text(
           'Are you sure you want to end your stream?',
           style: TextStyle(color: _onVariant),

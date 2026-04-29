@@ -5,6 +5,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/live_stream_service.dart';
 import '../../../../services/subscriptions_service.dart';
+import '../../../../services/review_manager.dart';
 import '../../data/models/company_live_stream_model.dart';
 
 /// LiveStream model for API response
@@ -338,6 +339,10 @@ class StreamsProvider extends ChangeNotifier {
     _currentStream = null;
     _currentStreamDetails = null;
     notifyListeners();
+
+    debugPrint('Player closed, notifying ReviewManager of livestream end');
+
+    ReviewManager().onLivestreamEnded();
   }
 
   /// Toggle play/pause
