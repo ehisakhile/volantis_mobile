@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../services/share_service.dart';
 import '../providers/creator_provider.dart';
 import '../../data/models/creator_stream_model.dart';
 import '../widgets/audio_visualizer.dart';
@@ -609,11 +610,26 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
       ),
       child: Column(
         children: [
-          _buildControlRow(
-            provider.isMuted ? 'Unmute' : 'Mute',
-            provider.isMuted ? Icons.mic_off : Icons.mic,
-            provider.isMuted ? _error : _primary,
-            provider.toggleMute,
+          Row(
+            children: [
+              Expanded(
+                child: _buildControlRow(
+                  provider.isMuted ? 'Unmute' : 'Mute',
+                  provider.isMuted ? Icons.mic_off : Icons.mic,
+                  provider.isMuted ? _error : _primary,
+                  provider.toggleMute,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildControlRow(
+                  'Share',
+                  Icons.share,
+                  _primary,
+                  () => _shareStream(provider),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -765,6 +781,17 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
       if (success && mounted) {
         Navigator.of(context).pop();
       }
+    }
+  }
+
+  void _shareStream(CreatorProvider provider) {
+    final stream = provider.currentStream;
+    if (stream != null) {
+      ShareService().shareStream(
+        streamSlug: stream.slug,
+        streamTitle: stream.title,
+        companyName: stream.companyName,
+      );
     }
   }
 }

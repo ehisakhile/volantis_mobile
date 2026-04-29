@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../services/live_stream_service.dart';
+import '../../../../services/share_service.dart';
 import '../../data/models/company_live_stream_model.dart';
 import '../../../chat/presentation/widgets/live_chat_widget.dart';
 import '../providers/streams_provider.dart';
@@ -392,6 +393,17 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
     await _disconnect();
   }
 
+  void _shareStream(StreamsProvider provider) {
+    final stream = provider.currentStream;
+    if (stream != null) {
+      ShareService().shareStream(
+        streamSlug: stream.slug,
+        streamTitle: stream.title,
+        companyName: stream.companyName,
+      );
+    }
+  }
+
   /// Set audio track enabled/disabled for mute functionality
   /// Uses both local track and service for persistence
   void _setAudioTrackEnabled(bool enabled) {
@@ -493,16 +505,34 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                       },
                     ),
                     _buildConnectionBadge(),
-                    IconButton(
-                      icon: Icon(
-                        _showChat ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                        color: _showChat ? const Color(0xFF38BDF8) : Colors.white,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showChat = !_showChat;
-                        });
-                      },
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.share, color: Colors.white),
+                          onPressed: () =>
+                              ShareService().shareStreamWithSharePlus(
+                                streamSlug: provider.currentStream!.slug,
+                                streamTitle: provider.currentStream!.title,
+                                companyName:
+                                    provider.currentStream!.companyName,
+                              ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _showChat
+                                ? Icons.chat_bubble
+                                : Icons.chat_bubble_outline,
+                            color: _showChat
+                                ? const Color(0xFF38BDF8)
+                                : Colors.white,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showChat = !_showChat;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -515,11 +545,16 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                           GestureDetector(
                             onTap: () => setState(() => _showChat = false),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1E293B).withOpacity(0.4),
                                 border: Border(
-                                  bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+                                  bottom: BorderSide(
+                                    color: Colors.white.withOpacity(0.05),
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -530,24 +565,36 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: const Color(0xFF222A3D),
-                                      border: Border.all(color: const Color(0xFF060E20), width: 2),
+                                      border: Border.all(
+                                        color: const Color(0xFF060E20),
+                                        width: 2,
+                                      ),
                                     ),
                                     clipBehavior: Clip.hardEdge,
                                     child: stream.companyLogoUrl != null
                                         ? CachedNetworkImage(
                                             imageUrl: stream.companyLogoUrl!,
                                             fit: BoxFit.cover,
-                                            placeholder: (_, __) =>
-                                                const Icon(Icons.live_tv, color: _primary),
+                                            placeholder: (_, __) => const Icon(
+                                              Icons.live_tv,
+                                              color: _primary,
+                                            ),
                                             errorWidget: (_, __, ___) =>
-                                                const Icon(Icons.live_tv, color: _primary),
+                                                const Icon(
+                                                  Icons.live_tv,
+                                                  color: _primary,
+                                                ),
                                           )
-                                        : const Icon(Icons.live_tv, color: _primary),
+                                        : const Icon(
+                                            Icons.live_tv,
+                                            color: _primary,
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           stream.companyName,
@@ -580,11 +627,18 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            Icon(Icons.visibility, color: _onVariant, size: 12),
+                                            Icon(
+                                              Icons.visibility,
+                                              color: _onVariant,
+                                              size: 12,
+                                            ),
                                             const SizedBox(width: 2),
                                             Text(
                                               '${stream.viewerCount}',
-                                              style: TextStyle(color: _onVariant, fontSize: 12),
+                                              style: TextStyle(
+                                                color: _onVariant,
+                                                fontSize: 12,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -598,7 +652,11 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                       color: Colors.white.withOpacity(0.1),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+                                    child: const Icon(
+                                      Icons.keyboard_arrow_down,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -608,7 +666,9 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                           Expanded(
                             child: LiveChatWidget(
                               slug: stream.slug,
-                              isCreator: provider.currentStream?.companySlug == stream.companySlug,
+                              isCreator:
+                                  provider.currentStream?.companySlug ==
+                                  stream.companySlug,
                               companyName: stream.companyName,
                             ),
                           ),
@@ -676,11 +736,18 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                Icon(Icons.visibility, color: _onVariant, size: 16),
+                                Icon(
+                                  Icons.visibility,
+                                  color: _onVariant,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${stream.viewerCount} watching',
-                                  style: TextStyle(color: _onVariant, fontSize: 14),
+                                  style: TextStyle(
+                                    color: _onVariant,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ],
                             ),

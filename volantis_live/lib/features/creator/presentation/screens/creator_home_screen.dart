@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../services/share_service.dart';
 import '../../data/models/creator_stream_model.dart';
 import '../providers/creator_provider.dart';
 import 'create_stream_screen.dart';
@@ -492,9 +493,13 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
   }
 
   void _shareStream(CreatorProvider provider) {
-    final slug = provider.currentStream?.slug;
-    if (slug != null) {
-      // TODO: Implement share functionality
+    final stream = provider.currentStream;
+    if (stream != null) {
+      ShareService().shareStream(
+        streamSlug: stream.slug,
+        streamTitle: stream.title,
+        companyName: stream.companyName,
+      );
     }
   }
 

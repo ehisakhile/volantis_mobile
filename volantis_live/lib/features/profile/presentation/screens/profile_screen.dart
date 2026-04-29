@@ -5,6 +5,7 @@ import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/network_image.dart';
 import '../../../../services/analytics_service.dart';
 import '../../../../services/review_manager.dart';
+import '../../../../services/share_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/edit_profile_dialog.dart';
@@ -739,6 +740,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 _buildDivider(),
 
+                // Share App
+                _buildPreferencesTile(
+                  icon: Icons.share_rounded,
+                  title: 'Share the App',
+                  subtitle: 'Invite friends to download',
+                  onTap: () => _shareApp(),
+                ),
+                _buildDivider(),
+
                 // Account deletion
                 _buildAccountDeletionTile(),
               ],
@@ -1025,6 +1035,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           letterSpacing: -0.3,
         ),
       ),
+    );
+  }
+
+  // ── Share App ──────────────────────────────────────────────────────────────
+
+  void _shareApp() {
+    ShareService().shareApp(
+      subject: 'Check out VolantisLive - Ultra-low bandwidth audio streaming',
     );
   }
 
