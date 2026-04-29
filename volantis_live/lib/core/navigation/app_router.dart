@@ -11,6 +11,7 @@ import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 import '../../features/home/presentation/screens/company_details_screen.dart';
 import '../../features/downloads/presentation/screens/downloads_screen.dart';
 import '../../features/categories/presentation/screens/set_preferences_screen.dart';
+import '../../features/streams/presentation/screens/stream_player_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
 
@@ -401,12 +402,7 @@ class _StreamPlayerHandler extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        context.push('/stream/$streamSlug?companySlug=$companySlug');
-      }
-    });
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return StreamPlayerScreen(companySlug: companySlug);
   }
 }
 

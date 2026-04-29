@@ -275,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: _glassCard,
+          color: _surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _searchFocused
@@ -301,19 +301,19 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: InputDecoration(
               hintText: 'Search channels & companies…',
               hintStyle: TextStyle(
-                color: _outlineVar.withOpacity(0.8),
+                color: _onVariant.withOpacity(0.7),
                 fontSize: 15,
               ),
               prefixIcon: const Icon(
                 Icons.search_rounded,
-                color: _outline,
+                color: _onVariant,
                 size: 20,
               ),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(
                         Icons.close_rounded,
-                        color: _outline,
+                        color: _onVariant,
                         size: 18,
                       ),
                       onPressed: () {
@@ -471,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildLivestreamCard(SubscribedLivestream livestream) {
     return GestureDetector(
-      onTap: () => context.push('/stream/${livestream.slug}'),
+      onTap: () => context.push('/company/${livestream.companySlug}/stream/${livestream.slug}'),
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 12),
@@ -866,7 +866,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (subscribedCount > 0) ...[
           _buildSectionLabel('Your Creators', subscribedCount),
           SizedBox(
-            height: 108,
+            height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -878,6 +878,8 @@ class _HomeScreenState extends State<HomeScreen>
                     : null,
                 true,
                 () => _navigateToCompany(hp.followedCompanies[i]),
+                companySlug: hp.followedCompanies[i].slug,
+                hp: hp,
               ),
             ),
           ),
@@ -888,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (suggestedCount > 0) ...[
           _buildSectionLabel('Suggested for You', suggestedCount),
           SizedBox(
-            height: 108,
+            height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -903,6 +905,8 @@ class _HomeScreenState extends State<HomeScreen>
                   rec.hasLogo ? rec.companyLogoUrl : null,
                   false,
                   () => context.push('/company/${rec.companySlug}'),
+                  companySlug: rec.companySlug,
+                  hp: hp,
                 );
               },
             ),
@@ -917,8 +921,13 @@ class _HomeScreenState extends State<HomeScreen>
     String name,
     String? logoUrl,
     bool isSubscribed,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    String? companySlug,
+    HomeProvider? hp,
+  }) {
+    final hasActiveLivestream =
+        companySlug != null && hp != null && hp.companyHasActiveLivestream(companySlug);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -926,49 +935,103 @@ class _HomeScreenState extends State<HomeScreen>
         margin: const EdgeInsets.only(right: 12),
         child: Column(
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _surfaceHigh,
-                border: Border.all(
-                  color: isSubscribed
-                      ? _primary.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.1),
-                  width: 2,
+            Stack(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _surfaceHigh,
+                    border: Border.all(
+                      color: isSubscribed
+                          ? _primary.withOpacity(0.5)
+                          : Colors.white.withOpacity(0.1),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: logoUrl != null
+                        ? Image.network(
+                            logoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.business_rounded,
+                              color: _primary,
+                              size: 28,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.business_rounded,
+                            color: _primary,
+                            size: 28,
+                          ),
+                  ),
                 ),
-              ),
-              child: ClipOval(
-                child: logoUrl != null
-                    ? Image.network(
-                        logoUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.business_rounded,
-                          color: _primary,
-                          size: 28,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.business_rounded,
-                        color: _primary,
-                        size: 28,
+                if (hasActiveLivestream)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-              ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF6C66),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, color: Colors.white, size: 4),
+                          SizedBox(width: 2),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 6,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
-            Text(
-              name,
-              style: const TextStyle(
-                color: _onVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+            if (hasActiveLivestream)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6C66).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Currently Airing',
+                  style: TextStyle(
+                    color: Color(0xFFFF6C66),
+                    fontSize: 7,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
+            else
+              Text(
+                name,
+                style: const TextStyle(
+                  color: _onVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
         ),
       ),
@@ -1225,7 +1288,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildGuestLivestreamCard(ActiveLivestream livestream) {
     return GestureDetector(
-      onTap: () => context.push('/company/${livestream.companySlug}'),
+      onTap: () => context.push('/company/${livestream.companySlug}/stream/${livestream.slug}'),
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 12),
