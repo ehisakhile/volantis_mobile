@@ -1,5 +1,11 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../services/app_update_manager.dart';
+import '../../../core/navigation/app_router.dart';
+import '../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../features/onboarding/presentation/providers/onboarding_provider.dart';
 
 /// VolantisLive Splash Screen
 /// Glassy, modern design with logo and animated waveform
@@ -15,6 +21,8 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeIn;
   late Animation<double> _scaleAnim;
+  bool _hasCheckedUpdates = false;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -36,11 +44,22 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
-    _navigateAfterDelay();
+    
+    _checkForUpdates();
   }
 
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(seconds: 3));
+  Future<void> _checkForUpdates() async {
+    if (_hasCheckedUpdates || !mounted || _hasNavigated) return;
+    _hasCheckedUpdates = true;
+
+    await AppUpdateManager().checkForUpdates(context);
+    
+    if (!mounted || _hasNavigated) return;
+    
+    if (AppUpdateManager().updateCheckComplete) {
+      _hasNavigated = true;
+      context.go(AppRoutes.home);
+    }
   }
 
   @override

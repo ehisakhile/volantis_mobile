@@ -70,9 +70,16 @@ class ReviewManager {
 
   Future<void> _requestReview(SharedPreferences prefs) async {
     final isAvailable = await _inAppReview.isAvailable();
-    if (!isAvailable) return;
+    if (!isAvailable) {
+      await openStoreListing();
+      return;
+    }
 
-    await _inAppReview.requestReview();
+    try {
+      await _inAppReview.requestReview();
+    } catch (e) {
+      await openStoreListing();
+    }
 
     await prefs.setInt(
       _keyLastReviewDate,

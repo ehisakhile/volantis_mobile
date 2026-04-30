@@ -14,6 +14,7 @@ import '../../features/categories/presentation/screens/set_preferences_screen.da
 import '../../features/streams/presentation/screens/stream_player_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/app_update_manager.dart';
 
 /// Route names
 class AppRoutes {

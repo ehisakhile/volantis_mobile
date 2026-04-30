@@ -79,7 +79,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>FlutterDeepLinkingEnabled</key>
-	<false/>
+	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 	<string>applinks:www.volantislive.com</string>
