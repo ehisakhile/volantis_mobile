@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        AuthTopBar(onBack: () => context.go('/onboarding')),
+
                         const SizedBox(height: 36),
 
                         // Headline
