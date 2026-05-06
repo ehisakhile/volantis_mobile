@@ -115,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        AuthTopBar(onBack: () => context.go('/login')),
+
                         const SizedBox(height: 36),
 
                         // Headline
