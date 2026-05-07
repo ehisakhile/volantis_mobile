@@ -642,7 +642,7 @@ class _StreamsScreenState extends State<StreamsScreen> {
                         ),
                         const SizedBox(width: 3),
                         Text(
-                          '${stream.viewerCount}',
+                          '${stream.totalViews} views',
                           style: const TextStyle(color: _outline, fontSize: 11),
                         ),
                       ],

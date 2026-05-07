@@ -356,7 +356,7 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen>
 
           // Viewer count
           if (_streamDetails != null)
-            _ViewerChip(count: _streamDetails!.livestream.viewerCount),
+            _ViewerChip(count: _streamDetails!.livestream.totalViews),
         ],
       ),
     );

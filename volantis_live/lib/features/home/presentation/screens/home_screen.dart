@@ -425,27 +425,673 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildCompaniesList(HomeProvider hp) {
     if (hp.companies.isEmpty) return _buildEmptyState();
 
+    final hasLivestreams = hp.subscribedLivestreams.isNotEmpty;
+    final hasRecordings = hp.hasRecordings;
+    final hasSubscriptions = hp.followedCompanies.isNotEmpty;
+    final hasDiscover = hp.recommendedCompanies.isNotEmpty;
+
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
-        // For You - Recommended Companies from user's selected categories
-        if (hp.recommendedCompanies.isNotEmpty)
-          SliverToBoxAdapter(child: _buildRecommendedCompaniesStrip(hp)),
-
-        // Recommendations - Current Live Streams from subscribed companies
-        if (hp.subscribedLivestreams.isNotEmpty)
+        // Section 1: LIVE NOW - Active streams from subscriptions
+        if (hasLivestreams)
           SliverToBoxAdapter(child: _buildLivestreamsStrip(hp)),
 
-        // Recordings - Recent recordings from subscribed companies
-        if (hp.subscribedRecordings.isNotEmpty)
-          SliverToBoxAdapter(child: _buildSubscribedRecordingsStrip(hp)),
+        // Section 2: YOUR SUBSCRIPTIONS - Channels you follow
+        if (hasSubscriptions)
+          SliverToBoxAdapter(child: _buildSubscribedCompaniesStrip(hp)),
 
-        // Creators section - Subscribed + Suggested
-        if (_getCreatorsToShow(hp).isNotEmpty)
-          SliverToBoxAdapter(child: _buildCreatorsSection(hp)),
+        // Section 3: DISCOVER - Suggested channels (not subscribed)
+        if (hasDiscover) SliverToBoxAdapter(child: _buildDiscoverStrip(hp)),
+
+        // Section 4: RECORDINGS - Show recordings from subscribed channels
+        if (hasRecordings)
+          SliverToBoxAdapter(child: _buildRecordingsAfterDiscoverStrip(hp)),
 
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
+    );
+  }
+
+  // ── Subscribed Companies strip ────────────────────────────────────────────
+
+  Widget _buildSubscribedCompaniesStrip(HomeProvider hp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.subscriptions_rounded,
+                color: _primary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Your Subscriptions',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${hp.followedCompanies.length} channels',
+                style: const TextStyle(color: _onVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: hp.followedCompanies.length,
+            itemBuilder: (_, i) =>
+                _buildSubscribedCompanyCard(hp.followedCompanies[i], hp),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildSubscribedCompanyCard(CompanyModel company, HomeProvider hp) {
+    return GestureDetector(
+      onTap: () => _navigateToCompany(company),
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Row(
+          children: [
+            // Logo
+            Container(
+              width: 80,
+              height: 80,
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _surfaceHigh,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: company.hasLogo
+                    ? Image.network(
+                        company.logoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.business_rounded,
+                          color: _primary,
+                          size: 32,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.business_rounded,
+                        color: _primary,
+                        size: 32,
+                      ),
+              ),
+            ),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    company.name,
+                    style: const TextStyle(
+                      color: _onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (company.description != null &&
+                      company.description!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      company.description!,
+                      style: const TextStyle(color: _onVariant, fontSize: 11),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _primary.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Following',
+                          style: TextStyle(
+                            color: _primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Discover strip (suggested channels) ────────────────────────────────
+
+  Widget _buildDiscoverStrip(HomeProvider hp) {
+    final suggestedCompanies = hp.recommendedCompanies
+        .where((rec) => !hp.isCompanySubscribed(rec.companySlug))
+        .toList();
+
+    if (suggestedCompanies.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            children: [
+              const Icon(Icons.explore_rounded, color: _secondary, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Discover',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Suggested for you',
+                style: TextStyle(color: _onVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: suggestedCompanies.length,
+            itemBuilder: (_, i) =>
+                _buildSuggestedCompanyCard(suggestedCompanies[i], hp),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  // ── Recordings after Discover ────────────────────────────────────────────
+
+  Widget _buildRecordingsAfterDiscoverStrip(HomeProvider hp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.play_circle_filled_rounded,
+                color: _tertiary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Latest Recordings',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'From channels you follow',
+                style: TextStyle(color: _onVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 170,
+          child: hp.isLoadingRecordings
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: _tertiary,
+                    strokeWidth: 2,
+                  ),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: hp.homeRecordings.length,
+                  itemBuilder: (_, i) =>
+                      _buildPublicRecordingCard(hp.homeRecordings[i]),
+                ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildPublicRecordingCard(HomeRecording recording) {
+    return GestureDetector(
+      onTap: () => _playRecording(recording.id),
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      color: _surfaceHigh,
+                      child: recording.hasThumbnail
+                          ? Image.network(
+                              recording.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.play_circle_outline,
+                                color: _tertiary,
+                                size: 36,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: _tertiary,
+                              size: 36,
+                            ),
+                    ),
+                  ),
+                  // Duration badge
+                  if (recording.durationSeconds != null)
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          recording.formattedDuration,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recording.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuggestedCompanyCard(
+    RecommendedCompany company,
+    HomeProvider hp,
+  ) {
+    return GestureDetector(
+      onTap: () => context.push('/company/${company.companySlug}'),
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _secondary.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      color: _surfaceHigh,
+                      child: company.hasLogo
+                          ? Image.network(
+                              company.companyLogoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.business_rounded,
+                                color: _secondary,
+                                size: 36,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.business_rounded,
+                              color: _secondary,
+                              size: 36,
+                            ),
+                    ),
+                  ),
+                  // Gradient
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 24,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            _glassCard.withOpacity(0.9),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Category badge
+                  if (company.categories.isNotEmpty)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _secondary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          company.categories.first,
+                          style: const TextStyle(
+                            color: _secondary,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      company.companyName,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    GestureDetector(
+                      onTap: () => hp.toggleSubscription(company.companySlug),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: _primary.withOpacity(0.3)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_rounded, color: _primary, size: 10),
+                            SizedBox(width: 3),
+                            Text(
+                              'Follow',
+                              style: TextStyle(
+                                color: _primary,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordingCard(SubscribedRecording recording) {
+    return GestureDetector(
+      onTap: () => _playRecording(recording.id),
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      color: _surfaceHigh,
+                      child: recording.thumbnailUrl != null
+                          ? Image.network(
+                              recording.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.play_circle_outline,
+                                color: _tertiary,
+                                size: 40,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: _tertiary,
+                              size: 40,
+                            ),
+                    ),
+                  ),
+                  // Play button overlay
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  // Duration badge
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        recording.formattedDuration,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Info
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recording.title,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _surfaceBright,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.business_rounded,
+                            color: _primary,
+                            size: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            recording.companyName,
+                            style: const TextStyle(
+                              color: _onVariant,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -455,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel('Recommendations', hp.subscribedLivestreams.length),
+        _buildSectionLabel('Live', hp.subscribedLivestreams.length),
         SizedBox(
           height: 200,
           child: ListView.builder(
@@ -628,6 +1274,7 @@ class _HomeScreenState extends State<HomeScreen>
       companyName: livestream.companyName,
       isLive: livestream.isLive,
       viewerCount: livestream.viewerCount,
+      totalViews: livestream.totalViews,
       thumbnailUrl: livestream.thumbnailUrl,
     );
     _navigateToPlayer(liveStream);
@@ -655,7 +1302,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Subscribed Recordings strip ────────────────────────────────────────────
+  // ── Subscribed Recordings strip (legacy - for non-subscribed users) ────────
 
   Widget _buildSubscribedRecordingsStrip(HomeProvider hp) {
     return Column(
@@ -782,299 +1429,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Recommended Companies strip ────────────────────────────────────────────
-
-  Widget _buildRecommendedCompaniesStrip(HomeProvider hp) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel('For You', hp.recommendedCompanies.length),
-        SizedBox(
-          height: 108,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: hp.recommendedCompanies.length,
-            itemBuilder: (_, i) =>
-                _buildRecommendedCompanyChip(hp.recommendedCompanies[i], hp),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
-
-  Widget _buildRecommendedCompanyChip(
-    RecommendedCompany company,
-    HomeProvider hp,
-  ) {
-    final isFollowed = hp.isCompanySubscribed(company.companySlug);
-    return GestureDetector(
-      onTap: () => context.push('/company/${company.companySlug}'),
-      child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 12),
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _surfaceHigh,
-                border: Border.all(
-                  color: isFollowed
-                      ? _primary.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.1),
-                  width: 2,
-                ),
-              ),
-              child: ClipOval(
-                child: company.hasLogo
-                    ? Image.network(
-                        company.companyLogoUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.business_rounded,
-                          color: _primary,
-                          size: 28,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.business_rounded,
-                        color: _primary,
-                        size: 28,
-                      ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              company.companyName,
-              style: const TextStyle(
-                color: _onVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Play a recording
   void _playRecording(int recordingId) {
     final recordingsProvider = context.read<RecordingsProvider>();
     recordingsProvider.openRecording(recordingId);
-  }
-
-  /// Get creators to show: subscribed + suggested (from For You recommendations)
-  List<dynamic> _getCreatorsToShow(HomeProvider hp) {
-    final List<dynamic> creators = [];
-
-    // Add subscribed creators
-    for (final company in hp.followedCompanies) {
-      creators.add({'type': 'subscribed', 'company': company});
-    }
-
-    // Add suggested creators (from For You recommendations that are not subscribed)
-    for (final rec in hp.recommendedCompanies) {
-      if (!hp.isCompanySubscribed(rec.companySlug)) {
-        creators.add({'type': 'suggested', 'company': rec});
-      }
-    }
-
-    return creators;
-  }
-
-  /// Build the Creators section with subscribed + suggested
-  Widget _buildCreatorsSection(HomeProvider hp) {
-    final creators = _getCreatorsToShow(hp);
-    if (creators.isEmpty) return const SizedBox.shrink();
-
-    final subscribedCount = hp.followedCompanies.length;
-    final suggestedCount = creators.length - subscribedCount;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Subscribed creators
-        if (subscribedCount > 0) ...[
-          _buildSectionLabel('Your Creators', subscribedCount),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: hp.followedCompanies.length,
-              itemBuilder: (_, i) => _buildCreatorChip(
-                hp.followedCompanies[i].name,
-                hp.followedCompanies[i].hasLogo
-                    ? hp.followedCompanies[i].logoUrl
-                    : null,
-                true,
-                () => _navigateToCompany(hp.followedCompanies[i]),
-                companySlug: hp.followedCompanies[i].slug,
-                hp: hp,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-
-        // Suggested creators
-        if (suggestedCount > 0) ...[
-          _buildSectionLabel('Suggested for You', suggestedCount),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: hp.recommendedCompanies.length,
-              itemBuilder: (_, i) {
-                final rec = hp.recommendedCompanies[i];
-                if (hp.isCompanySubscribed(rec.companySlug)) {
-                  return const SizedBox.shrink();
-                }
-                return _buildCreatorChip(
-                  rec.companyName,
-                  rec.hasLogo ? rec.companyLogoUrl : null,
-                  false,
-                  () => context.push('/company/${rec.companySlug}'),
-                  companySlug: rec.companySlug,
-                  hp: hp,
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCreatorChip(
-    String name,
-    String? logoUrl,
-    bool isSubscribed,
-    VoidCallback onTap, {
-    String? companySlug,
-    HomeProvider? hp,
-  }) {
-    final hasActiveLivestream =
-        companySlug != null && hp != null && hp.companyHasActiveLivestream(companySlug);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 12),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _surfaceHigh,
-                    border: Border.all(
-                      color: isSubscribed
-                          ? _primary.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.1),
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: logoUrl != null
-                        ? Image.network(
-                            logoUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.business_rounded,
-                              color: _primary,
-                              size: 28,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.business_rounded,
-                            color: _primary,
-                            size: 28,
-                          ),
-                  ),
-                ),
-                if (hasActiveLivestream)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF6C66),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, color: Colors.white, size: 4),
-                          SizedBox(width: 2),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 6,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (hasActiveLivestream)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF6C66).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'Currently Airing',
-                  style: TextStyle(
-                    color: Color(0xFFFF6C66),
-                    fontSize: 7,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )
-            else
-              Text(
-                name,
-                style: const TextStyle(
-                  color: _onVariant,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   // ── Company card (grid) ───────────────────────────────────────────────────
@@ -1222,27 +1580,61 @@ class _HomeScreenState extends State<HomeScreen>
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
-        if (ghp.companies.isNotEmpty)
-          SliverToBoxAdapter(child: _buildChannelsStrip(ghp)),
+        // Live Now
         if (ghp.livestreams.isNotEmpty)
           SliverToBoxAdapter(child: _buildGuestLivestreamsStrip(ghp)),
+
+        // Featured Channels
+        if (ghp.companies.isNotEmpty)
+          SliverToBoxAdapter(child: _buildGuestFeaturedChannels(ghp)),
+
+        // All Channels - Grid for discovery
+        if (ghp.companies.isNotEmpty)
+          SliverToBoxAdapter(child: _buildGuestAllChannels(ghp)),
+
+        // Sign in CTA
+        SliverToBoxAdapter(child: _buildGuestSignInCTA()),
+
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
   }
 
-  Widget _buildChannelsStrip(GuestHomeProvider ghp) {
+  Widget _buildGuestFeaturedChannels(GuestHomeProvider ghp) {
+    final featured = ghp.companies.take(10).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel('All Channels', ghp.companies.length),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            children: [
+              const Icon(Icons.explore_rounded, color: _secondary, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Featured Channels',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Discover',
+                style: TextStyle(color: _onVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
         SizedBox(
-          height: 108,
+          height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: ghp.companies.length,
-            itemBuilder: (_, i) => _buildGuestChannelChip(ghp.companies[i]),
+            itemCount: featured.length,
+            itemBuilder: (_, i) => _buildGuestChannelCard(featured[i]),
           ),
         ),
         const SizedBox(height: 8),
@@ -1250,26 +1642,30 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildGuestChannelChip(CompanyModel company) {
+  Widget _buildGuestChannelCard(CompanyModel company) {
     return GestureDetector(
       onTap: () => context.push('/company/${company.slug}'),
       child: Container(
-        width: 80,
+        width: 280,
         margin: const EdgeInsets.only(right: 12),
-        child: Column(
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Row(
           children: [
+            // Logo
             Container(
-              width: 64,
-              height: 64,
+              width: 80,
+              height: 80,
+              margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
                 color: _surfaceHigh,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 2,
-                ),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: ClipOval(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
                 child: company.hasLogo
                     ? Image.network(
                         company.logoUrl!,
@@ -1277,27 +1673,289 @@ class _HomeScreenState extends State<HomeScreen>
                         errorBuilder: (_, __, ___) => const Icon(
                           Icons.business_rounded,
                           color: _primary,
-                          size: 28,
+                          size: 32,
                         ),
                       )
                     : const Icon(
                         Icons.business_rounded,
                         color: _primary,
-                        size: 28,
+                        size: 32,
                       ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              company.name,
-              style: const TextStyle(
-                color: _onVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    company.name,
+                    style: const TextStyle(
+                      color: _onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (company.description != null &&
+                      company.description!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      company.description!,
+                      style: const TextStyle(color: _onVariant, fontSize: 11),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _secondary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Browse',
+                      style: TextStyle(
+                        color: _secondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestAllChannels(GuestHomeProvider ghp) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(
+            children: [
+              const Icon(Icons.grid_view_rounded, color: _onVariant, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'All Channels',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${ghp.companies.length} channels',
+                style: const TextStyle(color: _onVariant, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.9,
+            ),
+            itemCount: ghp.companies.length,
+            itemBuilder: (_, i) => _buildGuestChannelGridItem(ghp.companies[i]),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildGuestChannelGridItem(CompanyModel company) {
+    return GestureDetector(
+      onTap: () => context.push('/company/${company.slug}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      color: _surfaceHigh,
+                      child: company.hasLogo
+                          ? Image.network(
+                              company.logoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.business_rounded,
+                                color: _primary,
+                                size: 40,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.business_rounded,
+                              color: _primary,
+                              size: 40,
+                            ),
+                    ),
+                  ),
+                  if (company.isActive == true)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6C66),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, color: Colors.white, size: 5),
+                            SizedBox(width: 3),
+                            Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company.name,
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      company.description ?? 'Channel',
+                      style: const TextStyle(color: _onVariant, fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestSignInCTA() {
+    return GestureDetector(
+      onTap: () => context.push('/login'),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_primary.withOpacity(0.15), _secondary.withOpacity(0.1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _primary.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: _primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.person_add_rounded,
+                color: _primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Join VolantisLive',
+                    style: TextStyle(
+                      color: _onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sign up to follow channels and get personalized recommendations',
+                    style: TextStyle(
+                      color: _onVariant.withOpacity(0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                color: _onPrimary,
+                size: 18,
+              ),
             ),
           ],
         ),
@@ -1327,7 +1985,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildGuestLivestreamCard(ActiveLivestream livestream) {
     return GestureDetector(
-      onTap: () => context.push('/company/${livestream.companySlug}/stream/${livestream.slug}'),
+      onTap: () => context.push(
+        '/company/${livestream.companySlug}/stream/${livestream.slug}',
+      ),
       child: Container(
         width: 160,
         margin: const EdgeInsets.only(right: 12),

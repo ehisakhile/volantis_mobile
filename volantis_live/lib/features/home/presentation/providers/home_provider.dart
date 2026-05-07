@@ -3,8 +3,86 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../services/api_service.dart';
 import '../../../../services/subscriptions_service.dart';
+import '../../../recordings/data/models/recording_model.dart';
 import '../../data/models/company_model.dart';
 import '../../data/models/recommendations_model.dart';
+
+/// Home recording with company info attached
+class HomeRecording {
+  final int id;
+  final int companyId;
+  final String companySlug;
+  final String companyName;
+  final int? livestreamId;
+  final String title;
+  final String? description;
+  final String s3Url;
+  final String streamingUrl;
+  final List<int>? categoryIds;
+  final int? durationSeconds;
+  final int? fileSizeBytes;
+  final bool isProcessed;
+  final String? thumbnailUrl;
+  final DateTime createdAt;
+  final int? replayCount;
+  final String? watchStatus;
+
+  const HomeRecording({
+    required this.id,
+    required this.companyId,
+    required this.companySlug,
+    required this.companyName,
+    this.livestreamId,
+    required this.title,
+    this.description,
+    required this.s3Url,
+    required this.streamingUrl,
+    this.categoryIds,
+    this.durationSeconds,
+    this.fileSizeBytes,
+    this.isProcessed = true,
+    this.thumbnailUrl,
+    required this.createdAt,
+    this.replayCount,
+    this.watchStatus,
+  });
+
+  factory HomeRecording.fromJson(Map<String, dynamic> json, String companySlug) {
+    return HomeRecording(
+      id: json['id'] as int? ?? 0,
+      companyId: json['company_id'] as int? ?? 0,
+      companySlug: companySlug,
+      companyName: '', // Will be populated from company lookup
+      livestreamId: json['livestream_id'] as int?,
+      title: json['title'] as String? ?? 'Untitled',
+      description: json['description'] as String?,
+      s3Url: json['s3_url'] as String? ?? '',
+      streamingUrl: json['streaming_url'] as String? ?? '',
+      categoryIds: (json['category_ids'] as List<dynamic>?)?.cast<int>(),
+      durationSeconds: json['duration_seconds'] as int?,
+      fileSizeBytes: json['file_size_bytes'] as int?,
+      isProcessed: json['is_processed'] as bool? ?? false,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      replayCount: json['replay_count'] as int?,
+      watchStatus: json['watch_status'] as String?,
+    );
+  }
+
+  bool get hasThumbnail => thumbnailUrl != null && thumbnailUrl!.isNotEmpty;
+
+  String get formattedDuration {
+    if (durationSeconds == null) return '--:--';
+    final hours = durationSeconds! ~/ 3600;
+    final minutes = (durationSeconds! % 3600) ~/ 60;
+    final seconds = durationSeconds! % 60;
+
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+}
 
 /// Home provider for managing home screen state - Companies listing
 class HomeProvider extends ChangeNotifier {
@@ -33,6 +111,10 @@ class HomeProvider extends ChangeNotifier {
   RecommendationsResponse? _recommendations;
   bool _isLoadingRecommendations = false;
 
+  // Public Recordings (fetched from subscribed company endpoints)
+  List<HomeRecording> _homeRecordings = [];
+  bool _isLoadingRecordings = false;
+
   // State
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -46,6 +128,7 @@ class HomeProvider extends ChangeNotifier {
       _allCompanies.where((c) => _subscribedSlugs.contains(c.slug)).toList();
   Set<String> get subscribedSlugs => _subscribedSlugs;
   bool get isLoadingRecommendations => _isLoadingRecommendations;
+  bool get isLoadingRecordings => _isLoadingRecordings;
   RecommendationsResponse? get recommendations => _recommendations;
   List<RecommendedCompany> get recommendedCompanies =>
       _recommendations?.recommendedCompanies ?? [];
@@ -53,6 +136,8 @@ class HomeProvider extends ChangeNotifier {
       _recommendations?.subscribedLivestreams ?? [];
   List<SubscribedRecording> get subscribedRecordings =>
       _recommendations?.subscribedRecordings ?? [];
+  List<HomeRecording> get homeRecordings => _homeRecordings;
+  bool get hasRecordings => _homeRecordings.isNotEmpty;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get isSearchingLoading => _isSearchingLoading;
@@ -67,6 +152,7 @@ class HomeProvider extends ChangeNotifier {
     _isLoading = true;
     _currentOffset = 0;
     _hasMoreCompanies = true;
+    _homeRecordings = [];
     notifyListeners();
 
     try {
@@ -78,6 +164,9 @@ class HomeProvider extends ChangeNotifier {
 
       // Fetch recommendations from API
       await _fetchRecommendations();
+
+      // Fetch public recordings from subscribed companies
+      await _fetchPublicRecordingsFromSubscriptions();
 
       _error = null;
     } catch (e) {
@@ -115,6 +204,53 @@ class HomeProvider extends ChangeNotifier {
     }
 
     _isLoadingRecommendations = false;
+    notifyListeners();
+  }
+
+  /// Fetch public recordings from subscribed companies
+  Future<void> _fetchPublicRecordingsFromSubscriptions() async {
+    if (_subscribedSlugs.isEmpty) {
+      _homeRecordings = [];
+      notifyListeners();
+      return;
+    }
+
+    _isLoadingRecordings = true;
+    notifyListeners();
+
+    try {
+      final List<HomeRecording> allRecordings = [];
+
+      // Fetch recordings from ALL subscribed companies
+      for (final slug in _subscribedSlugs) {
+        try {
+          final response = await _apiService.get(
+            '/recordings/public/company/$slug',
+            queryParameters: {'limit': 10, 'offset': 0},
+          );
+
+          final recordingsList = (response.data as List)
+              .map((j) => HomeRecording.fromJson(j as Map<String, dynamic>, slug))
+              .toList();
+
+          allRecordings.addAll(recordingsList);
+        } catch (e) {
+          // Skip companies that fail
+          print('API: Failed to fetch recordings for $slug - $e');
+        }
+      }
+
+      // Sort by created date, newest first
+      allRecordings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Take top 20
+      _homeRecordings = allRecordings.take(20).toList();
+      print('API: Home recordings loaded: ${_homeRecordings.length}');
+    } catch (e) {
+      debugPrint('API: Error fetching public recordings - $e');
+    }
+
+    _isLoadingRecordings = false;
     notifyListeners();
   }
 

@@ -19,6 +19,7 @@ class LiveStream {
   final String? companyLogoUrl;
   final bool isLive;
   final int viewerCount;
+  final int totalViews;
   final String? thumbnailUrl;
   final DateTime? startedAt;
 
@@ -32,6 +33,7 @@ class LiveStream {
     this.companyLogoUrl,
     required this.isLive,
     required this.viewerCount,
+    this.totalViews = 0,
     this.thumbnailUrl,
     this.startedAt,
   });
@@ -47,6 +49,7 @@ class LiveStream {
       companyLogoUrl: json['company_logo_url'],
       isLive: json['is_live'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
+      totalViews: json['total_views'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
       startedAt: json['started_at'] != null
           ? DateTime.tryParse(json['started_at'])
@@ -347,8 +350,8 @@ class StreamsProvider extends ChangeNotifier {
 
   /// Toggle play/pause
   void togglePlayPause() {
-    _liveStreamService.togglePlayPause();
     _isPlaying = !_isPlaying;
+    _liveStreamService.togglePlayPause();
     notifyListeners();
   }
 

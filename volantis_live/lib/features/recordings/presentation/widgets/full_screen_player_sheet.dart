@@ -365,57 +365,76 @@ class FullScreenPlayerSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        PopupMenuButton<double>(
-          initialValue: 1.0,
-          color: const Color(0xFF222A3D),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          onSelected: (speed) => provider.setSpeed(speed),
-          itemBuilder: (_) => [
-            _speedItem(0.5),
-            _speedItem(0.75),
-            _speedItem(1.0),
-            _speedItem(1.25),
-            _speedItem(1.5),
-            _speedItem(2.0),
-          ],
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: _surfaceHigh,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _outlineVar.withOpacity(0.5), width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.speed_rounded, color: _primary, size: 14),
-                SizedBox(width: 6),
-                Text(
-                  '1.0×',
-                  style: TextStyle(
-                    color: _onSurface,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(Icons.expand_more_rounded, color: _outline, size: 14),
+        StreamBuilder<double>(
+          stream: provider.speedStream,
+          initialData: 1.0,
+          builder: (context, snapshot) {
+            final currentSpeed = snapshot.data ?? 1.0;
+            return PopupMenuButton<double>(
+              initialValue: currentSpeed,
+              color: const Color(0xFF222A3D),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              onSelected: (speed) => provider.setSpeed(speed),
+              itemBuilder: (_) => [
+                _speedItem(0.5, currentSpeed),
+                _speedItem(0.75, currentSpeed),
+                _speedItem(1.0, currentSpeed),
+                _speedItem(1.25, currentSpeed),
+                _speedItem(1.5, currentSpeed),
+                _speedItem(2.0, currentSpeed),
               ],
-            ),
-          ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _surfaceHigh,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _outlineVar.withOpacity(0.5), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.speed_rounded, color: _primary, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${currentSpeed}×',
+                      style: const TextStyle(
+                        color: _onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.expand_more_rounded, color: _outline, size: 14),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  PopupMenuItem<double> _speedItem(double value) {
+  PopupMenuItem<double> _speedItem(double value, double currentSpeed) {
+    final isSelected = value == currentSpeed;
     return PopupMenuItem(
       value: value,
-      child: Text(
-        '${value}×',
-        style: const TextStyle(color: _onSurface, fontWeight: FontWeight.w600),
+      child: Row(
+        children: [
+          Text(
+            '${value}×',
+            style: TextStyle(
+              color: isSelected ? _primary : _onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (isSelected) ...[
+            const Spacer(),
+            Icon(Icons.check_rounded, color: _primary, size: 16),
+          ],
+        ],
       ),
     );
   }

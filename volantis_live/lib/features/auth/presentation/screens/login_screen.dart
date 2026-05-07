@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-
+                        AuthTopBar(),
                         const SizedBox(height: 36),
 
                         // Headline
@@ -445,6 +445,7 @@ class AuthDarkInput extends StatelessWidget {
   final Widget? suffix;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   final List<String>? autofillHints;
 
   const AuthDarkInput({
@@ -457,6 +458,7 @@ class AuthDarkInput extends StatelessWidget {
     this.suffix,
     this.validator,
     this.onSubmitted,
+    this.onChanged,
     this.autofillHints,
   });
 
@@ -468,6 +470,7 @@ class AuthDarkInput extends StatelessWidget {
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       onFieldSubmitted: onSubmitted,
+      onChanged: onChanged,
       validator: validator,
       autofillHints: autofillHints,
       style: const TextStyle(color: AuthColors.onSurface, fontSize: 15),
