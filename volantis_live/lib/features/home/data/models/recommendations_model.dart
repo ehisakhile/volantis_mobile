@@ -39,6 +39,7 @@ class SubscribedLivestream {
   final String companySlug;
   final bool isLive;
   final int viewerCount;
+  final int totalViews;
   final String? thumbnailUrl;
 
   SubscribedLivestream({
@@ -50,6 +51,7 @@ class SubscribedLivestream {
     required this.companySlug,
     required this.isLive,
     required this.viewerCount,
+    this.totalViews = 0,
     this.thumbnailUrl,
   });
 
@@ -63,6 +65,7 @@ class SubscribedLivestream {
       companySlug: json['company_slug'] ?? '',
       isLive: json['is_live'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
+      totalViews: json['total_views'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
     );
   }

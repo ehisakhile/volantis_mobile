@@ -797,7 +797,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${stream.viewerCount} watching',
+                              '${stream.totalViews} views',
                               style: const TextStyle(
                                 color: _outline,
                                 fontSize: 11,
@@ -1036,6 +1036,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       companyLogoUrl: _company!.logoUrl,
       isLive: stream.isActive,
       viewerCount: stream.viewerCount,
+      totalViews: stream.totalViews,
       thumbnailUrl: stream.thumbnailUrl,
       startedAt: stream.createdAt,
     );

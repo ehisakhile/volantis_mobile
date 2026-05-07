@@ -45,21 +45,30 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
     
-    _checkForUpdates();
+    _initializeApp();
   }
 
-  Future<void> _checkForUpdates() async {
-    if (_hasCheckedUpdates || !mounted || _hasNavigated) return;
-    _hasCheckedUpdates = true;
-
-    await AppUpdateManager().checkForUpdates(context);
+  Future<void> _initializeApp() async {
+    if (_hasNavigated) return;
+    
+    // Initialize update manager
+    await AppUpdateManager().initialize();
     
     if (!mounted || _hasNavigated) return;
     
-    if (AppUpdateManager().updateCheckComplete) {
+    // Check for updates and get user's decision
+    final canProceed = await AppUpdateManager().checkForUpdates(context);
+    
+    if (!mounted || _hasNavigated) return;
+    
+    // Only navigate if update check passed (user chose Continue or no update available)
+    if (canProceed) {
       _hasNavigated = true;
       context.go(AppRoutes.home);
     }
+    // If canProceed is false, user is either:
+    // 1. Taking action on force update dialog (will be redirected to store)
+    // 2. Choosing to continue after optional update (checkForUpdates returns true)
   }
 
   @override

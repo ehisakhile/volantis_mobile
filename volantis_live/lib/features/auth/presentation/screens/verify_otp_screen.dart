@@ -60,11 +60,9 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen>
     if (_otp.length == 6) _verifyOtp();
   }
 
-  void _onKeyDown(int index, RawKeyEvent event) {
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.backspace &&
-        _digitControllers[index].text.isEmpty &&
-        index > 0) {
+  void _onBackspaceWhenEmpty(int index) {
+    if (index > 0) {
+      _digitControllers[index].clear();
       _focusNodes[index - 1].requestFocus();
     }
   }
@@ -194,7 +192,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen>
                                     controller: _digitControllers[i],
                                     focusNode: _focusNodes[i],
                                     onChanged: (v) => _onDigitChanged(i, v),
-                                    onKey: (e) => _onKeyDown(i, e),
+                                    onBackspaceWhenEmpty: () => _onBackspaceWhenEmpty(i),
                                   ),
                                 );
                               }),
@@ -265,54 +263,77 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen>
 
 // ── OTP digit box ─────────────────────────────────────────────────────────────
 
-class _OtpBox extends StatelessWidget {
+class _OtpBox extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
-  final ValueChanged<RawKeyEvent> onKey;
+  final VoidCallback? onBackspaceWhenEmpty;
 
   const _OtpBox({
     required this.controller,
     required this.focusNode,
     required this.onChanged,
-    required this.onKey,
+    this.onBackspaceWhenEmpty,
   });
 
   @override
+  State<_OtpBox> createState() => _OtpBoxState();
+}
+
+class _OtpBoxState extends State<_OtpBox> {
+  String _previousValue = '';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleControllerChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChange);
+    super.dispose();
+  }
+
+  void _handleControllerChange() {
+    final currentValue = widget.controller.text;
+    if (_previousValue.isNotEmpty && currentValue.isEmpty) {
+      widget.onBackspaceWhenEmpty?.call();
+    }
+    _previousValue = currentValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
-      focusNode: FocusNode(),
-      onKey: onKey,
-      child: SizedBox(
-        width: 44,
-        height: 56,
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          maxLength: 1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: onChanged,
-          style: const TextStyle(
-            color: AuthColors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
+    return SizedBox(
+      width: 44,
+      height: 56,
+      child: TextField(
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        maxLength: 1,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: widget.onChanged,
+        style: const TextStyle(
+          color: AuthColors.onSurface,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
+        decoration: InputDecoration(
+          counterText: '',
+          filled: true,
+          fillColor: AuthColors.surfaceHigh,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
-          decoration: InputDecoration(
-            counterText: '',
-            filled: true,
-            fillColor: AuthColors.surfaceHigh,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AuthColors.primary, width: 2),
-            ),
-            contentPadding: EdgeInsets.zero,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AuthColors.primary, width: 2),
           ),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );

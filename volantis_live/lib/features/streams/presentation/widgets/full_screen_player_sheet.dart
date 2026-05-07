@@ -637,7 +637,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                             ),
                                             const SizedBox(width: 2),
                                             Text(
-                                              '${stream.viewerCount}',
+                                              '${stream.totalViews}',
                                               style: TextStyle(
                                                 color: _onVariant,
                                                 fontSize: 12,
@@ -746,7 +746,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${stream.viewerCount} watching',
+                                  '${stream.totalViews} views',
                                   style: TextStyle(
                                     color: _onVariant,
                                     fontSize: 14,

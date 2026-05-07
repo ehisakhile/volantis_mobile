@@ -31,6 +31,8 @@ class VolantisLiveApp extends StatefulWidget {
 class _VolantisLiveAppState extends State<VolantisLiveApp> {
   late final AuthProvider _authProvider;
   late final OnboardingProvider _onboardingProvider;
+  late final RecordingsService _recordingsService;
+  late final RecordingsProvider _recordingsProvider;
   AppRouter? _appRouter;
   bool _isInitialized = false;
 
@@ -40,8 +42,37 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
     _authProvider = AuthProvider();
     _onboardingProvider = OnboardingProvider();
 
+    // Create recordings service and provider once
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.baseUrl,
+        connectTimeout: const Duration(
+          milliseconds: ApiConstants.connectionTimeout,
+        ),
+        receiveTimeout: const Duration(
+          milliseconds: ApiConstants.receiveTimeout,
+        ),
+        headers: {
+          'Content-Type': ApiConstants.contentType,
+          'Accept': ApiConstants.jsonContentType,
+        },
+      ),
+    );
+    _recordingsService = RecordingsService(dio);
+    _recordingsProvider = RecordingsProvider(_recordingsService);
+
+    // Listen to auth state changes to stop playback on logout
+    _authProvider.addListener(_onAuthStateChanged);
+
     // Initialize providers in background
     _initializeProviders();
+  }
+
+  void _onAuthStateChanged() {
+    // Stop playback when user logs out
+    if (_authProvider.state == AuthState.unauthenticated) {
+      _recordingsProvider.stopAndClose();
+    }
   }
 
   Future<void> _initializeProviders() async {
@@ -73,26 +104,14 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Create recordings service and provider
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(
-          milliseconds: ApiConstants.connectionTimeout,
-        ),
-        receiveTimeout: const Duration(
-          milliseconds: ApiConstants.receiveTimeout,
-        ),
-        headers: {
-          'Content-Type': ApiConstants.contentType,
-          'Accept': ApiConstants.jsonContentType,
-        },
-      ),
-    );
-    final recordingsService = RecordingsService(dio);
-    final recordingsProvider = RecordingsProvider(recordingsService);
+  void dispose() {
+    _authProvider.removeListener(_onAuthStateChanged);
+    _recordingsProvider.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
@@ -104,13 +123,13 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         ChangeNotifierProvider(create: (_) => StreamsProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider<RecordingsProvider>.value(
-          value: recordingsProvider,
+          value: _recordingsProvider,
         ),
         ChangeNotifierProvider(
           create: (_) => DownloadsProvider(
             RecordingsDownloadsService.instance,
             DownloadManager.instance,
-            recordingsProvider,
+            _recordingsProvider,
           ),
         ),
         ChangeNotifierProvider(create: (_) => CategoryPreferencesProvider()),

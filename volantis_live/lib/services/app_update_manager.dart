@@ -105,6 +105,7 @@ class AppUpdateManager {
           await _showForceUpdateDialog(context, forceMessage);
         }
       }
+      // Don't set updateCheckComplete here for force update - user must update
       return false;
     }
 
@@ -117,13 +118,15 @@ class AppUpdateManager {
             message: updateMessage,
             latestVersion: latestVersion,
           );
+          // Mark as complete after user makes a decision
+          updateCheckComplete = true;
           if (decision == UpdateDecision.updateNow) {
-            updateCheckComplete = true;
             await _openStore();
-          } else if (decision == UpdateDecision.later) {
-            updateCheckComplete = true;
+            // Don't auto-navigate - user went to store
             return false;
           }
+          // User chose "Continue" - return true to allow navigation
+          return true;
         }
       }
     }

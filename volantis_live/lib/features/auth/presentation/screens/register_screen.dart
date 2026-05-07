@@ -28,6 +28,12 @@ class _RegisterScreenState extends State<RegisterScreen>
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
 
+  bool _hasMin8Chars = false;
+  bool _hasCapital = false;
+  bool _hasSmall = false;
+  bool _hasNumber = false;
+  bool _hasSpecial = false;
+
   @override
   void initState() {
     super.initState();
@@ -115,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        AuthTopBar(onBack: () => context.go('/login')),
+                        AuthTopBar(),
                         const SizedBox(height: 36),
 
                         // Headline
@@ -196,6 +202,13 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 autofillHints: const [
                                   AutofillHints.newPassword,
                                 ],
+                                onChanged: (v) => setState(() {
+                                  _hasMin8Chars = v.length >= 8;
+                                  _hasCapital = RegExp(r'[A-Z]').hasMatch(v);
+                                  _hasSmall = RegExp(r'[a-z]').hasMatch(v);
+                                  _hasNumber = RegExp(r'[0-9]').hasMatch(v);
+                                  _hasSpecial = RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(v);
+                                }),
                                 suffix: IconButton(
                                   icon: Icon(
                                     _obscurePassword
@@ -212,9 +225,21 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   if (v == null || v.isEmpty) {
                                     return 'Enter a password';
                                   }
-                                  if (v.length < 6) return 'Min 6 characters';
+                                  if (!_hasMin8Chars || !_hasCapital || !_hasSmall || !_hasNumber || !_hasSpecial) {
+                                    return 'Password does not meet requirements';
+                                  }
                                   return null;
                                 },
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              _PasswordRequirements(
+                                hasMin8Chars: _hasMin8Chars,
+                                hasCapital: _hasCapital,
+                                hasSmall: _hasSmall,
+                                hasNumber: _hasNumber,
+                                hasSpecial: _hasSpecial,
                               ),
 
                               const SizedBox(height: 20),
@@ -362,6 +387,87 @@ class _GlowBlob extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+}
+
+class _PasswordRequirements extends StatelessWidget {
+  final bool hasMin8Chars;
+  final bool hasCapital;
+  final bool hasSmall;
+  final bool hasNumber;
+  final bool hasSpecial;
+
+  const _PasswordRequirements({
+    required this.hasMin8Chars,
+    required this.hasCapital,
+    required this.hasSmall,
+    required this.hasNumber,
+    required this.hasSpecial,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _RequirementRow(
+          label: 'At least 8 characters',
+          isMet: hasMin8Chars,
+        ),
+        const SizedBox(height: 4),
+        _RequirementRow(
+          label: '1 capital letter (A-Z)',
+          isMet: hasCapital,
+        ),
+        const SizedBox(height: 4),
+        _RequirementRow(
+          label: '1 small letter (a-z)',
+          isMet: hasSmall,
+        ),
+        const SizedBox(height: 4),
+        _RequirementRow(
+          label: '1 number (0-9)',
+          isMet: hasNumber,
+        ),
+        const SizedBox(height: 4),
+        _RequirementRow(
+          label: '1 special character (!@#\$%^&*...)',
+          isMet: hasSpecial,
+        ),
+      ],
+    );
+  }
+}
+
+class _RequirementRow extends StatelessWidget {
+  final String label;
+  final bool isMet;
+
+  const _RequirementRow({
+    required this.label,
+    required this.isMet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          isMet ? Icons.check_circle_rounded : Icons.circle_outlined,
+          size: 16,
+          color: isMet ? const Color(0xFF4CAF50) : AuthColors.outlineVar,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isMet ? const Color(0xFF4CAF50) : AuthColors.outlineVar,
+            fontWeight: isMet ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }

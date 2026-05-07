@@ -50,6 +50,9 @@ class RecordingsProvider extends ChangeNotifier {
   StreamSubscription? _downloadStatusSubscription;
   StreamSubscription? _downloadProgressSubscription;
 
+  // Speed stream for UI updates
+  Stream<double> get speedStream => _player.speedStream;
+
   RecordingsProvider(this._service) {
     _initAudioSession();
     _player.playerStateStream.listen(_onPlayerState);
@@ -262,6 +265,18 @@ class RecordingsProvider extends ChangeNotifier {
   void closePlayer() {
     _savePosition();
     _player.stop();
+    _positionTimer?.cancel();
+    isPlayerOpen = false;
+    isFullScreen = true;
+    currentRecording = null;
+    isCompleted = false;
+    notifyListeners();
+  }
+
+  /// Stop playback and close player (used on logout)
+  Future<void> stopAndClose() async {
+    await _player.stop();
+    _savePosition();
     _positionTimer?.cancel();
     isPlayerOpen = false;
     isFullScreen = true;

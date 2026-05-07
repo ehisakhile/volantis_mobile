@@ -7,6 +7,7 @@ class Recording {
   final String? description;
   final String s3Url;
   final String streamingUrl;
+  final List<int>? categoryIds;
   final int? durationSeconds;
   final int? fileSizeBytes;
   final bool isProcessed;
@@ -24,6 +25,7 @@ class Recording {
     this.description,
     required this.s3Url,
     required this.streamingUrl,
+    this.categoryIds,
     this.durationSeconds,
     this.fileSizeBytes,
     this.isProcessed = true,
@@ -41,6 +43,7 @@ class Recording {
     description: json['description'] as String?,
     s3Url: json['s3_url'] as String? ?? '',
     streamingUrl: json['streaming_url'] as String? ?? '',
+    categoryIds: (json['category_ids'] as List<dynamic>?)?.cast<int>(),
     durationSeconds: json['duration_seconds'] as int?,
     fileSizeBytes: json['file_size_bytes'] as int?,
     isProcessed: json['is_processed'] as bool? ?? false,

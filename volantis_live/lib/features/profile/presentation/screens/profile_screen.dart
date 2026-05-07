@@ -78,7 +78,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   slivers: [
                     _buildAppBar(),
                     _buildUserInfo(),
-                    _buildCategoryPreferencesButton(),
                     // _buildAnalyticsSection(profileProvider),
                     _buildDownloadsSection(profileProvider),
                     _buildSettingsSection(profileProvider),
@@ -132,93 +131,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             //   ),
             // ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ── Category Preferences Button ───────────────────────────────────────────
-
-  Widget _buildCategoryPreferencesButton() {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: GestureDetector(
-          onTap: () => context.push('/set-preferences'),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  _primary.withOpacity(0.15),
-                  _primaryCont.withOpacity(0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _primary.withOpacity(0.3), width: 1),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _primary.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.tune_rounded,
-                    color: _primary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Category Preferences',
-                        style: TextStyle(
-                          color: _onSurface,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Customize your content feed',
-                        style: TextStyle(
-                          color: _onVariant.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'Update',
-                    style: TextStyle(
-                      color: _onPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -721,15 +633,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 //   onChanged: profileProvider.setDarkMode,
                 // ),
                 // _buildDivider(),
-
-                // Category Preferences
-                _buildPreferencesTile(
-                  icon: Icons.category_rounded,
-                  title: 'Content Preferences',
-                  subtitle: 'Update your category preferences',
-                  onTap: () => context.push('/set-preferences'),
-                ),
-                _buildDivider(),
 
                 // Rate Us
                 _buildPreferencesTile(
