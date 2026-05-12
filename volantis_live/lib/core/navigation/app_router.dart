@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -190,7 +191,8 @@ class AppRouter {
       }
 
       final isLoggedIn = authProvider.isAuthenticated;
-      final hasCompletedOnboarding = onboardingProvider.hasCompletedOnboarding;
+      final hasCompletedOnboarding =
+          context.read<OnboardingProvider>().hasCompletedOnboarding;
       final isLoading = authProvider.isLoading || onboardingProvider.isLoading;
 
       print(
@@ -207,7 +209,8 @@ class AppRouter {
 
       if (currentPath == '/' || currentPath == AppRoutes.splash) {
         if (!AppUpdateManager().isUpdateCheckComplete) {
-          return null; // stay on splash, show the animation + update dialogs
+          print('AppRouter: Update check not complete, staying on splash');
+          return null; // stay on splash
         }
         if (!hasCompletedOnboarding) {
           print('AppRouter: Redirecting to onboarding');
@@ -271,7 +274,7 @@ class AppRouter {
 
       return null;
     },
-    errorBuilder: (context, state) => Scaffold(
+errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

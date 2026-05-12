@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../services/app_update_manager.dart';
-import '../../../core/navigation/app_router.dart';
 import '../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../features/onboarding/presentation/providers/onboarding_provider.dart';
 
@@ -21,8 +20,6 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _controller;
   late Animation<double> _fadeIn;
   late Animation<double> _scaleAnim;
-  bool _hasCheckedUpdates = false;
-  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -53,25 +50,16 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _runUpdateCheck() async {
     await AppUpdateManager().initialize();
     if (!mounted) return;
-    // Minimum splash display time runs in parallel with update check
-    // Parallel: minimum display time + actual update check
-    await Future.wait([
-      Future.delayed(const Duration(milliseconds: 1500)),
-      _doUpdateCheck(),
-    ]);
-  }
-
-  Future<void> _doUpdateCheck() async {
-    if (!mounted) return;
-    // If not mounted, we still need to mark complete so the router unblocks
-    final canShow = mounted;
-    if (canShow) {
-      await AppUpdateManager().checkForUpdates(context);
-    } else {
-      // Context unavailable — mark complete so router doesn't get stuck
-      AppUpdateManager().updateCheckComplete = true;
-      AppUpdateManager().notifychanges(context);
-    }
+    try {
+      await AppUpdateManager().checkForUpdates(
+        context,
+        onComplete: () {
+          if (mounted) {
+            context.go('/');
+          }
+        },
+      );
+    } catch (_) {}
   }
 
   @override

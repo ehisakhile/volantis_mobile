@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,6 +38,8 @@ class AppUpdateManager extends ChangeNotifier {
   bool _isInitialized = false;
   bool updateCheckComplete = false;
   bool get isUpdateCheckComplete => updateCheckComplete;
+  bool _onUpdatePage = false;
+  bool get isOnUpdatePage => _onUpdatePage;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -73,6 +76,7 @@ class AppUpdateManager extends ChangeNotifier {
   Future<bool> checkForUpdates(
     BuildContext context, {
     Function? onSkipAuth,
+    Function? onComplete,
   }) async {
     if (updateCheckComplete) {
       debugPrint('[AppUpdateManager] Update check already complete, skipping');
@@ -110,31 +114,41 @@ class AppUpdateManager extends ChangeNotifier {
       return false;
     }
 
-    if (_isVersionLower(_currentVersion!, latestVersion)) {
-      if (context.mounted) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (context.mounted) {
-          final decision = await _showOptionalUpdatePage(
-            context,
-            message: updateMessage,
-            latestVersion: latestVersion,
-          );
-          // Mark as complete after user makes a decision
-          updateCheckComplete = true;
-          notifyListeners();
-          if (decision == UpdateDecision.updateNow) {
-            await _openStore();
-            // Don't auto-navigate - user went to store
-            return false;
-          }
-          // User chose "Continue" - return true to allow navigation
-          return true;
-        }
+    final navigator = Navigator.of(context);
+    if (_isVersionLower(_currentVersion!, latestVersion) && context.mounted) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!context.mounted) {
+        updateCheckComplete = true;
+        notifyListeners();
+        return true;
       }
+      _onUpdatePage = true;
+      final decision = await navigator.push<UpdateDecision>(
+        MaterialPageRoute(
+          builder: (_) => UpdateAvailablePage(
+            message: updateMessage,
+            currentVersion: _currentVersion ?? 'Unknown',
+            latestVersion: latestVersion,
+          ),
+        ),
+      );
+      _onUpdatePage = false;
+      if (decision == UpdateDecision.updateNow) {
+        updateCheckComplete = true;
+        notifyListeners();
+        await _openStore();
+        onComplete?.call();
+        return false;
+      }
+      updateCheckComplete = true;
+      notifyListeners();
+      onComplete?.call();
+      return true;
     }
 
     updateCheckComplete = true;
     notifyListeners();
+    onComplete?.call();
     return true;
   }
 
@@ -234,27 +248,6 @@ class AppUpdateManager extends ChangeNotifier {
     );
   }
 
-  Future<void> notifychanges(BuildContext context) async {
-    notifyListeners();
-  }
-
-  Future<UpdateDecision> _showOptionalUpdatePage(
-    BuildContext context, {
-    required String message,
-    required String latestVersion,
-  }) async {
-    final decision = await Navigator.of(context).push<UpdateDecision>(
-      MaterialPageRoute(
-        builder: (_) => UpdateAvailablePage(
-          message: message,
-          currentVersion: _currentVersion ?? 'Unknown',
-          latestVersion: latestVersion,
-        ),
-      ),
-    );
-    return decision ?? UpdateDecision.later;
-  }
-
   Future<void> _openStore() async {
     final String url;
     if (Platform.isIOS) {
@@ -282,19 +275,22 @@ class UpdateAvailablePage extends StatefulWidget {
   final String fileSize;
   final Function(UpdateDecision)? onDecision;
 
-  const UpdateAvailablePage({
+  UpdateAvailablePage({
     super.key,
     required this.message,
     required this.currentVersion,
     required this.latestVersion,
-    this.changelog = const [
-      'Improved live stream performance',
-      'Bug fixes & stability improvements',
-      'Refreshed player UI design',
-    ],
     this.fileSize = '24.6 MB',
     this.onDecision,
-  });
+  }) : changelog = _convertMessageToList(message);
+
+  static List<String> _convertMessageToList(String message) {
+    return message
+        .split('\n') // split by new lines (adjust if needed)
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
 
   @override
   State<UpdateAvailablePage> createState() => _UpdateAvailablePageState();
@@ -461,16 +457,6 @@ class _UpdateAvailablePageState extends State<UpdateAvailablePage>
                       ),
 
                       const SizedBox(height: 10),
-
-                      // File size tag
-                      Text(
-                        '${widget.fileSize} · FREE UPDATE',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textHint,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
 
                       const SizedBox(height: 24),
                     ],

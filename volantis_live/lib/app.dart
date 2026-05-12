@@ -116,6 +116,15 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isInitialized || _appRouter == null) {
+      return MaterialApp(
+        title: 'VolantisLive',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        home: const _LoadingScreen(),
+      );
+    }
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
@@ -138,21 +147,37 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         ),
         ChangeNotifierProvider(create: (_) => CategoryPreferencesProvider()),
         ChangeNotifierProvider(create: (_) => CreatorProvider()),
+        ChangeNotifierProvider<AppUpdateManager>.value(
+          value: AppUpdateManager(),
+        ),
       ],
-      child: _isInitialized && _appRouter != null
-          ? MaterialApp.router(
-              title: 'VolantisLive',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.darkTheme,
-              routerConfig: _appRouter!.router,
-            )
-          : MaterialApp(
-              title: 'VolantisLive',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.darkTheme,
-              // Use SplashScreen while initializing
-              home: const SplashScreen(),
-            ),
+      child: MaterialApp.router(
+        title: 'VolantisLive',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme,
+        routerConfig: _appRouter!.router,
+      ),
+    );
+  }
+}
+
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1326),
+      body: Center(
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: CircularProgressIndicator(
+            color: const Color(0xFF0EA5E9),
+            strokeWidth: 3,
+          ),
+        ),
+      ),
     );
   }
 }
