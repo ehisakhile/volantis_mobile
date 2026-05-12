@@ -153,7 +153,7 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
   }
 
   Widget _buildLiveStatsCard(CreatorProvider provider) {
-    final stats = provider.streamStats;
+    final stats = provider.streamingStats;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -177,21 +177,21 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
             children: [
               _buildStatItem(
                 Icons.visibility,
-                '${stats?.viewerCount ?? 0}',
+                '${stats.totalViews}',
                 'Viewers',
               ),
-              const SizedBox(width: 32),
-              _buildStatItem(
-                Icons.trending_up,
-                '${stats?.peakViewers ?? 0}',
-                'Peak',
-              ),
-              const SizedBox(width: 32),
-              _buildStatItem(
-                Icons.play_circle_outline,
-                '${stats?.totalViews ?? 0}',
-                'Total Views',
-              ),
+              // const SizedBox(width: 32),
+              // _buildStatItem(
+              //   Icons.trending_up,
+              //   '${stats.peakViewers}',
+              //   'Peak',
+              // ),
+              // const SizedBox(width: 32),
+              // _buildStatItem(
+              //   Icons.play_circle_outline,
+              //   '${stats.totalViews}',
+              //   'Total Views',
+              // ),
             ],
           ),
         ],
@@ -242,13 +242,13 @@ class _CreatorHomeScreenState extends State<CreatorHomeScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.settings,
-            label: 'Settings',
-            onTap: () {},
-          ),
-        ),
+        // Expanded(
+        //   child: _ActionButton(
+        //     icon: Icons.settings,
+        //     label: 'Settings',
+        //     onTap: () {},
+        //   ),
+        // ),
       ],
     );
   }

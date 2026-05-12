@@ -16,6 +16,8 @@ class StreamingStats {
   final String codec;
   final String iceState;
   final int viewerCount;
+  final int peakViewers;
+  final int totalViews;
   final double audioLevel;
 
   const StreamingStats({
@@ -23,6 +25,8 @@ class StreamingStats {
     this.codec = '—',
     this.iceState = '—',
     this.viewerCount = 0,
+    this.peakViewers = 0,
+    this.totalViews = 0,
     this.audioLevel = 0.0,
   });
 
@@ -31,6 +35,8 @@ class StreamingStats {
     String? codec,
     String? iceState,
     int? viewerCount,
+    int? peakViewers,
+    int? totalViews,
     double? audioLevel,
   }) {
     return StreamingStats(
@@ -38,6 +44,8 @@ class StreamingStats {
       codec: codec ?? this.codec,
       iceState: iceState ?? this.iceState,
       viewerCount: viewerCount ?? this.viewerCount,
+      peakViewers: peakViewers ?? this.peakViewers,
+      totalViews: totalViews ?? this.totalViews,
       audioLevel: audioLevel ?? this.audioLevel,
     );
   }
@@ -313,12 +321,11 @@ class CreatorProvider extends ChangeNotifier {
   Future<void> _refreshViewerCount() async {
     if (_currentStream == null) return;
     try {
-      _streamStats = await _service.getViewerCount(
-        _currentStream!.slug,
-        _currentStream!.companyId,
-      );
+      _streamStats = await _service.getStreamRealtimeStats(_currentStream!.slug);
       _streamingStats = _streamingStats.copyWith(
         viewerCount: _streamStats?.viewerCount ?? 0,
+        peakViewers: _streamStats?.peakViewers ?? 0,
+        totalViews: _streamStats?.totalViews ?? 0,
       );
       notifyListeners();
     } catch (e) {

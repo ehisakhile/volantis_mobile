@@ -137,6 +137,13 @@ class CreatorStreamingService {
     return StreamStats.fromJson(response.data);
   }
 
+  Future<StreamStats> getStreamRealtimeStats(String slug) async {
+    final response = await _apiService.get(
+      ApiConstants.getStreamRealtimeEndpoint(slug),
+    );
+    return StreamStats.fromJson(response.data);
+  }
+
   Future<List<ChatMessage>> getChatMessages(
     String slug, {
     int page = 1,

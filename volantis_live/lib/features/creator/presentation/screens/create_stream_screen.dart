@@ -555,7 +555,7 @@ class _CreateStreamScreenState extends State<CreateStreamScreen> {
               const Icon(Icons.visibility, color: _onVariant, size: 18),
               const SizedBox(width: 4),
               Text(
-                '${provider.streamingStats.viewerCount} viewers',
+                '${provider.streamingStats.totalViews} viewers',
                 style: const TextStyle(color: _onVariant),
               ),
             ],
