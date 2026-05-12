@@ -44,31 +44,34 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
-    
-    _initializeApp();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runUpdateCheck();
+    });
   }
 
-  Future<void> _initializeApp() async {
-    if (_hasNavigated) return;
-    
-    // Initialize update manager
+  Future<void> _runUpdateCheck() async {
     await AppUpdateManager().initialize();
-    
-    if (!mounted || _hasNavigated) return;
-    
-    // Check for updates and get user's decision
-    final canProceed = await AppUpdateManager().checkForUpdates(context);
-    
-    if (!mounted || _hasNavigated) return;
-    
-    // Only navigate if update check passed (user chose Continue or no update available)
-    if (canProceed) {
-      _hasNavigated = true;
-      context.go(AppRoutes.home);
+    if (!mounted) return;
+    // Minimum splash display time runs in parallel with update check
+    // Parallel: minimum display time + actual update check
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 1500)),
+      _doUpdateCheck(),
+    ]);
+  }
+
+  Future<void> _doUpdateCheck() async {
+    if (!mounted) return;
+    // If not mounted, we still need to mark complete so the router unblocks
+    final canShow = mounted;
+    if (canShow) {
+      await AppUpdateManager().checkForUpdates(context);
+    } else {
+      // Context unavailable — mark complete so router doesn't get stuck
+      AppUpdateManager().updateCheckComplete = true;
+      AppUpdateManager().notifychanges(context);
     }
-    // If canProceed is false, user is either:
-    // 1. Taking action on force update dialog (will be redirected to store)
-    // 2. Choosing to continue after optional update (checkForUpdates returns true)
   }
 
   @override
@@ -319,10 +322,7 @@ class _AnimatedWaveformState extends State<_AnimatedWaveform>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF89CEFF),
-                    const Color(0xFF0EA5E9),
-                  ],
+                  colors: [const Color(0xFF89CEFF), const Color(0xFF0EA5E9)],
                 ),
                 borderRadius: BorderRadius.circular(2),
                 boxShadow: [
@@ -354,13 +354,7 @@ class _GlowBlob extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 80,
-            spreadRadius: 40,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 80, spreadRadius: 40)],
       ),
     );
   }

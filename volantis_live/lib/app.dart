@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
+import 'package:volantis_live/services/app_update_manager.dart';
 import 'core/theme/app_theme.dart';
 import 'core/navigation/app_router.dart';
 import 'core/constants/api_constants.dart';
@@ -85,6 +86,9 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
     // Then initialize auth
     await _authProvider.init();
     print('App: Auth provider initialized');
+
+    await AppUpdateManager().initialize();
+    print('App: AppUpdateManager initialized');
 
     // Create router after providers are initialized
     if (mounted) {

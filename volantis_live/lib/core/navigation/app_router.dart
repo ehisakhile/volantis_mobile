@@ -54,6 +54,7 @@ class AppRouter {
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: true,
+
     routes: [
       GoRoute(
         path: AppRoutes.splash,
@@ -205,6 +206,9 @@ class AppRouter {
       print('AppRouter: currentPath: $currentPath');
 
       if (currentPath == '/' || currentPath == AppRoutes.splash) {
+        if (!AppUpdateManager().isUpdateCheckComplete) {
+          return null; // stay on splash, show the animation + update dialogs
+        }
         if (!hasCompletedOnboarding) {
           print('AppRouter: Redirecting to onboarding');
           return AppRoutes.onboarding;
