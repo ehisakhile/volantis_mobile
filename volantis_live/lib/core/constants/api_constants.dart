@@ -169,4 +169,8 @@ class ApiConstants {
       '/livestream-chat/messages/$messageId/edit';
   static String getDeleteChatMessageEndpoint(String messageId) =>
       '/livestream-chat/messages/$messageId';
+
+  static String getStreamEndpoint(String slug) => '/stream/$slug';
+
+  static String getStreamRealtimeEndpoint(String slug) => '/stream/$slug/realtime';
 }

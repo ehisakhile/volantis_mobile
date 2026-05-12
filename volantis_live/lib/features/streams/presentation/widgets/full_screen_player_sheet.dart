@@ -746,7 +746,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${stream.totalViews} views',
+                                  '${provider.currentTotalViews > 0 ? provider.currentTotalViews : stream.totalViews} views',
                                   style: TextStyle(
                                     color: _onVariant,
                                     fontSize: 14,

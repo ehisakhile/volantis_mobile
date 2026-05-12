@@ -75,6 +75,12 @@ class StreamsProvider extends ChangeNotifier {
   bool _isLoadingFollowed = false;
   String? _error;
 
+  // Realtime viewer counts
+  int _currentViewerCount = 0;
+  int _currentPeakViewers = 0;
+  int _currentTotalViews = 0;
+  Timer? _viewerCountPollingTimer;
+
   // Live stream player state
   LiveStream? _currentStream;
   CompanyLiveStreamDetail? _currentStreamDetails;
@@ -112,6 +118,9 @@ class StreamsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoadingFollowed => _isLoadingFollowed;
   String? get error => _error;
+  int get currentViewerCount => _currentViewerCount;
+  int get currentPeakViewers => _currentPeakViewers;
+  int get currentTotalViews => _currentTotalViews;
 
   /// Get streams sorted with followed channels first
   List<LiveStream> get streamsWithFollowedFirst {
@@ -290,6 +299,8 @@ class StreamsProvider extends ChangeNotifier {
     // Switch to new stream (cleans up old one first)
     await _liveStreamService.switchStream(stream);
 
+    await startListeningToStream(stream.slug);
+
     notifyListeners();
     return false; // Indicates new stream
   }
@@ -333,6 +344,9 @@ class StreamsProvider extends ChangeNotifier {
 
   /// Close the player
   Future<void> closePlayer() async {
+    // Stop polling first
+    _stopViewerCountPolling();
+
     // This will cleanup WebRTC via the callback and stop the stream
     await _liveStreamService.stopStream();
     _isPlayerOpen = false;
@@ -341,6 +355,9 @@ class StreamsProvider extends ChangeNotifier {
     _isConnecting = false;
     _currentStream = null;
     _currentStreamDetails = null;
+    _currentViewerCount = 0;
+    _currentPeakViewers = 0;
+    _currentTotalViews = 0;
     notifyListeners();
 
     debugPrint('Player closed, notifying ReviewManager of livestream end');
@@ -364,7 +381,101 @@ class StreamsProvider extends ChangeNotifier {
   @override
   void dispose() {
     _streamSubscription?.cancel();
+    _viewerCountPollingTimer?.cancel();
     super.dispose();
+  }
+
+  /// Start listening to a stream - calls the API to record the view
+  /// This should be called when the user starts playing a stream
+  Future<void> startListeningToStream(String slug) async {
+    try {
+      print('API: Starting listen for stream $slug');
+
+      final response = await _apiService.get(
+        ApiConstants.getStreamEndpoint(slug),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      _currentViewerCount = data['viewer_count'] ?? 0;
+      _currentPeakViewers = data['peak_viewers'] ?? 0;
+      _currentTotalViews = data['total_views'] ?? 0;
+
+      print(
+        'API: Stream data - viewer_count: $_currentViewerCount, total_views: $_currentTotalViews',
+      );
+
+      // Start polling for realtime updates
+      _startViewerCountPolling(slug);
+
+      notifyListeners();
+    } on DioException catch (e) {
+      print('API: Error starting listen - ${e.message}');
+      // Still try to poll for counts even if this fails
+      _startViewerCountPolling(slug);
+    }
+  }
+
+  /// Fetch realtime viewer counts for a stream
+  Future<void> _fetchRealtimeViewerCounts(String slug) async {
+    try {
+      final response = await _apiService.get(
+        ApiConstants.getStreamRealtimeEndpoint(slug),
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final newViewerCount = data['viewer_count'] ?? 0;
+      final newPeakViewers = data['peak_viewers'] ?? 0;
+      final newTotalViews = data['total_views'] ?? 0;
+
+      // Only update and notify if values changed
+      if (_currentViewerCount != newViewerCount ||
+          _currentTotalViews != newTotalViews) {
+        _currentViewerCount = newViewerCount;
+        _currentPeakViewers = newPeakViewers;
+        _currentTotalViews = newTotalViews;
+
+        if (_currentStream != null) {
+          // Update the current stream's total views
+          final updatedStream = LiveStream(
+            id: _currentStream!.id,
+            title: _currentStream!.title,
+            slug: _currentStream!.slug,
+            companyId: _currentStream!.companyId,
+            companySlug: _currentStream!.companySlug,
+            companyName: _currentStream!.companyName,
+            companyLogoUrl: _currentStream!.companyLogoUrl,
+            isLive: _currentStream!.isLive,
+            viewerCount: _currentViewerCount,
+            totalViews: _currentTotalViews,
+            thumbnailUrl: _currentStream!.thumbnailUrl,
+            startedAt: _currentStream!.startedAt,
+          );
+          _currentStream = updatedStream;
+        }
+
+        notifyListeners();
+        print(
+          'API: Realtime update - viewer_count: $_currentViewerCount, total_views: $_currentTotalViews',
+        );
+      }
+    } catch (e) {
+      print('API: Error fetching realtime counts - $e');
+    }
+  }
+
+  /// Start polling for realtime viewer counts
+  void _startViewerCountPolling(String slug) {
+    _viewerCountPollingTimer?.cancel();
+    _viewerCountPollingTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _fetchRealtimeViewerCounts(slug),
+    );
+  }
+
+  /// Stop polling when stream is closed
+  void _stopViewerCountPolling() {
+    _viewerCountPollingTimer?.cancel();
+    _viewerCountPollingTimer = null;
   }
 
   /// Fetch company live stream details by company slug
