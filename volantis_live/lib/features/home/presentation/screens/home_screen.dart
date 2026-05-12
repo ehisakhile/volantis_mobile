@@ -1215,7 +1215,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                           const SizedBox(width: 3),
                           Text(
-                            '${livestream.viewerCount}',
+                            '${livestream.totalViews}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
