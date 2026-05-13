@@ -18,7 +18,7 @@ import '../providers/streams_provider.dart';
 /// the minimised state and its controls.
 ///
 /// Audio notification / lock-screen controls are posted through
-/// [AudioService] (just_audio_background) so the stream appears in the
+/// [AudioService] so the stream appears in the
 /// system media notification.
 class StreamPlayerScreen extends StatefulWidget {
   final String companySlug;
@@ -169,7 +169,7 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen>
 
       provider.setStreamDetails(details.livestream);
 
-      // Post to audio notification (just_audio_background)
+      // Post to audio notification
       _postMediaNotification(details);
 
       setState(() {
@@ -190,10 +190,10 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen>
   }
 
   /// Posts a [MediaItem] to LiveStreamService so the stream appears in the
-  /// system media notification / lock screen controls via just_audio_background.
+  /// system media notification / lock screen controls via AudioService.
   void _postMediaNotification(CompanyLiveStream details) {
     try {
-      // The LiveStreamService handles notification through just_audio_background
+      // The LiveStreamService handles notification through AudioService
       // when startStream is called. We just need to make sure the service
       // is initialized and will be called when playback starts.
 

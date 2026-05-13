@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:audio_session/audio_session.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../features/streams/presentation/providers/streams_provider.dart';
+import 'whep_audio_handler.dart';
 
 typedef WebRTCCleanupCallback = Future<void> Function();
 typedef WebRTCStateCallback =
@@ -33,11 +35,16 @@ class LiveStreamService {
   String? _webRTCError;
   String? _playbackUrl;
 
+  WhepAudioHandler? _audioHandler;
+
   WebRTCStateCallback? _onWebRTCStateChanged;
   WebRTCCleanupCallback? _webrtcCleanupCallback;
 
   final _stateController = StreamController<LiveStreamState>.broadcast();
   Stream<LiveStreamState> get stateStream => _stateController.stream;
+
+  WhepAudioHandler? get audioHandler => _audioHandler;
+  Stream<PlaybackState>? get playbackState => _audioHandler?.playbackState;
 
   LiveStream? get currentStream => _currentStream;
   bool get isPlaying => _isPlaying;
@@ -88,7 +95,7 @@ class LiveStreamService {
     }
   }
 
-  Future<void> init() async {
+  Future<void> init({WhepAudioHandler? audioHandler}) async {
     if (_isInitialized) return;
 
     try {
@@ -108,7 +115,7 @@ class LiveStreamService {
         ),
       );
 
-      
+      _audioHandler = audioHandler;
 
       _isInitialized = true;
       debugPrint('LiveStreamService initialized with background support');
@@ -118,6 +125,10 @@ class LiveStreamService {
   }
 
   Future<void> startStream(LiveStream stream) async {
+    print(
+      '{AUDIOS} Attempting to start stream: ${stream.title} (ID: ${stream.id})',
+    );
+
     try {
       if (_currentStream != null && _currentStreamId != null) {
         await _cleanupCurrentStream();
@@ -127,6 +138,23 @@ class LiveStreamService {
       _currentStreamId = stream.id;
       _isPlaying = true;
       _isStreamActive = true;
+
+      String whepUrl =
+          stream.whepUrl ??
+          stream.playbackUrl ??
+          _generateFakeStreamUrl(stream.id);
+
+      if (_audioHandler != null) {
+        await _audioHandler!.initStream(
+          streamUrl: whepUrl,
+          title: stream.title,
+          artist: stream.companyName,
+          artworkUrl: stream.thumbnailUrl,
+        );
+        debugPrint('Audio handler updated with stream metadata');
+        await _audioHandler!.play();
+        debugPrint('Audio handler play() called - notification should appear');
+      }
 
       if (_audioSession != null) {
         await _audioSession!.setActive(true);
@@ -153,6 +181,8 @@ class LiveStreamService {
       _isStreamActive = false;
       _currentStreamId = null;
       _currentStream = null;
+
+      _audioHandler?.stop();
 
       if (_audioSession != null) {
         await _audioSession!.setActive(false);
@@ -184,17 +214,22 @@ class LiveStreamService {
   }
 
   Future<void> switchStream(LiveStream newStream) async {
-    debugPrint('Switching from stream ${_currentStream?.title} to ${newStream.title}');
+    debugPrint(
+      'Switching from stream ${_currentStream?.title} to ${newStream.title}',
+    );
     await startStream(newStream);
   }
 
   void togglePlayPause() {
+    if (_isPlaying) {
+      _audioHandler?.pause();
+    } else {
+      _audioHandler?.play();
+    }
     _isPlaying = !_isPlaying;
 
     if (_audioSession != null) {
-      if (_isPlaying) {
-        _audioSession!.setActive(true);
-      }
+      _audioSession!.setActive(true);
     }
 
     _notifyStateChange();
@@ -202,6 +237,7 @@ class LiveStreamService {
 
   void setMuted(bool muted) {
     _isMuted = muted;
+    _audioHandler?.setMuted(muted);
     _notifyStateChange();
   }
 
@@ -226,6 +262,7 @@ class LiveStreamService {
 
   Future<void> dispose() async {
     await _cleanupCurrentStream();
+    _audioHandler = null;
     if (_audioSession != null) {
       await _audioSession!.setActive(false);
     }
@@ -233,6 +270,11 @@ class LiveStreamService {
     _isInitialized = false;
     _currentStream = null;
     _webrtcCleanupCallback = null;
+  }
+
+  String _generateFakeStreamUrl(int streamId) {
+    final randomPart = DateTime.now().millisecondsSinceEpoch.toString();
+    return 'https://fake-stream.local/$streamId/$randomPart.mp3';
   }
 }
 

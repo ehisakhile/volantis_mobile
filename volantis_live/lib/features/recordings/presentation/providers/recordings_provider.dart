@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:audio_session/audio_session.dart';
+import '../../../../services/live_stream_service.dart';
+import '../../../../services/whep_audio_handler.dart';
 import '../../data/models/recording_model.dart';
 import '../../data/models/recording_download.dart';
 import '../../data/services/recordings_service.dart';
@@ -57,10 +59,47 @@ class RecordingsProvider extends ChangeNotifier {
     _initAudioSession();
     _player.playerStateStream.listen(_onPlayerState);
     _player.positionStream.listen(_onPosition);
+    _registerAudioServiceControls();
     // Load existing downloads on initialization
     _loadExistingDownloads();
     // Listen to download manager for status updates
     _listenToDownloadUpdates();
+  }
+
+  WhepAudioHandler? get _audioHandler =>
+      LiveStreamService.instance.audioHandler;
+
+  void _registerAudioServiceControls() {
+    _audioHandler?.registerExternalPlaybackControls(
+      play: () async {
+        if (!_player.playing) await _player.play();
+      },
+      pause: () async {
+        if (_player.playing) await _player.pause();
+      },
+      stop: () async {
+        _savePosition();
+        await _player.stop();
+        _positionTimer?.cancel();
+        isPlayerOpen = false;
+        isFullScreen = true;
+        currentRecording = null;
+        isCompleted = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  void _updateRecordingNotification(MediaItem item, {bool playing = false}) {
+    _audioHandler?.updateRecordingMediaItem(item, playing: playing);
+  }
+
+  void _syncRecordingPlaybackState() {
+    _audioHandler?.updateRecordingPlaybackState(_player.playing);
+  }
+
+  void _resetRecordingNotificationMode() {
+    _audioHandler?.resetToLiveStreamMode();
   }
 
   /// Load existing downloads from RecordingsDownloadsService
@@ -117,7 +156,7 @@ class RecordingsProvider extends ChangeNotifier {
   Future<void> _initAudioSession() async {
     try {
       final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.speech());
+      await session.configure(const AudioSessionConfiguration.music());
     } catch (e) {
       debugPrint('Error initializing audio session: $e');
     }
@@ -213,26 +252,29 @@ class RecordingsProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
+      // Ensure any live stream session is stopped before playing a recording.
+      await LiveStreamService.instance.stopStream();
+
       // Build streaming URL
       final url = _service.getStreamingUrl(recording.streamingUrl);
-
-      // Set audio source with background support and MediaItem tag
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(url),
-          tag: MediaItem(
-            id: recording.id.toString(),
-            title: recording.title,
-            artist: recording.description ?? 'Volantis Live',
-            artUri: recording.thumbnailUrl != null
-                ? Uri.parse(recording.thumbnailUrl!)
-                : null,
-            duration: recording.durationSeconds != null
-                ? Duration(seconds: recording.durationSeconds!)
-                : null,
-          ),
-        ),
+      final mediaItem = MediaItem(
+        id: recording.id.toString(),
+        title: recording.title,
+        artist: recording.description ?? 'Volantis Live',
+        artUri: recording.thumbnailUrl != null
+            ? Uri.parse(recording.thumbnailUrl!)
+            : null,
+        duration: recording.durationSeconds != null
+            ? Duration(seconds: recording.durationSeconds!)
+            : null,
       );
+
+      // Set audio source with MediaItem tag
+      await _player.setAudioSource(
+        AudioSource.uri(Uri.parse(url), tag: mediaItem),
+      );
+
+      _updateRecordingNotification(mediaItem, playing: false);
 
       // Seek to start position if provided (from watch history)
       if (startPosition != null && startPosition > 0) {
@@ -240,6 +282,7 @@ class RecordingsProvider extends ChangeNotifier {
       }
 
       await _player.play();
+      _audioHandler?.updateRecordingPlaybackState(true);
       _startPositionTimer();
     } catch (e) {
       errorMessage = 'Failed to play recording: ${e.toString()}';
@@ -270,6 +313,7 @@ class RecordingsProvider extends ChangeNotifier {
     isFullScreen = true;
     currentRecording = null;
     isCompleted = false;
+    _resetRecordingNotificationMode();
     notifyListeners();
   }
 
@@ -282,6 +326,7 @@ class RecordingsProvider extends ChangeNotifier {
     isFullScreen = true;
     currentRecording = null;
     isCompleted = false;
+    _resetRecordingNotificationMode();
     notifyListeners();
   }
 
@@ -290,8 +335,10 @@ class RecordingsProvider extends ChangeNotifier {
     if (_player.playing) {
       await _player.pause();
       _savePosition();
+      _audioHandler?.updateRecordingPlaybackState(false);
     } else {
       await _player.play();
+      _audioHandler?.updateRecordingPlaybackState(true);
     }
   }
 
@@ -422,6 +469,9 @@ class RecordingsProvider extends ChangeNotifier {
       // Get download info for the recording
       final download = await downloadsService.getDownload(recordingId);
 
+      // Ensure any live stream session is stopped before playing a downloaded recording.
+      await LiveStreamService.instance.stopStream();
+
       // Stop any current playback
       await _player.stop();
       _positionTimer?.cancel();
@@ -444,23 +494,22 @@ class RecordingsProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      // Set audio source from local file
-      await _player.setAudioSource(
-        AudioSource.file(
-          filePath,
-          tag: MediaItem(
-            id: recordingId.toString(),
-            title: download?.title ?? 'Downloaded Recording',
-            artist: download?.description ?? 'Volantis Live',
-            artUri: download?.thumbnailUrl != null
-                ? Uri.parse(download!.thumbnailUrl!)
-                : null,
-            duration: download?.durationSeconds != null
-                ? Duration(seconds: download!.durationSeconds!)
-                : null,
-          ),
-        ),
+      final mediaItem = MediaItem(
+        id: recordingId.toString(),
+        title: download?.title ?? 'Downloaded Recording',
+        artist: download?.description ?? 'Volantis Live',
+        artUri: download?.thumbnailUrl != null
+            ? Uri.parse(download!.thumbnailUrl!)
+            : null,
+        duration: download?.durationSeconds != null
+            ? Duration(seconds: download!.durationSeconds!)
+            : null,
       );
+
+      // Set audio source from local file
+      await _player.setAudioSource(AudioSource.file(filePath, tag: mediaItem));
+
+      _updateRecordingNotification(mediaItem, playing: false);
 
       // Seek to last position if available
       if (download != null && download.lastPosition > 0) {
@@ -468,6 +517,7 @@ class RecordingsProvider extends ChangeNotifier {
       }
 
       await _player.play();
+      _audioHandler?.updateRecordingPlaybackState(true);
       _startPositionTimer();
     } catch (e) {
       errorMessage = 'Failed to play downloaded recording: ${e.toString()}';

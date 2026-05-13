@@ -22,6 +22,8 @@ class LiveStream {
   final int totalViews;
   final String? thumbnailUrl;
   final DateTime? startedAt;
+  final String? whepUrl;
+  final String? playbackUrl;
 
   LiveStream({
     required this.id,
@@ -36,6 +38,8 @@ class LiveStream {
     this.totalViews = 0,
     this.thumbnailUrl,
     this.startedAt,
+    this.whepUrl,
+    this.playbackUrl,
   });
 
   factory LiveStream.fromJson(Map<String, dynamic> json) {
@@ -54,6 +58,42 @@ class LiveStream {
       startedAt: json['started_at'] != null
           ? DateTime.tryParse(json['started_at'])
           : null,
+      whepUrl: json['whep_url'],
+      playbackUrl: json['playback_url'],
+    );
+  }
+
+  LiveStream copyWith({
+    int? id,
+    String? title,
+    String? slug,
+    int? companyId,
+    String? companySlug,
+    String? companyName,
+    String? companyLogoUrl,
+    bool? isLive,
+    int? viewerCount,
+    int? totalViews,
+    String? thumbnailUrl,
+    DateTime? startedAt,
+    String? whepUrl,
+    String? playbackUrl,
+  }) {
+    return LiveStream(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      slug: slug ?? this.slug,
+      companyId: companyId ?? this.companyId,
+      companySlug: companySlug ?? this.companySlug,
+      companyName: companyName ?? this.companyName,
+      companyLogoUrl: companyLogoUrl ?? this.companyLogoUrl,
+      isLive: isLive ?? this.isLive,
+      viewerCount: viewerCount ?? this.viewerCount,
+      totalViews: totalViews ?? this.totalViews,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      startedAt: startedAt ?? this.startedAt,
+      whepUrl: whepUrl ?? this.whepUrl,
+      playbackUrl: playbackUrl ?? this.playbackUrl,
     );
   }
 }
@@ -92,11 +132,6 @@ class StreamsProvider extends ChangeNotifier {
   StreamSubscription? _streamSubscription;
 
   StreamsProvider() {
-    _initLiveStreamService();
-  }
-
-  Future<void> _initLiveStreamService() async {
-    await _liveStreamService.init();
     _streamSubscription = _liveStreamService.stateStream.listen(
       _onStreamStateChanged,
     );
@@ -435,22 +470,10 @@ class StreamsProvider extends ChangeNotifier {
         _currentTotalViews = newTotalViews;
 
         if (_currentStream != null) {
-          // Update the current stream's total views
-          final updatedStream = LiveStream(
-            id: _currentStream!.id,
-            title: _currentStream!.title,
-            slug: _currentStream!.slug,
-            companyId: _currentStream!.companyId,
-            companySlug: _currentStream!.companySlug,
-            companyName: _currentStream!.companyName,
-            companyLogoUrl: _currentStream!.companyLogoUrl,
-            isLive: _currentStream!.isLive,
+          _currentStream = _currentStream!.copyWith(
             viewerCount: _currentViewerCount,
             totalViews: _currentTotalViews,
-            thumbnailUrl: _currentStream!.thumbnailUrl,
-            startedAt: _currentStream!.startedAt,
           );
-          _currentStream = updatedStream;
         }
 
         notifyListeners();

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:audio_service/audio_service.dart';
 import 'app.dart';
 import 'services/offline_service.dart';
 import 'services/encryption_service.dart';
@@ -11,6 +11,8 @@ import 'services/download_manager.dart';
 import 'services/update_service.dart';
 import 'services/review_manager.dart';
 import 'services/app_update_manager.dart';
+import 'services/live_stream_service.dart';
+import 'services/whep_audio_handler.dart';
 import 'package:dio/dio.dart';
 import 'core/constants/api_constants.dart';
 
@@ -20,14 +22,22 @@ const String _iOSGcmSenderId = '581818664023';
 const String _iOSGoogleAppId = '1:581818664023:ios:cacdc9dd77f20c270b4f12';
 const String _iOSStorageBucket = 'volantis-live.firebasestorage.app';
 
-void main() async {
+WhepAudioHandler? _whepAudioHandler;
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize just_audio_background for background playback (recordings)
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
-    androidNotificationChannelName: 'Volantis Audio',
-    androidNotificationOngoing: true,
+  // Initialize WHEP audio handler for live stream notifications
+  _whepAudioHandler = await AudioService.init(
+    builder: () => WhepAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.volantis.live.stream',
+      androidNotificationChannelName: 'Volantis Audio',
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
+      notificationColor: Color.fromARGB(255, 255, 0, 0),
+      androidNotificationIcon: 'drawable/ic_stat_notification',
+    ),
   );
 
   // Set preferred orientations
@@ -54,6 +64,9 @@ void main() async {
 
   // Initialize connectivity service for offline support
   await ConnectivityService().init();
+
+  // Initialize LiveStreamService with audio handler
+  await LiveStreamService.instance.init(audioHandler: _whepAudioHandler);
 
   // Initialize recordings downloads service
   final dio = Dio(
