@@ -139,7 +139,27 @@ class StreamsProvider extends ChangeNotifier {
 
   void _onStreamStateChanged(LiveStreamState state) {
     _isPlaying = state.isPlaying;
-    _currentStream = state.stream;
+    _isMuted = state.isMuted;
+    if (state.liveStream != null) {
+      _currentStream = LiveStream(
+        id: state.liveStream!.id,
+        title: state.liveStream!.title,
+        slug: state.liveStream!.slug,
+        companyId: state.liveStream!.companyId,
+        companySlug: state.liveStream!.companySlug,
+        companyName: state.liveStream!.companyName,
+        companyLogoUrl: state.liveStream!.companyLogoUrl,
+        isLive: state.liveStream!.isLive,
+        viewerCount: state.liveStream!.viewerCount,
+        totalViews: state.liveStream!.totalViews,
+        thumbnailUrl: state.liveStream!.thumbnailUrl,
+        startedAt: state.liveStream!.startedAt,
+        whepUrl: state.liveStream!.whepUrl,
+        playbackUrl: state.liveStream!.playbackUrl,
+      );
+    } else {
+      _currentStream = null;
+    }
     notifyListeners();
   }
 
@@ -331,8 +351,25 @@ class StreamsProvider extends ChangeNotifier {
     _isConnecting = true;
     _error = null;
 
-    // Switch to new stream (cleans up old one first)
-    await _liveStreamService.switchStream(stream);
+    // Convert to LiveStreamData and start stream
+    final liveStreamData = LiveStreamData(
+      id: stream.id,
+      title: stream.title,
+      slug: stream.slug,
+      companyId: stream.companyId,
+      companySlug: stream.companySlug,
+      companyName: stream.companyName,
+      companyLogoUrl: stream.companyLogoUrl,
+      isLive: stream.isLive,
+      viewerCount: stream.viewerCount,
+      totalViews: stream.totalViews,
+      thumbnailUrl: stream.thumbnailUrl,
+      startedAt: stream.startedAt,
+      whepUrl: stream.whepUrl,
+      playbackUrl: stream.playbackUrl,
+    );
+
+    await _liveStreamService.switchStream(liveStreamData);
 
     await startListeningToStream(stream.slug);
 

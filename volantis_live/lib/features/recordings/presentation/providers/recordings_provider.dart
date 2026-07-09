@@ -1,108 +1,103 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import '../../../../services/live_stream_service.dart';
-import '../../../../services/whep_audio_handler.dart';
+import 'package:just_audio/just_audio.dart';
+import '../../../../services/audio_manager.dart';
 import '../../data/models/recording_model.dart';
 import '../../data/models/recording_download.dart';
 import '../../data/services/recordings_service.dart';
 import '../../data/services/recordings_downloads_service.dart';
 import '../../../../services/download_manager.dart';
 
-/// Provider for managing recordings state and audio playback
 class RecordingsProvider extends ChangeNotifier {
   final RecordingsService _service;
-  final AudioPlayer _player = AudioPlayer();
 
-  // List state - per company
   List<Recording> recordings = [];
   bool isLoadingList = false;
   bool hasMore = true;
   int _offset = 0;
   static const _limit = 20;
 
-  // Current company slug - always fetch fresh for each channel
   String? _currentCompanySlug;
 
-  // Player state
   Recording? currentRecording;
   bool isPlayerOpen = false;
   bool isFullScreen = true;
   bool isCompleted = false;
 
-  // Position tracking
   Timer? _positionTimer;
-  static const _positionInterval = Duration(seconds: 30);
 
-  // Watch history
   List<WatchHistoryItem> watchHistory = [];
   bool isLoadingHistory = false;
 
-  // Error state
   String? errorMessage;
 
-  // Download state
   final Map<int, DownloadStatus> _downloadStatuses = {};
   final Map<int, double> _downloadProgress = {};
 
-  // Stream subscriptions for download updates
   StreamSubscription? _downloadStatusSubscription;
   StreamSubscription? _downloadProgressSubscription;
-
-  // Speed stream for UI updates
-  Stream<double> get speedStream => _player.speedStream;
+  StreamSubscription<AudioState>? _audioManagerSubscription;
 
   RecordingsProvider(this._service) {
+    _initialize();
+  }
+
+  void _initialize() {
     _initAudioSession();
-    _player.playerStateStream.listen(_onPlayerState);
-    _player.positionStream.listen(_onPosition);
-    _registerAudioServiceControls();
-    // Load existing downloads on initialization
     _loadExistingDownloads();
-    // Listen to download manager for status updates
     _listenToDownloadUpdates();
+    _syncFromAudioManager();
+
+    _audioManagerSubscription =
+        AudioManager.instance.stateStream.listen(_onAudioStateChanged);
   }
 
-  WhepAudioHandler? get _audioHandler =>
-      LiveStreamService.instance.audioHandler;
-
-  void _registerAudioServiceControls() {
-    _audioHandler?.registerExternalPlaybackControls(
-      play: () async {
-        if (!_player.playing) await _player.play();
-      },
-      pause: () async {
-        if (_player.playing) await _player.pause();
-      },
-      stop: () async {
-        _savePosition();
-        await _player.stop();
-        _positionTimer?.cancel();
-        isPlayerOpen = false;
-        isFullScreen = true;
-        currentRecording = null;
+  void _onAudioStateChanged(AudioState state) {
+    if (state.sourceType == AudioSourceType.recording) {
+      if (!state.isPlaying && currentRecording != null) {
+        _onPlaybackInterrupted();
+      }
+      if (state.isPlaying && isCompleted) {
         isCompleted = false;
-        notifyListeners();
-      },
-    );
+      }
+    }
+    notifyListeners();
   }
 
-  void _updateRecordingNotification(MediaItem item, {bool playing = false}) {
-    _audioHandler?.updateRecordingMediaItem(item, playing: playing);
+  void _onPlaybackInterrupted() {
+    if (currentRecording != null) {
+      _savePosition();
+    }
   }
 
-  void _syncRecordingPlaybackState() {
-    _audioHandler?.updateRecordingPlaybackState(_player.playing);
+  void _syncFromAudioManager() {
+    final state = AudioManager.instance.currentState;
+    if (state.sourceType == AudioSourceType.recording &&
+        state.sourceId != null) {
+      _findAndSetCurrentRecording(state.sourceId!);
+    }
   }
 
-  void _resetRecordingNotificationMode() {
-    _audioHandler?.resetToLiveStreamMode();
+  void _findAndSetCurrentRecording(int recordingId) {
+    try {
+      final recording = recordings.firstWhere((r) => r.id == recordingId);
+      currentRecording = recording;
+      isPlayerOpen = true;
+    } catch (_) {
+      debugPrint('Recording not found in list: $recordingId');
+    }
   }
 
-  /// Load existing downloads from RecordingsDownloadsService
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+    } catch (e) {
+      debugPrint('Error initializing audio session: $e');
+    }
+  }
+
   Future<void> _loadExistingDownloads() async {
     try {
       final downloadsService = RecordingsDownloadsService.instance;
@@ -117,12 +112,10 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Listen to download manager for real-time status updates
   void _listenToDownloadUpdates() {
     final downloadManager = DownloadManager.instance;
-    _downloadStatusSubscription = downloadManager.downloadStatusStream.listen((
-      status,
-    ) {
+    _downloadStatusSubscription =
+        downloadManager.downloadStatusStream.listen((status) {
       if (status.status == DownloadStatus.downloaded) {
         _downloadStatuses[status.recordingId] = DownloadStatus.downloaded;
         _downloadProgress[status.recordingId] = 1.0;
@@ -145,29 +138,17 @@ class RecordingsProvider extends ChangeNotifier {
       }
     });
 
-    _downloadProgressSubscription = downloadManager.downloadProgressStream
-        .listen((progress) {
-          _downloadProgress[progress.recordingId] = progress.progress;
-          notifyListeners();
-        });
+    _downloadProgressSubscription =
+        downloadManager.downloadProgressStream.listen((progress) {
+      _downloadProgress[progress.recordingId] = progress.progress;
+      notifyListeners();
+    });
   }
 
-  /// Initialize audio session with background support
-  Future<void> _initAudioSession() async {
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.music());
-    } catch (e) {
-      debugPrint('Error initializing audio session: $e');
-    }
-  }
-
-  /// Load recordings for a specific company - always fetches fresh data
   Future<void> loadRecordings(
     String companySlug, {
     bool refresh = false,
   }) async {
-    // Always clear and refresh when loading for a different company
     if (_currentCompanySlug != companySlug) {
       refresh = true;
     }
@@ -203,7 +184,6 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Load watch history
   Future<void> loadWatchHistory({bool refresh = false}) async {
     if (refresh) {
       watchHistory = [];
@@ -225,25 +205,20 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Open and play a recording
   Future<void> openRecording(int id, {int? startPosition}) async {
-    // Check if same recording is already playing
-    if (currentRecording != null && currentRecording!.id == id) {
-      // Same recording - just toggle play/pause
-      if (_player.playing) {
-        await _player.pause();
-      } else {
-        await _player.play();
-      }
+    debugPrint('[RecordingsProvider] openRecording($id)');
+
+    bool isSameRecording = currentRecording?.id == id;
+
+    if (isSameRecording && AudioManager.instance.isRecordingActive) {
+      await AudioManager.instance.togglePlayPause();
       return;
     }
 
     try {
-      // Stop any current playback before starting new one
-      await _player.stop();
-      _positionTimer?.cancel();
+      await AudioManager.instance.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
 
-      // Fetch single recording - this call increments replay_count
       final recording = await _service.getRecording(id);
       currentRecording = recording;
       isPlayerOpen = true;
@@ -252,38 +227,21 @@ class RecordingsProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      // Ensure any live stream session is stopped before playing a recording.
-      await LiveStreamService.instance.stopStream();
-
-      // Build streaming URL
       final url = _service.getStreamingUrl(recording.streamingUrl);
-      final mediaItem = MediaItem(
-        id: recording.id.toString(),
+
+      await AudioManager.instance.playRecording(
+        recordingId: recording.id,
         title: recording.title,
         artist: recording.description ?? 'Volantis Live',
-        artUri: recording.thumbnailUrl != null
-            ? Uri.parse(recording.thumbnailUrl!)
-            : null,
+        artworkUrl: recording.thumbnailUrl,
+        audioUrl: url,
         duration: recording.durationSeconds != null
             ? Duration(seconds: recording.durationSeconds!)
             : null,
+        startPosition: startPosition != null
+            ? Duration(seconds: startPosition)
+            : null,
       );
-
-      // Set audio source with MediaItem tag
-      await _player.setAudioSource(
-        AudioSource.uri(Uri.parse(url), tag: mediaItem),
-      );
-
-      _updateRecordingNotification(mediaItem, playing: false);
-
-      // Seek to start position if provided (from watch history)
-      if (startPosition != null && startPosition > 0) {
-        await _player.seek(Duration(seconds: startPosition));
-      }
-
-      await _player.play();
-      _audioHandler?.updateRecordingPlaybackState(true);
-      _startPositionTimer();
     } catch (e) {
       errorMessage = 'Failed to play recording: ${e.toString()}';
       debugPrint(errorMessage);
@@ -292,84 +250,56 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Minimize player to mini-player mode
   void minimize() {
     isFullScreen = false;
     notifyListeners();
   }
 
-  /// Expand player to full-screen mode
   void expand() {
     isFullScreen = true;
     notifyListeners();
   }
 
-  /// Close the player
   void closePlayer() {
     _savePosition();
-    _player.stop();
-    _positionTimer?.cancel();
+    AudioManager.instance.stop();
     isPlayerOpen = false;
     isFullScreen = true;
     currentRecording = null;
     isCompleted = false;
-    _resetRecordingNotificationMode();
     notifyListeners();
   }
 
-  /// Stop playback and close player (used on logout)
   Future<void> stopAndClose() async {
-    await _player.stop();
     _savePosition();
-    _positionTimer?.cancel();
+    await AudioManager.instance.stop();
     isPlayerOpen = false;
     isFullScreen = true;
     currentRecording = null;
     isCompleted = false;
-    _resetRecordingNotificationMode();
     notifyListeners();
   }
 
-  /// Toggle play/pause
   Future<void> togglePlayPause() async {
-    if (_player.playing) {
-      await _player.pause();
-      _savePosition();
-      _audioHandler?.updateRecordingPlaybackState(false);
-    } else {
-      await _player.play();
-      _audioHandler?.updateRecordingPlaybackState(true);
-    }
+    await AudioManager.instance.togglePlayPause();
   }
 
-  /// Seek to a specific position
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    await AudioManager.instance.seek(position);
+  }
 
-  /// Skip back by specified seconds
   Future<void> skipBack(int seconds) async {
-    final currentDuration = _player.duration ?? Duration.zero;
-    var newPosition = _player.position - Duration(seconds: seconds);
-    if (newPosition < Duration.zero) {
-      newPosition = Duration.zero;
-    }
-    await _player.seek(
-      newPosition > currentDuration ? currentDuration : newPosition,
-    );
+    await AudioManager.instance.skipBack(seconds);
   }
 
-  /// Skip forward by specified seconds
   Future<void> skipForward(int seconds) async {
-    final currentDuration = _player.duration ?? Duration.zero;
-    final newPosition = _player.position + Duration(seconds: seconds);
-    await _player.seek(
-      newPosition > currentDuration ? currentDuration : newPosition,
-    );
+    await AudioManager.instance.skipForward(seconds);
   }
 
-  /// Set playback speed
-  Future<void> setSpeed(double speed) => _player.setSpeed(speed);
+  Future<void> setSpeed(double speed) async {
+    await AudioManager.instance.setSpeed(speed);
+  }
 
-  /// Mark recording as complete
   Future<void> markComplete() async {
     if (currentRecording == null || isCompleted) return;
     try {
@@ -381,7 +311,6 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Get replay count for a recording (from cache if available)
   int? getReplayCount(int recordingId) {
     try {
       final recording = recordings.firstWhere((r) => r.id == recordingId);
@@ -391,7 +320,6 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Check if a recording is in watch history
   WatchHistoryItem? getWatchHistoryItem(int recordingId) {
     try {
       return watchHistory.firstWhere((item) => item.recordingId == recordingId);
@@ -400,19 +328,14 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  // Download methods
-
-  /// Get download status for a recording
   DownloadStatus getDownloadStatus(int recordingId) {
     return _downloadStatuses[recordingId] ?? DownloadStatus.notDownloaded;
   }
 
-  /// Get download progress for a recording
   double getDownloadProgress(int recordingId) {
     return _downloadProgress[recordingId] ?? 0.0;
   }
 
-  /// Start downloading a recording
   Future<void> downloadRecording(
     Recording recording, {
     required String downloadUrl,
@@ -422,7 +345,6 @@ class RecordingsProvider extends ChangeNotifier {
   }) async {
     final recordingId = recording.id;
 
-    // Check if already downloading or downloaded
     final status = getDownloadStatus(recordingId);
     if (status == DownloadStatus.downloading ||
         status == DownloadStatus.downloaded) {
@@ -434,7 +356,6 @@ class RecordingsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Get download manager
       final downloadManager = DownloadManager.instance;
 
       await downloadManager.queueDownload(
@@ -450,12 +371,13 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Play a downloaded recording offline
   Future<void> playDownloadedRecording(int recordingId) async {
     try {
+      await AudioManager.instance.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+
       final downloadsService = RecordingsDownloadsService.instance;
 
-      // Check if recording is downloaded
       final isDownloaded = await downloadsService.isRecordingDownloaded(
         recordingId,
       );
@@ -463,18 +385,9 @@ class RecordingsProvider extends ChangeNotifier {
         throw Exception('Recording not downloaded');
       }
 
-      // Get decrypted file path
-      final filePath = await downloadsService.getDecryptedFilePath(recordingId);
-
-      // Get download info for the recording
+      final filePath =
+          await downloadsService.getDecryptedFilePath(recordingId);
       final download = await downloadsService.getDownload(recordingId);
-
-      // Ensure any live stream session is stopped before playing a downloaded recording.
-      await LiveStreamService.instance.stopStream();
-
-      // Stop any current playback
-      await _player.stop();
-      _positionTimer?.cancel();
 
       currentRecording = Recording(
         id: recordingId,
@@ -494,31 +407,20 @@ class RecordingsProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      final mediaItem = MediaItem(
-        id: recordingId.toString(),
+      await AudioManager.instance.playRecording(
+        recordingId: recordingId,
         title: download?.title ?? 'Downloaded Recording',
         artist: download?.description ?? 'Volantis Live',
-        artUri: download?.thumbnailUrl != null
-            ? Uri.parse(download!.thumbnailUrl!)
-            : null,
+        artworkUrl: download?.thumbnailUrl,
+        audioUrl: filePath,
         duration: download?.durationSeconds != null
             ? Duration(seconds: download!.durationSeconds!)
             : null,
+        startPosition: download?.lastPosition != null &&
+                download!.lastPosition > 0
+            ? Duration(seconds: download.lastPosition)
+            : null,
       );
-
-      // Set audio source from local file
-      await _player.setAudioSource(AudioSource.file(filePath, tag: mediaItem));
-
-      _updateRecordingNotification(mediaItem, playing: false);
-
-      // Seek to last position if available
-      if (download != null && download.lastPosition > 0) {
-        await _player.seek(Duration(seconds: download.lastPosition));
-      }
-
-      await _player.play();
-      _audioHandler?.updateRecordingPlaybackState(true);
-      _startPositionTimer();
     } catch (e) {
       errorMessage = 'Failed to play downloaded recording: ${e.toString()}';
       debugPrint(errorMessage);
@@ -526,7 +428,6 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  /// Cancel a download
   void cancelDownload(int recordingId) {
     final downloadManager = DownloadManager.instance;
     downloadManager.cancelDownload(recordingId);
@@ -535,7 +436,6 @@ class RecordingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Delete a downloaded recording
   Future<void> deleteDownload(int recordingId) async {
     try {
       final downloadManager = DownloadManager.instance;
@@ -548,57 +448,36 @@ class RecordingsProvider extends ChangeNotifier {
     }
   }
 
-  // Expose streams to UI
-  Stream<PlayerState> get playerStateStream => _player.playerStateStream;
-  Stream<Duration> get positionStream => _player.positionStream;
-  Stream<Duration?> get durationStream => _player.durationStream;
+  Stream<Duration> get positionStream =>
+      AudioManager.instance.positionStream.map((d) => d ?? Duration.zero);
+  Stream<Duration?> get durationStream => AudioManager.instance.durationStream;
+  Stream<double> get speedStream => AudioManager.instance.speedStream;
 
-  bool get isPlaying => _player.playing;
-  Duration get position => _player.position;
-  Duration? get duration => _player.duration;
+  Stream<PlayerState> get playerStateStream =>
+      AudioManager.instance.stateStream.map((state) {
+        final processingState = state.isConnecting
+            ? ProcessingState.loading
+            : state.isPlaying
+                ? ProcessingState.ready
+                : ProcessingState.idle;
+        final playing = state.isPlaying && state.sourceType == AudioSourceType.recording;
+        return PlayerState(playing, processingState);
+      });
 
-  /// Get playback progress as percentage (0.0 to 1.0)
-  double get progress {
-    if (duration == null || duration!.inSeconds == 0) return 0.0;
-    return position.inSeconds / duration!.inSeconds;
-  }
+  bool get isPlaying =>
+      AudioManager.instance.isPlaying &&
+      AudioManager.instance.currentSourceType == AudioSourceType.recording;
 
-  /// Check if currently loading
+  Duration get position => AudioManager.instance.position;
+  Duration? get duration => AudioManager.instance.duration;
+
+  double get progress => AudioManager.instance.progress;
   bool get isLoading => isLoadingList;
-
-  /// Check if player is active
   bool get hasActivePlayer => isPlayerOpen && currentRecording != null;
-
-  // Internal methods
-  void _startPositionTimer() {
-    _positionTimer?.cancel();
-    _positionTimer = Timer.periodic(_positionInterval, (_) => _savePosition());
-  }
 
   void _savePosition() {
     if (currentRecording == null) return;
-    _service.updatePosition(currentRecording!.id, _player.position.inSeconds);
-  }
-
-  void _onPlayerState(PlayerState state) {
-    if (state.processingState == ProcessingState.completed) {
-      isCompleted = true;
-      if (currentRecording != null) {
-        _service.markComplete(currentRecording!.id);
-      }
-      _positionTimer?.cancel();
-      notifyListeners();
-    }
-  }
-
-  void _onPosition(Duration pos) {
-    final dur = currentRecording?.durationSeconds;
-    if (dur != null && dur > 0 && !isCompleted) {
-      // Mark complete if 90% watched
-      if (pos.inSeconds >= (dur * 0.9).toInt()) {
-        markComplete();
-      }
-    }
+    _service.updatePosition(currentRecording!.id, position.inSeconds);
   }
 
   @override
@@ -606,7 +485,7 @@ class RecordingsProvider extends ChangeNotifier {
     _positionTimer?.cancel();
     _downloadStatusSubscription?.cancel();
     _downloadProgressSubscription?.cancel();
-    _player.dispose();
+    _audioManagerSubscription?.cancel();
     super.dispose();
   }
 }

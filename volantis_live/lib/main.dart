@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:audio_service/audio_service.dart';
 import 'app.dart';
+import 'services/audio_manager.dart';
 import 'services/offline_service.dart';
 import 'services/encryption_service.dart';
 import 'services/connectivity_service.dart';
@@ -65,8 +66,11 @@ Future<void> main() async {
   // Initialize connectivity service for offline support
   await ConnectivityService().init();
 
-  // Initialize LiveStreamService with audio handler
-  await LiveStreamService.instance.init(audioHandler: _whepAudioHandler);
+  // Initialize centralized AudioManager with WHEP handler for unified audio control
+  await AudioManager.instance.init(whepHandler: _whepAudioHandler!);
+
+  // Initialize LiveStreamService with AudioManager integration
+  await LiveStreamService.instance.init();
 
   // Initialize recordings downloads service
   final dio = Dio(

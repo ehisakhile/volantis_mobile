@@ -3,10 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../services/audio_manager.dart';
+import '../../../../services/live_stream_service.dart';
 import '../providers/streams_provider.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
 import '../widgets/full_screen_player_sheet.dart';
 import '../widgets/live_stream_mini_player.dart';
+import '../../../recordings/presentation/providers/recordings_provider.dart';
 
 /// Streams screen — VolantisLive dark glass design
 class StreamsScreen extends StatefulWidget {
@@ -897,6 +900,13 @@ class _StreamsScreenState extends State<StreamsScreen> {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   Future<void> _navigateToPlayer(stream) async {
+    if (AudioManager.instance.isRecordingActive) {
+      debugPrint('[StreamsScreen] Recording is active, stopping it first');
+      final recordingsProvider = context.read<RecordingsProvider>();
+      recordingsProvider.closePlayer();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
     final provider = context.read<StreamsProvider>();
     final isSameStream = await provider.openStream(stream);
     if (isSameStream) provider.expand();

@@ -39,7 +39,7 @@ class WhepAudioHandler extends BaseAudioHandler {
   // as active before any notification can be shown.
   WhepAudioHandler() {
     playbackState.add(
-      _buildState(playing: false, processingState: AudioProcessingState.idle),
+      _buildState(playing: false, processingState: AudioProcessingState.ready),
     );
   }
 
@@ -325,9 +325,16 @@ class WhepAudioHandler extends BaseAudioHandler {
 
   Future<void> _disconnect() async {
     _reconnectTimer?.cancel();
-    _audioTrack = null;
+    if (_audioTrack != null) {
+      _audioTrack!.enabled = false;
+      _audioTrack!.stop();
+      _audioTrack = null;
+      developer.log('WHEP: Audio track stopped and cleaned up');
+    }
     await _cleanupPeerConnection();
     _isConnecting = false;
+    _isPlaying = false;
+    developer.log('WHEP: Disconnected, audio should be stopped');
   }
 
   Future<void> _cleanupPeerConnection() async {
@@ -378,8 +385,11 @@ class WhepAudioHandler extends BaseAudioHandler {
   }
 
   void resetToLiveStreamMode() {
+    if (_playbackMode == _AudioPlaybackMode.liveStream) return;
     _playbackMode = _AudioPlaybackMode.liveStream;
-    mediaItem.add(null);
+    if (mediaItem.value != null) {
+      mediaItem.add(null);
+    }
     playbackState.add(
       _buildState(playing: false, processingState: AudioProcessingState.idle),
     );
@@ -396,7 +406,13 @@ class WhepAudioHandler extends BaseAudioHandler {
   @override
   Future<void> onStop() async {
     developer.log('WHEP: onStop called');
-    await stop();
+    await _disconnect();
+    _reconnectTimer?.cancel();
+    _lastError = null;
+    playbackState.add(
+      _buildState(playing: false, processingState: AudioProcessingState.idle),
+    );
+    await super.stop();
   }
 
   PlaybackState _buildState({
@@ -436,10 +452,25 @@ class WhepAudioHandler extends BaseAudioHandler {
   String? get lastError => _lastError;
   MediaStreamTrack? get audioTrack => _audioTrack;
 
+  bool _isMuted = false;
+  double _volume = 1.0;
+
   void setMuted(bool muted) {
+    _isMuted = muted;
     if (_audioTrack != null) {
       _audioTrack!.enabled = !muted;
       developer.log('WHEP: Audio ${muted ? 'muted' : 'unmuted'}');
     }
   }
+
+  void setVolume(double volume) {
+    _volume = volume.clamp(0.0, 1.0);
+    _isMuted = volume == 0;
+    if (_audioTrack != null) {
+      developer.log('WHEP: Volume set to $_volume (muted: $_isMuted)');
+    }
+  }
+
+  bool get isMuted => _isMuted;
+  double get volume => _volume;
 }
