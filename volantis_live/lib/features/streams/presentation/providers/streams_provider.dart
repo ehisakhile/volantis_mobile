@@ -290,16 +290,28 @@ class StreamsProvider extends ChangeNotifier {
 
   /// Refresh streams
   Future<void> refresh() async {
-    // Force refresh subscriptions from API
-    await _subscriptionsService.getSubscriptions(forceRefresh: true);
-    await _fetchSubscriptions();
-    await _fetchActiveStreams();
+    try {
+      // Force refresh subscriptions from API. Network failures are handled here
+      // so pull-to-refresh does not surface as an unhandled Flutter exception.
+      await _subscriptionsService.getSubscriptions(forceRefresh: true);
+      await _fetchSubscriptions();
+      await _fetchActiveStreams();
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+      print('API: Refresh streams failed - $e');
+      notifyListeners();
+    }
   }
 
   /// Refresh subscriptions only
   Future<void> refreshSubscriptions() async {
-    await _subscriptionsService.getSubscriptions(forceRefresh: true);
-    await _fetchSubscriptions();
+    try {
+      await _subscriptionsService.getSubscriptions(forceRefresh: true);
+      await _fetchSubscriptions();
+    } catch (e) {
+      print('API: Refresh subscriptions failed - $e');
+    }
     notifyListeners();
   }
 

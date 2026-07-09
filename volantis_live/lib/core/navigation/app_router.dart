@@ -28,6 +28,7 @@ class AppRoutes {
   static const String verifyOtp = '/verify-otp';
   static const String forgotPassword = '/forgot-password';
   static const String home = '/home';
+  static const String connect = '/connect';
   static const String streams = '/streams';
   static const String profile = '/profile';
   static const String downloads = '/downloads';
@@ -99,6 +100,11 @@ class AppRouter {
           GoRoute(
             path: '/home/guest',
             name: 'homeGuest',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/connect',
+            name: 'connect',
             builder: (context, state) => const SizedBox.shrink(),
           ),
           GoRoute(
@@ -191,8 +197,9 @@ class AppRouter {
       }
 
       final isLoggedIn = authProvider.isAuthenticated;
-      final hasCompletedOnboarding =
-          context.read<OnboardingProvider>().hasCompletedOnboarding;
+      final hasCompletedOnboarding = context
+          .read<OnboardingProvider>()
+          .hasCompletedOnboarding;
       final isLoading = authProvider.isLoading || onboardingProvider.isLoading;
 
       print(
@@ -212,35 +219,19 @@ class AppRouter {
           print('AppRouter: Update check not complete, staying on splash');
           return null; // stay on splash
         }
-        if (!hasCompletedOnboarding) {
-          print('AppRouter: Redirecting to onboarding');
-          return AppRoutes.onboarding;
-        }
-        if (!isLoggedIn) {
-          print('AppRouter: Not logged in, redirecting to login');
-          return AppRoutes.login;
-        }
-        final isCreator = authProvider.isCreator;
-        final destination = isCreator ? '/creator' : AppRoutes.home;
-        print(
-          'AppRouter: Logged in and onboarding complete, redirecting to $destination',
-        );
-        return destination;
+        print('AppRouter: Redirecting from splash to Live');
+        return AppRoutes.home;
       }
 
       if (currentPath == AppRoutes.onboarding && hasCompletedOnboarding) {
-        final isCreator = authProvider.isCreator;
-        return isLoggedIn
-            ? (isCreator ? '/creator' : AppRoutes.home)
-            : AppRoutes.login;
+        return AppRoutes.home;
       }
 
       if (currentPath == AppRoutes.login ||
           currentPath == AppRoutes.register ||
           currentPath == AppRoutes.forgotPassword) {
-        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
         if (isLoggedIn) {
-          return authProvider.isCreator ? '/creator' : AppRoutes.home;
+          return AppRoutes.home;
         }
         return null;
       }
@@ -249,19 +240,21 @@ class AppRouter {
         print(
           'AppRouter: /home check - currentPath: $currentPath, contains /guest: ${currentPath.contains('/guest')}',
         );
-        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
-        if (!isLoggedIn && !currentPath.contains('/guest')) {
-          print(
-            'AppRouter: Redirecting to login - not logged in and not guest',
-          );
-          return AppRoutes.login;
-        }
-        print('AppRouter: Allowing /home (logged in or guest mode)');
+        print('AppRouter: Allowing /home');
         return null;
       }
 
-      if (currentPath.startsWith('/streams') ||
-          currentPath.startsWith('/profile')) {
+      if (currentPath.startsWith('/connect')) {
+        print('AppRouter: Allowing /connect');
+        return null;
+      }
+
+      if (currentPath.startsWith('/profile')) {
+        print('AppRouter: Allowing /profile');
+        return null;
+      }
+
+      if (currentPath.startsWith('/streams')) {
         if (!hasCompletedOnboarding) return AppRoutes.onboarding;
         if (!isLoggedIn) return AppRoutes.login;
         return null;
@@ -274,7 +267,7 @@ class AppRouter {
 
       return null;
     },
-errorBuilder: (context, state) => Scaffold(
+    errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -297,14 +290,8 @@ errorBuilder: (context, state) => Scaffold(
   );
 
   void navigateToMain({int tabIndex = 0}) {
-    final isCreator = authProvider.isCreator;
-    if (isCreator) {
-      final creatorTabs = ['creator', 'home', 'profile'];
-      router.go('/${creatorTabs[tabIndex]}');
-    } else {
-      final tabs = ['home', 'streams', 'profile'];
-      router.go('/${tabs[tabIndex]}');
-    }
+    final tabs = ['home', 'connect'];
+    router.go('/${tabs[tabIndex.clamp(0, tabs.length - 1)]}');
   }
 
   void navigateToStream(String streamId) => router.push('/stream/$streamId');
@@ -337,7 +324,7 @@ class _MainShell extends StatefulWidget {
 
 class _MainShellState extends State<_MainShell> {
   int _getIndexFromLocation(String location) {
-    if (location.startsWith('/streams')) return 1;
+    if (location.startsWith('/connect')) return 1;
     if (location.startsWith('/profile')) return 2;
     return 0;
   }
@@ -350,7 +337,7 @@ class _MainShellState extends State<_MainShell> {
     return MainScreen(
       currentIndex: currentIndex,
       onTabChanged: (index) {
-        final tabs = ['home', 'streams', 'profile'];
+        final tabs = ['home', 'connect'];
         context.go('/${tabs[index]}');
       },
     );
