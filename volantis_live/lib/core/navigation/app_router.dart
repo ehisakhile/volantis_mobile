@@ -145,7 +145,10 @@ class AppRouter {
         name: 'companyDetails',
         builder: (context, state) {
           final companySlug = state.pathParameters['slug'] ?? '';
-          return _CompanyDetailsHandler(companySlug: companySlug);
+          return _CompanyDetailsHandler(
+            companySlug: companySlug,
+            isFromDeepLink: true,
+          );
         },
       ),
       GoRoute(
@@ -375,14 +378,22 @@ class _ChannelDeepLinkHandler extends StatelessWidget {
 }
 
 /// Deep link handler for company details
+/// Routes: /company/{slug} (from deep links like volantislive.com/creator_slug)
 class _CompanyDetailsHandler extends StatelessWidget {
   final String companySlug;
+  final bool isFromDeepLink;
 
-  const _CompanyDetailsHandler({required this.companySlug});
+  const _CompanyDetailsHandler({
+    required this.companySlug,
+    this.isFromDeepLink = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return CompanyDetailsScreen(companySlug: companySlug);
+    return CompanyDetailsScreen(
+      companySlug: companySlug,
+      isFromDeepLink: isFromDeepLink,
+    );
   }
 }
 
