@@ -5,6 +5,8 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/connect/presentation/screens/connect_room_screen.dart';
+import '../../features/connect/presentation/providers/meeting_provider.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
@@ -184,6 +186,23 @@ class AppRouter {
         path: '/set-preferences',
         name: 'setPreferences',
         builder: (context, state) => const SetPreferencesScreen(),
+      ),
+      GoRoute(
+        path: '/connect/room/:meetingId',
+        name: 'connectRoom',
+        builder: (context, state) {
+          final args = state.extra as MeetingJoinArgs?;
+          if (args == null) {
+            return const Scaffold(
+              body: Center(child: Text('Invalid room arguments')),
+            );
+          }
+          return ConnectRoomScreen(
+            url: args.url,
+            token: args.token,
+            displayName: args.displayName,
+          );
+        },
       ),
     ],
     redirect: (context, state) {

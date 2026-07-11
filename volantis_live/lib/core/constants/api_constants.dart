@@ -173,4 +173,11 @@ class ApiConstants {
   static String getStreamEndpoint(String slug) => '/stream/$slug';
 
   static String getStreamRealtimeEndpoint(String slug) => '/stream/$slug/realtime';
+
+  // Meeting/Connect endpoints
+  static const String createInstantMeeting = '/meetings/instant';
+  static String getMeetingEndpoint(String meetingId) => '/meetings/$meetingId';
+  static String getMeetingJoinEndpoint(String meetingId) => '/meetings/$meetingId/join';
+  static String getMeetingGuestTokenEndpoint(String meetingId) => '/meetings/$meetingId/guest-token';
+  static String getMeetingLeaveEndpoint(String meetingId) => '/meetings/$meetingId/leave';
 }
