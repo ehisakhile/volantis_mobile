@@ -45,9 +45,7 @@ class _ControlBarState extends State<ControlBar> {
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.3),
@@ -62,16 +60,22 @@ class _ControlBarState extends State<ControlBar> {
               alignment: WrapAlignment.center,
               children: [
                 _ControlButton(
-                  icon: widget.isMicEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
+                  icon: widget.isMicEnabled
+                      ? Icons.mic_rounded
+                      : Icons.mic_off_rounded,
                   isActive: widget.isMicEnabled,
                   onPressed: widget.onToggleMic,
                   tooltip: widget.isMicEnabled ? 'Mute' : 'Unmute',
                 ),
                 _ControlButton(
-                  icon: widget.isCameraEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+                  icon: widget.isCameraEnabled
+                      ? Icons.videocam_rounded
+                      : Icons.videocam_off_rounded,
                   isActive: widget.isCameraEnabled,
                   onPressed: widget.onToggleCamera,
-                  tooltip: widget.isCameraEnabled ? 'Stop video' : 'Start video',
+                  tooltip: widget.isCameraEnabled
+                      ? 'Stop video'
+                      : 'Start video',
                 ),
                 _ControlButton(
                   icon: Icons.flip_camera_ios_rounded,
@@ -83,7 +87,9 @@ class _ControlBarState extends State<ControlBar> {
                   icon: Icons.screen_share_rounded,
                   isActive: widget.isScreenSharing,
                   onPressed: widget.onToggleScreenShare,
-                  tooltip: widget.isScreenSharing ? 'Stop sharing' : 'Share screen',
+                  tooltip: widget.isScreenSharing
+                      ? 'Stop sharing'
+                      : 'Share screen',
                 ),
                 _ControlButton(
                   icon: Icons.call_end_rounded,
@@ -121,7 +127,8 @@ class _ControlButton extends StatefulWidget {
   State<_ControlButton> createState() => _ControlButtonState();
 }
 
-class _ControlButtonState extends State<_ControlButton> with SingleTickerProviderStateMixin {
+class _ControlButtonState extends State<_ControlButton>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _isPressed = false;
 
@@ -167,10 +174,7 @@ class _ControlButtonState extends State<_ControlButton> with SingleTickerProvide
           decoration: BoxDecoration(
             color: _getBackgroundColor(),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: _getBorderColor(),
-              width: 1.5,
-            ),
+            border: Border.all(color: _getBorderColor(), width: 1.5),
             boxShadow: [
               if (widget.isActive && !widget.isDanger)
                 BoxShadow(
@@ -186,11 +190,7 @@ class _ControlButtonState extends State<_ControlButton> with SingleTickerProvide
                 ),
             ],
           ),
-          child: Icon(
-            widget.icon,
-            color: _getIconColor(),
-            size: 22,
-          ),
+          child: Icon(widget.icon, color: _getIconColor(), size: 22),
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../connect_colors.dart';
 import '../room/room_controller.dart';
 import '../widgets/control_bar.dart';
 import '../widgets/participant_tile.dart';
+import '../widgets/screen_share_viewer.dart';
 
 /// Full-screen video conferencing room
 class ConnectRoomScreen extends StatefulWidget {
@@ -30,11 +31,24 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   String? _error;
   DateTime? _lastUnmuteNotification;
   Timer? _audioCheckTimer;
+
+  // Small grids (<=4 participants) use the exact hand-tuned 1/2/3/4 layouts.
+  // Once there are more people than that, we switch to a swipeable,
+  // Zoom-style paginated grid so everyone stays reachable via a swipe
+  // instead of being crammed into one screen or hidden behind dots you
+  // have to tap one at a time.
+  static const int _soloPageSize = 4;
+  static const int _crowdPageSize = 8;
+
+  final PageController _pageController = PageController();
   int _currentPage = 0;
-  static const int _participantsPerPage = 4;
 
   // Focused tile: tap a tile to expand it; tap again to unfocus
   String? _focusedParticipantId;
+
+  // Screen share fullscreen mode: hides chrome (control bar, participant
+  // strip, badges) so the share fills the entire display.
+  bool _isScreenShareFullscreen = false;
 
   @override
   void initState() {
@@ -128,6 +142,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   @override
   void dispose() {
     _audioCheckTimer?.cancel();
+    _pageController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -198,18 +213,51 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: ConnectColors.bg,
-      body: Stack(
-        children: [
-          // Participant grid with exact layout spec
-          ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) {
-              final allTracks = _controller.participantTracks;
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        final allTracks = _controller.participantTracks;
 
-              if (allTracks.isEmpty) {
-                return Center(
+        // Separate screen share from regular participants
+        ParticipantTrack? screenShareTrack;
+        try {
+          screenShareTrack = allTracks.firstWhere((t) => t.isScreenShare);
+        } catch (e) {
+          screenShareTrack = null;
+        }
+        final hasScreenShare = screenShareTrack != null;
+        final screenShareVideoTrack = hasScreenShare
+            ? screenShareTrack.participant.videoTrackPublications
+                  .firstWhere((pub) => pub.isScreenShare)
+                  .track
+            : null;
+
+        final regularTracks = allTracks.where((t) => !t.isScreenShare).toList();
+
+        // Fullscreen screen share: strip away all other chrome so the share
+        // fills the entire display. The viewer itself provides an exit
+        // button, so this is the only branch that returns early.
+        if (hasScreenShare &&
+            _isScreenShareFullscreen &&
+            screenShareVideoTrack is VideoTrack) {
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: ScreenShareViewer(
+              track: screenShareVideoTrack,
+              isFullscreen: true,
+              onToggleFullscreen: () {
+                setState(() => _isScreenShareFullscreen = false);
+              },
+            ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: ConnectColors.bg,
+          body: Stack(
+            children: [
+              if (allTracks.isEmpty)
+                Center(
                   child: Text(
                     'Waiting for participants...',
                     style: TextStyle(
@@ -217,60 +265,36 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                       fontSize: 16,
                     ),
                   ),
-                );
-              }
-
-              // Separate screen share from regular participants
-              ParticipantTrack? screenShareTrack;
-              try {
-                screenShareTrack = allTracks.firstWhere((t) => t.isScreenShare);
-              } catch (e) {
-                screenShareTrack = null;
-              }
-              final hasScreenShare = screenShareTrack != null;
-
-              final regularTracks = allTracks
-                  .where((t) => !t.isScreenShare)
-                  .toList();
-
-              // If screen sharing, it takes the focused slot; otherwise,
-              // let the user tap to focus or show normal grid.
-              String? effectiveFocused = _focusedParticipantId;
-              if (hasScreenShare) {
-                effectiveFocused = screenShareTrack.participant.sid;
-              }
-
-              return SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: _buildParticipantLayout(
-                          regularTracks,
-                          screenShareTrack,
-                          hasScreenShare,
-                          effectiveFocused,
+                )
+              else
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child:
+                              (hasScreenShare &&
+                                  screenShareVideoTrack is VideoTrack)
+                              ? _buildScreenShareLayout(
+                                  screenShareVideoTrack,
+                                  regularTracks,
+                                )
+                              : _buildParticipantPager(regularTracks),
                         ),
-                      ),
-                      // Pagination dots (only if >4 regular participants)
-                      if (regularTracks.length > _participantsPerPage)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _buildPaginationDots(regularTracks.length),
-                        ),
-                    ],
+                        if (!hasScreenShare &&
+                            regularTracks.length > _soloPageSize)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _buildPaginationDots(regularTracks.length),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
 
-          // Control bar
-          ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) {
-              return ControlBar(
+              // Control bar
+              ControlBar(
                 isMicEnabled: _controller.isMicEnabled,
                 isCameraEnabled: _controller.isCameraEnabled,
                 isScreenSharing: _controller.isScreenSharing,
@@ -279,19 +303,13 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                 onFlipCamera: _controller.flipCamera,
                 onToggleScreenShare: _controller.toggleScreenShare,
                 onLeave: _leave,
-              );
-            },
-          ),
+              ),
 
-          // Participant count badge
-          Positioned(
-            top: 16,
-            left: 16,
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                final count = _controller.participantTracks.length;
-                return Container(
+              // Participant count badge
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
@@ -304,92 +322,119 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                     ),
                   ),
                   child: Text(
-                    '$count ${count != 1 ? 'participants' : 'participant'}',
+                    '${allTracks.length} ${allTracks.length != 1 ? 'participants' : 'participant'}',
                     style: TextStyle(
                       color: ConnectColors.text,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  /// Build participant layout following exact spec:
-  /// 1 participant: fills entire space
-  /// 2 participants: top/bottom split, each full width
-  /// 3 participants: top half split 2-side, bottom half 1 centered
-  /// 4 participants: 2x2 grid
-  /// 5+: paginate with 4 per page
-  /// If focused tile exists: show focused full-screen, others in strip below
-  Widget _buildParticipantLayout(
+  /// Screen share is showing: give it the spotlight (with full pan/zoom/
+  /// rotate/fit/fullscreen control) and keep every other participant
+  /// reachable in a horizontally scrollable strip below - including anyone
+  /// with camera/mic off, since RoomController now always keeps them in
+  /// the track list.
+  Widget _buildScreenShareLayout(
+    VideoTrack screenShareVideoTrack,
     List<ParticipantTrack> regularTracks,
-    ParticipantTrack? screenShareTrack,
-    bool hasScreenShare,
-    String? focusedId,
   ) {
-    // Get current page of participants (4 per page)
-    final totalPages =
-        (regularTracks.length + _participantsPerPage - 1) ~/ _participantsPerPage;
-    _currentPage = _currentPage.clamp(0, totalPages - 1);
-
-    final startIdx = _currentPage * _participantsPerPage;
-    final endIdx = (startIdx + _participantsPerPage).clamp(0, regularTracks.length);
-    final pageTracks = regularTracks.sublist(startIdx, endIdx);
-
-    // If screen share or user has focused a tile, show focused + strip
-    if ((hasScreenShare && screenShareTrack != null) || focusedId != null) {
-      final focusTrack = hasScreenShare && screenShareTrack != null
-          ? screenShareTrack
-          : pageTracks.firstWhere((t) => t.participant.sid == focusedId);
-
-      return Column(
-        children: [
-          // Focused tile (takes 60% of height)
-          Expanded(
-            flex: 60,
-            child: _buildTile(focusTrack, isFocused: true),
-          ),
-          const SizedBox(height: 8),
-          // Strip of remaining participants (40% height)
-          Expanded(
-            flex: 40,
-            child: _buildStrip(
-              pageTracks.where((t) => t.participant.sid != focusedId).toList(),
+    return Column(
+      children: [
+        Expanded(
+          flex: 70,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: ScreenShareViewer(
+              track: screenShareVideoTrack,
+              isFullscreen: false,
+              onToggleFullscreen: () {
+                setState(() => _isScreenShareFullscreen = true);
+              },
             ),
           ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(flex: 30, child: _buildStrip(regularTracks)),
+      ],
+    );
+  }
+
+  /// Swipeable pager over all non-screen-share participants. Groups <=4
+  /// people use the exact hand-tuned layout (1 full / 2 split / 3 split /
+  /// 2x2). Larger groups paginate 8 at a time in a dense grid, swipeable
+  /// left/right, so a class of 20+ students all stay reachable.
+  Widget _buildParticipantPager(List<ParticipantTrack> regularTracks) {
+    if (regularTracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // If the user has focused a specific tile, show it large with the rest
+    // in a strip - regardless of how many total participants there are.
+    if (_focusedParticipantId != null &&
+        regularTracks.any((t) => t.participant.sid == _focusedParticipantId)) {
+      final focusTrack = regularTracks.firstWhere(
+        (t) => t.participant.sid == _focusedParticipantId,
+      );
+      final rest = regularTracks
+          .where((t) => t.participant.sid != _focusedParticipantId)
+          .toList();
+      return Column(
+        children: [
+          Expanded(flex: 60, child: _buildTile(focusTrack, isFocused: true)),
+          const SizedBox(height: 8),
+          Expanded(flex: 40, child: _buildStrip(rest)),
         ],
       );
     }
 
-    // Normal grid layout based on participant count
+    final pageSize = regularTracks.length <= _soloPageSize
+        ? _soloPageSize
+        : _crowdPageSize;
+    final totalPages = (regularTracks.length / pageSize).ceil();
+    if (_currentPage >= totalPages) {
+      _currentPage = totalPages - 1;
+    }
+
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: totalPages,
+      onPageChanged: (page) => setState(() => _currentPage = page),
+      itemBuilder: (context, pageIndex) {
+        final start = pageIndex * pageSize;
+        final end = (start + pageSize).clamp(0, regularTracks.length);
+        final pageTracks = regularTracks.sublist(start, end);
+        return _buildGridPage(pageTracks);
+      },
+    );
+  }
+
+  /// Lays out a single page of tiles. Small pages (<=4) use the exact
+  /// hand-tuned arrangement; larger pages (5-8, "swipe for more") use a
+  /// dense 2-column grid, similar to a Zoom gallery page.
+  Widget _buildGridPage(List<ParticipantTrack> pageTracks) {
     if (pageTracks.length == 1) {
-      // 1 participant: full screen
       return _buildTile(pageTracks[0], isFocused: false);
     } else if (pageTracks.length == 2) {
-      // 2 participants: top/bottom split
       return Column(
         children: [
-          Expanded(
-            child: _buildTile(pageTracks[0], isFocused: false),
-          ),
+          Expanded(child: _buildTile(pageTracks[0], isFocused: false)),
           const SizedBox(height: 8),
-          Expanded(
-            child: _buildTile(pageTracks[1], isFocused: false),
-          ),
+          Expanded(child: _buildTile(pageTracks[1], isFocused: false)),
         ],
       );
     } else if (pageTracks.length == 3) {
-      // 3 participants: top half split 2-side, bottom half 1 centered
       return Column(
         children: [
           Expanded(
-            flex: 1,
             child: Row(
               children: [
                 Expanded(child: _buildTile(pageTracks[0], isFocused: false)),
@@ -400,7 +445,6 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            flex: 1,
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 300),
@@ -410,8 +454,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           ),
         ],
       );
-    } else {
-      // 4+ participants: 2x2 grid
+    } else if (pageTracks.length == 4) {
       return GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -420,9 +463,22 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           mainAxisSpacing: 8,
         ),
         itemCount: pageTracks.length,
-        itemBuilder: (context, index) {
-          return _buildTile(pageTracks[index], isFocused: false);
-        },
+        itemBuilder: (context, index) =>
+            _buildTile(pageTracks[index], isFocused: false),
+      );
+    } else {
+      // 5-8 participants on this page: denser 2-column grid (up to 4 rows).
+      return GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1.1,
+        ),
+        itemCount: pageTracks.length,
+        itemBuilder: (context, index) =>
+            _buildTile(pageTracks[index], isFocused: false),
       );
     }
   }
@@ -450,7 +506,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                   BoxShadow(
                     color: ConnectColors.accent.withValues(alpha: 0.3),
                     blurRadius: 8,
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -464,7 +520,8 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Build a horizontal strip of participants
+  /// Build a horizontal, scrollable strip of participants (used below a
+  /// focused tile or an active screen share).
   Widget _buildStrip(List<ParticipantTrack> tracks) {
     if (tracks.isEmpty) {
       return const SizedBox.expand();
@@ -475,10 +532,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
       itemCount: tracks.length,
       itemBuilder: (context, index) {
         return Padding(
-          padding: EdgeInsets.only(
-            left: index == 0 ? 0 : 8,
-            right: index == tracks.length - 1 ? 0 : 0,
-          ),
+          padding: EdgeInsets.only(left: index == 0 ? 0 : 8),
           child: AspectRatio(
             aspectRatio: 16 / 9,
             child: _buildTile(tracks[index], isFocused: false),
@@ -488,10 +542,13 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Build pagination dots
+  /// Build pagination dots. Tapping one animates the swipeable pager to
+  /// that page, in sync with an actual left/right swipe.
   Widget _buildPaginationDots(int participantCount) {
-    final totalPages =
-        (participantCount + _participantsPerPage - 1) ~/ _participantsPerPage;
+    final pageSize = participantCount <= _soloPageSize
+        ? _soloPageSize
+        : _crowdPageSize;
+    final totalPages = (participantCount / pageSize).ceil();
     if (totalPages <= 1) return const SizedBox.shrink();
 
     return Row(
@@ -500,7 +557,11 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
         totalPages,
         (index) => GestureDetector(
           onTap: () {
-            setState(() => _currentPage = index);
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+            );
           },
           child: Container(
             width: 8,

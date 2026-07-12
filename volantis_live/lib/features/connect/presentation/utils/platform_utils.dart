@@ -30,25 +30,19 @@ class PlatformUtils {
     if (!isAndroid()) return true;
 
     try {
-      bool hasPermissions = await FlutterBackground.hasPermissions;
+      const androidConfig = FlutterBackgroundAndroidConfig(
+        notificationTitle: 'Screen Sharing',
+        notificationText: 'VolantisLive is sharing the screen.',
+        notificationImportance: AndroidNotificationImportance.normal,
+        notificationIcon: AndroidResource(
+          name: 'livekit_ic_launcher',
+          defType: 'mipmap',
+        ),
+      );
 
-      // Initialize FlutterBackground if not already done
-      if (!hasPermissions) {
-        const androidConfig = FlutterBackgroundAndroidConfig(
-          notificationTitle: 'Screen Sharing',
-          notificationText: 'VolantisLive is sharing the screen.',
-          notificationImportance: AndroidNotificationImportance.normal,
-          notificationIcon: AndroidResource(
-            name: 'livekit_ic_launcher',
-            defType: 'mipmap',
-          ),
-        );
+      bool hasPermissions =
+          await FlutterBackground.initialize(androidConfig: androidConfig);
 
-        hasPermissions =
-            await FlutterBackground.initialize(androidConfig: androidConfig);
-      }
-
-      // Enable background execution if permissions are granted
       if (hasPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
         await FlutterBackground.enableBackgroundExecution();
       }

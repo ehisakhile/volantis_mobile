@@ -146,7 +146,9 @@ class ParticipantTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      participant.name ?? 'Guest',
+                      isLocalParticipant
+                          ? '${participant.name ?? 'You'} (You)'
+                          : (participant.name ?? 'Guest'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

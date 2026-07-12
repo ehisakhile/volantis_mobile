@@ -188,17 +188,18 @@ class RoomController extends ChangeNotifier {
       }
     }
 
+    // Always give the local participant a tile in the grid, even if they've
+    // never published a camera track (mic/cam off from the start). Mirrors
+    // the "hasVideoTrack" fallback used for remote participants above -
+    // previously this loop only ran over existing video publications, so a
+    // user who joined with camera off would never see themselves.
     if (room.localParticipant != null) {
-      for (var trackPub in room.localParticipant!.videoTrackPublications) {
-        if (!trackPub.isScreenShare) {
-          tracks.add(
-            ParticipantTrack(
-              participant: room.localParticipant!,
-              isScreenShare: false,
-            ),
-          );
-        }
-      }
+      tracks.add(
+        ParticipantTrack(
+          participant: room.localParticipant!,
+          isScreenShare: false,
+        ),
+      );
     }
 
     _participantTracks = tracks;
@@ -215,7 +216,7 @@ class RoomController extends ChangeNotifier {
     await room.connect(url, token);
 
     try {
-      await room.localParticipant?.setMicrophoneEnabled(false);
+      await room.localParticipant?.setMicrophoneEnabled(enableMic);
     } catch (e) {
       _onMediaError?.call('connect_mic', e);
     }
@@ -243,13 +244,14 @@ class RoomController extends ChangeNotifier {
       final localParticipant = room.localParticipant;
       if (localParticipant == null) return;
 
-      // Get current muted state from the published track (not device state)
+      // Get current state from the published track (not device state). If no
+      // audio track has ever been published (e.g. user joined with mic off,
+      // so no track exists yet), treat that as "currently disabled" rather
+      // than bailing out - otherwise the button does nothing on first tap.
       final audioPubs = localParticipant.audioTrackPublications;
-      if (audioPubs.isEmpty) return;
+      final currentlyEnabled = audioPubs.isNotEmpty && !audioPubs.first.muted;
 
-      final currentlyMuted = audioPubs.first.muted;
-      // Toggle: if muted, enable; if enabled, mute
-      await localParticipant.setMicrophoneEnabled(currentlyMuted);
+      await localParticipant.setMicrophoneEnabled(!currentlyEnabled);
     } catch (e) {
       _onMediaError?.call('toggle_mic', e);
     } finally {
@@ -268,15 +270,14 @@ class RoomController extends ChangeNotifier {
       final localParticipant = room.localParticipant;
       if (localParticipant == null) return;
 
-      // Get current muted state from the published video track (non-screen-share)
+      // Same fix as toggleMic: no published video track (camera off since
+      // join) must be treated as "currently disabled", not returned early on.
       final videoPubs = localParticipant.videoTrackPublications
           .where((pub) => !pub.isScreenShare)
           .toList();
-      if (videoPubs.isEmpty) return;
+      final currentlyEnabled = videoPubs.isNotEmpty && !videoPubs.first.muted;
 
-      final currentlyMuted = videoPubs.first.muted;
-      // Toggle: if muted, enable; if enabled, mute
-      await localParticipant.setCameraEnabled(currentlyMuted);
+      await localParticipant.setCameraEnabled(!currentlyEnabled);
     } catch (e) {
       _onMediaError?.call('toggle_camera', e);
     } finally {
@@ -354,14 +355,26 @@ class RoomController extends ChangeNotifier {
         final hasCapturePermission =
             await PlatformUtils.requestCapturePermission();
         if (!hasCapturePermission) {
-          _onMediaError?.call('screen_share_permission', 'Capture permission denied');
+          _onMediaError?.call(
+            'screen_share_permission',
+            'Capture permission denied',
+          );
           return;
         }
 
         // Setup foreground service for Android screen sharing
         final setupSuccess = await PlatformUtils.setupAndroidScreenShare();
+
+        print(
+          setupSuccess
+              ? 'Android screen share setup successful'
+              : 'Android screen share setup failed: $setupSuccess',
+        );
         if (!setupSuccess) {
-          _onMediaError?.call('screen_share_setup', 'Failed to setup background service');
+          _onMediaError?.call(
+            'screen_share_setup',
+            'Failed to setup background service',
+          );
           return;
         }
       }
