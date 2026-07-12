@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../connect_colors.dart';
 import '../providers/meeting_provider.dart';
 import '../widgets/prejoin_sheet.dart';
-import '../../data/meeting_code_parser.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 /// Connect tab main screen for creating and joining meetings
@@ -17,15 +17,79 @@ class ConnectScreen extends StatefulWidget {
 
 class _ConnectScreenState extends State<ConnectScreen> {
   final _joinCodeController = TextEditingController();
+  final _joinFocusNode = FocusNode();
+
   bool _isCreatingMeeting = false;
   bool _isJoiningMeeting = false;
   String? _joinError;
 
   @override
+  void initState() {
+    super.initState();
+    // Rebuild on every keystroke so the Join button + parsed-code preview
+    // stay in sync with what's typed/pasted.
+    _joinCodeController.addListener(_onJoinTextChanged);
+  }
+
+  void _onJoinTextChanged() {
+    if (_joinError != null) {
+      setState(() => _joinError = null);
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
+    _joinCodeController.removeListener(_onJoinTextChanged);
     _joinCodeController.dispose();
+    _joinFocusNode.dispose();
     super.dispose();
   }
+
+  /// Extracts a clean meeting code from whatever the user typed or pasted.
+  ///
+  /// Handles:
+  ///  - Full links, e.g. https://connect.volantislive.com/btzm8pnjedsy
+  ///  - Links with trailing slashes, query params, or fragments
+  ///  - Links without a scheme, e.g. connect.volantislive.com/btzm8pnjedsy
+  ///  - Raw codes with stray whitespace, dashes, or mixed case
+  ///
+  /// Returns null if no plausible code could be found.
+  static String? extractMeetingCode(String raw) {
+    var input = raw.trim();
+    if (input.isEmpty) return null;
+
+    // If it looks like a link (has a scheme or a dot-separated host followed
+    // by a path), pull the last non-empty path segment.
+    final looksLikeUrl =
+        input.contains('/') &&
+        (input.startsWith('http://') ||
+            input.startsWith('https://') ||
+            RegExp(r'^[\w-]+(\.[\w-]+)+/').hasMatch(input));
+
+    if (looksLikeUrl) {
+      final normalized =
+          input.startsWith('http://') || input.startsWith('https://')
+          ? input
+          : 'https://$input';
+
+      final uri = Uri.tryParse(normalized);
+      final segments = uri?.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments != null && segments.isNotEmpty) {
+        input = segments.last;
+      }
+    }
+
+    // Strip anything that isn't alphanumeric (handles stray dashes, spaces
+    // pasted in the middle of a code, etc.) and normalize case.
+    final code = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+
+    if (code.length < 4) return null;
+    return code;
+  }
+
+  String? get _parsedCode => extractMeetingCode(_joinCodeController.text);
 
   Future<void> _createMeeting() async {
     final authProvider = context.read<AuthProvider>();
@@ -40,7 +104,6 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
     try {
       final meeting = await meetingProvider.createInstantMeeting();
-      print('ConnectScreen: Created meeting ${meeting.niceId}');
 
       if (!mounted) return;
 
@@ -69,7 +132,6 @@ class _ConnectScreenState extends State<ConnectScreen> {
         ),
       );
     } catch (e) {
-      print('ConnectScreen: Error creating meeting: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -83,18 +145,26 @@ class _ConnectScreenState extends State<ConnectScreen> {
   }
 
   Future<void> _joinMeeting() async {
-    final code = _joinCodeController.text.trim();
-    if (code.isEmpty) return;
+    final code = extractMeetingCode(_joinCodeController.text);
 
-    setState(() => _joinError = null);
+    if (code == null) {
+      setState(
+        () =>
+            _joinError = "That doesn't look like a valid meeting code or link",
+      );
+      return;
+    }
+
+    setState(() {
+      _joinError = null;
+      _isJoiningMeeting = true;
+    });
+    _joinFocusNode.unfocus();
 
     final meetingProvider = context.read<MeetingProvider>();
     final authProvider = context.read<AuthProvider>();
 
-    setState(() => _isJoiningMeeting = true);
-
     try {
-      // Check if user is authenticated
       if (authProvider.isAuthenticated) {
         // Authenticated join
         final args = await meetingProvider.resolveJoin(code);
@@ -126,16 +196,32 @@ class _ConnectScreenState extends State<ConnectScreen> {
         context.push('/connect/room/$code', extra: args);
       }
     } catch (e) {
-      print('ConnectScreen: Error joining meeting: $e');
       setState(() {
-        _joinError = e.toString();
+        _joinError =
+            'Could not join that meeting. Double-check the code and try again.';
         _isJoiningMeeting = false;
       });
     }
   }
 
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty) return;
+
+    _joinCodeController.text = text.trim();
+    _joinCodeController.selection = TextSelection.collapsed(
+      offset: _joinCodeController.text.length,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasText = _joinCodeController.text.trim().isNotEmpty;
+    final parsedCode = _parsedCode;
+    final canJoin =
+        !_isJoiningMeeting && !_isCreatingMeeting && parsedCode != null;
+
     return Scaffold(
       backgroundColor: ConnectColors.bg,
       body: SafeArea(
@@ -190,7 +276,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                           ? null
                           : _createMeeting,
                       icon: _isCreatingMeeting
-                          ? SizedBox(
+                          ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
@@ -214,6 +300,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF3B82F6),
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -222,18 +309,44 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   },
                 ),
               ),
+
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
+                  Expanded(child: Divider(color: ConnectColors.border)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'OR JOIN A MEETING',
+                      style: TextStyle(
+                        color: ConnectColors.textTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: ConnectColors.border)),
+                ],
+              ),
+
               const SizedBox(height: 16),
 
               // Join Code Field
               TextField(
                 controller: _joinCodeController,
-                onSubmitted: _isJoiningMeeting ? null : (_) => _joinMeeting(),
+                focusNode: _joinFocusNode,
+                onSubmitted: canJoin ? (_) => _joinMeeting() : null,
                 enabled: !_isJoiningMeeting,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.go,
+                autocorrect: false,
                 style: TextStyle(color: ConnectColors.text, fontSize: 15),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: ConnectColors.bgCard,
-                  hintText: 'Enter meeting code or link',
+                  hintText: 'Paste a link or enter a meeting code',
                   hintStyle: TextStyle(color: ConnectColors.textTertiary),
                   prefixIcon: Icon(
                     Icons.link_rounded,
@@ -254,19 +367,45 @@ class _ConnectScreenState extends State<ConnectScreen> {
                             ),
                           ),
                         )
-                      : null,
+                      : hasText
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: ConnectColors.textTertiary,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            _joinCodeController.clear();
+                            setState(() => _joinError = null);
+                          },
+                        )
+                      : IconButton(
+                          icon: Icon(
+                            Icons.content_paste_rounded,
+                            color: ConnectColors.textTertiary,
+                            size: 20,
+                          ),
+                          tooltip: 'Paste',
+                          onPressed: _pasteFromClipboard,
+                        ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(color: ConnectColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: ConnectColors.border),
+                    borderSide: BorderSide(
+                      color: _joinError != null
+                          ? ConnectColors.error
+                          : ConnectColors.border,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(
-                      color: ConnectColors.accent,
+                      color: _joinError != null
+                          ? ConnectColors.error
+                          : ConnectColors.accent,
                       width: 1.5,
                     ),
                   ),
@@ -280,9 +419,47 @@ class _ConnectScreenState extends State<ConnectScreen> {
               // Join error message
               if (_joinError != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _joinError!,
-                  style: TextStyle(color: ConnectColors.error, fontSize: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: ConnectColors.error,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _joinError!,
+                        style: TextStyle(
+                          color: ConnectColors.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ]
+              // Live preview of the parsed code so people know what they'll
+              // actually join, e.g. when they paste a full link.
+              else if (hasText && parsedCode != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: ConnectColors.accent,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Joining code: $parsedCode',
+                      style: TextStyle(
+                        color: ConnectColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ],
 
@@ -293,10 +470,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                 width: double.infinity,
                 height: 48,
                 child: OutlinedButton.icon(
-                  onPressed:
-                      _isJoiningMeeting || _joinCodeController.text.isEmpty
-                      ? null
-                      : _joinMeeting,
+                  onPressed: canJoin ? _joinMeeting : null,
                   icon: const Icon(Icons.input_rounded, size: 20),
                   label: const Text(
                     'Join Meeting',
@@ -308,8 +482,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: ConnectColors.accent,
+                    disabledForegroundColor: ConnectColors.textTertiary
+                        .withValues(alpha: 0.6),
                     side: BorderSide(
-                      color: ConnectColors.accent.withValues(alpha: 0.5),
+                      color: canJoin
+                          ? ConnectColors.accent.withValues(alpha: 0.5)
+                          : ConnectColors.border,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -351,7 +529,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Create a meeting or join with a code. Invite others to join using the generated code. '
+                      'Create a meeting or join with a code. Invite others by sharing the '
+                      'generated link, e.g. connect.volantislive.com/btzm8pnjedsy — pasting '
+                      'the full link or just the code both work. '
                       'You can enable or disable your camera and microphone at any time.',
                       style: TextStyle(
                         color: ConnectColors.textSecondary,

@@ -33,11 +33,37 @@ class ParticipantTile extends StatelessWidget {
     }
   }
 
+  /// Generate avatar background color based on participant name
+  Color _getAvatarColor() {
+    final colors = [
+      const Color(0xFF3B82F6), // blue
+      const Color(0xFF8B5CF6), // purple
+      const Color(0xFFEC4899), // pink
+      const Color(0xFFF59E0B), // amber
+      const Color(0xFF10B981), // emerald
+    ];
+    final hashCode = (participant.name ?? 'guest').hashCode;
+    return colors[hashCode.abs() % colors.length];
+  }
+
+  /// Get initials from participant name
+  String _getInitials() {
+    final name = participant.name ?? 'Guest';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0][0].toUpperCase();
+    }
+    return 'G';
+  }
+
   @override
   Widget build(BuildContext context) {
     final videoTrack = _getVideoTrack();
     final isSpeaking = participant.isSpeaking;
     final isMicMuted = participant.isMuted;
+    final hasVideo = videoTrack != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -51,33 +77,45 @@ class ParticipantTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Video or placeholder
-          if (videoTrack != null)
+          // Video or avatar placeholder
+          if (hasVideo)
             VideoTrackRenderer(
-              videoTrack,
+              videoTrack!,
               mirrorMode: VideoViewMirrorMode.auto,
               fit: VideoViewFit.cover,
             )
           else
             Container(
-              color: ConnectColors.bgSubtle,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _getAvatarColor(),
+                    _getAvatarColor().withValues(alpha: 0.7),
+                  ],
+                ),
+              ),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.videocam_off_outlined,
-                      color: ConnectColors.accent,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 8),
                     Text(
-                      'Camera Off',
-                      style: TextStyle(
-                        color: ConnectColors.textSecondary,
-                        fontSize: 12,
+                      _getInitials(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    if (isMicMuted)
+                      Icon(
+                        Icons.mic_off,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        size: 20,
+                      ),
                   ],
                 ),
               ),
@@ -94,8 +132,8 @@ class ParticipantTile extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0),
-                    Colors.black.withOpacity(0.6),
+                    Colors.black.withValues(alpha: 0),
+                    Colors.black.withValues(alpha: 0.6),
                   ],
                 ),
                 borderRadius: const BorderRadius.only(
@@ -145,7 +183,7 @@ class ParticipantTile extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: ConnectColors.success.withOpacity(0.4),
+                      color: ConnectColors.success.withValues(alpha: 0.4),
                       blurRadius: 4,
                     ),
                   ],

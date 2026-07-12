@@ -1,22 +1,26 @@
 import 'package:flutter/material.dart';
 import '../connect_colors.dart';
 
-/// Control bar with mic, camera, camera-flip, and leave buttons
+/// Control bar with mic, camera, camera-flip, screen share, and leave buttons
 class ControlBar extends StatefulWidget {
   final bool isMicEnabled;
   final bool isCameraEnabled;
+  final bool isScreenSharing;
   final VoidCallback onToggleMic;
   final VoidCallback onToggleCamera;
   final VoidCallback onFlipCamera;
+  final VoidCallback onToggleScreenShare;
   final VoidCallback onLeave;
 
   const ControlBar({
     super.key,
     required this.isMicEnabled,
     required this.isCameraEnabled,
+    required this.isScreenSharing,
     required this.onToggleMic,
     required this.onToggleCamera,
     required this.onFlipCamera,
+    required this.onToggleScreenShare,
     required this.onLeave,
   });
 
@@ -74,6 +78,12 @@ class _ControlBarState extends State<ControlBar> {
                   isActive: true,
                   onPressed: widget.onFlipCamera,
                   tooltip: 'Flip camera',
+                ),
+                _ControlButton(
+                  icon: Icons.screen_share_rounded,
+                  isActive: widget.isScreenSharing,
+                  onPressed: widget.onToggleScreenShare,
+                  tooltip: widget.isScreenSharing ? 'Stop sharing' : 'Share screen',
                 ),
                 _ControlButton(
                   icon: Icons.call_end_rounded,
