@@ -201,6 +201,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
             'Could not join that meeting. Double-check the code and try again.';
         _isJoiningMeeting = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isJoiningMeeting = false);
+      }
     }
   }
 
