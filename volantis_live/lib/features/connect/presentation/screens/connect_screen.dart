@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../connect_colors.dart';
 import '../providers/meeting_provider.dart';
 import '../widgets/prejoin_sheet.dart';
+import '../widgets/share_meeting_sheet.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 /// Connect tab main screen for creating and joining meetings
@@ -107,6 +108,21 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
       if (!mounted) return;
 
+      // Show share meeting sheet first
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
+        builder: (ctx) => ShareMeetingSheet(
+          meetingCode: meeting.niceId,
+          meetingTitle: meeting.title,
+          onJoin: () {},
+        ),
+      );
+
+      if (!mounted) return;
+
       // Show prejoin sheet
       final settings = await showModalBottomSheet<PrejoinSettings>(
         context: context,
@@ -129,6 +145,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           url: meeting.livekit?.livekitUrl ?? '',
           room: meeting.livekit?.room ?? '',
           displayName: authProvider.user?.username ?? 'User',
+          meetingCode: meeting.niceId,
         ),
       );
     } catch (e) {
@@ -169,7 +186,13 @@ class _ConnectScreenState extends State<ConnectScreen> {
         // Authenticated join
         final args = await meetingProvider.resolveJoin(code);
         if (!mounted) return;
-        context.push('/connect/room/$code', extra: args);
+        context.push('/connect/room/$code', extra: MeetingJoinArgs(
+          token: args.token,
+          url: args.url,
+          room: args.room,
+          displayName: args.displayName,
+          meetingCode: code,
+        ));
       } else {
         // Guest join - show prejoin sheet with name field
         final settings = await showModalBottomSheet<PrejoinSettings>(
@@ -193,7 +216,13 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
         if (!mounted) return;
 
-        context.push('/connect/room/$code', extra: args);
+        context.push('/connect/room/$code', extra: MeetingJoinArgs(
+          token: args.token,
+          url: args.url,
+          room: args.room,
+          displayName: args.displayName,
+          meetingCode: code,
+        ));
       }
     } catch (e) {
       setState(() {

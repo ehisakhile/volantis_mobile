@@ -124,11 +124,13 @@ class MeetingJoinArgs {
   final String url;
   final String room;
   final String displayName;
+  final String? meetingCode;
 
   MeetingJoinArgs({
     required this.token,
     required this.url,
     required this.room,
     required this.displayName,
+    this.meetingCode,
   });
 }

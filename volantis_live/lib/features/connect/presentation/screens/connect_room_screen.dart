@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import '../connect_colors.dart';
 import '../room/room_controller.dart';
 import '../widgets/control_bar.dart';
@@ -13,12 +15,14 @@ class ConnectRoomScreen extends StatefulWidget {
   final String url;
   final String token;
   final String displayName;
+  final String? meetingCode;
 
   const ConnectRoomScreen({
     super.key,
     required this.url,
     required this.token,
     required this.displayName,
+    this.meetingCode,
   });
 
   @override
@@ -137,6 +141,107 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     // The RoomController's dispose will clean up the LiveKit room
     // and all associated tracks, participants, and streams
     _controller.dispose();
+  }
+
+  String get meetingLink => widget.meetingCode != null
+      ? 'connect.volantislive.com/${widget.meetingCode}'
+      : '';
+
+  Future<void> _shareMeeting() async {
+    if (widget.meetingCode == null) return;
+    await Share.share(
+      'Join my meeting: $meetingLink',
+      subject: 'Join my meeting',
+    );
+  }
+
+  Future<void> _copyLink() async {
+    if (meetingLink.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: meetingLink));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Link copied to clipboard'),
+          backgroundColor: ConnectColors.success,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showShareOptions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ConnectColors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Share Meeting',
+                style: TextStyle(
+                  color: ConnectColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                meetingLink,
+                style: TextStyle(
+                  color: ConnectColors.accent,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: ConnectColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.copy_rounded, color: ConnectColors.accent, size: 20),
+                ),
+                title: Text('Copy Link', style: TextStyle(color: ConnectColors.text)),
+                subtitle: Text('Copy to clipboard', style: TextStyle(color: ConnectColors.textSecondary, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _copyLink();
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: ConnectColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.share_rounded, color: ConnectColors.accent, size: 20),
+                ),
+                title: Text('Share', style: TextStyle(color: ConnectColors.text)),
+                subtitle: Text('Share via other apps', style: TextStyle(color: ConnectColors.textSecondary, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _shareMeeting();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -331,6 +436,54 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                   ),
                 ),
               ),
+
+              // Share button (only if meeting code is available)
+              if (widget.meetingCode != null)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _showShareOptions(context),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.share_rounded,
+                                color: ConnectColors.text,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Share',
+                                style: TextStyle(
+                                  color: ConnectColors.text,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );

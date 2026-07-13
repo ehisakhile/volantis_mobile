@@ -201,6 +201,7 @@ class AppRouter {
             url: args.url,
             token: args.token,
             displayName: args.displayName,
+            meetingCode: args.meetingCode,
           );
         },
       ),
