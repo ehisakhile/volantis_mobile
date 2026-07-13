@@ -194,10 +194,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
               const SizedBox(height: 4),
               Text(
                 meetingLink,
-                style: TextStyle(
-                  color: ConnectColors.accent,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: ConnectColors.accent, fontSize: 12),
               ),
               const SizedBox(height: 20),
               ListTile(
@@ -208,10 +205,23 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                     color: ConnectColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.copy_rounded, color: ConnectColors.accent, size: 20),
+                  child: Icon(
+                    Icons.copy_rounded,
+                    color: ConnectColors.accent,
+                    size: 20,
+                  ),
                 ),
-                title: Text('Copy Link', style: TextStyle(color: ConnectColors.text)),
-                subtitle: Text('Copy to clipboard', style: TextStyle(color: ConnectColors.textSecondary, fontSize: 12)),
+                title: Text(
+                  'Copy Link',
+                  style: TextStyle(color: ConnectColors.text),
+                ),
+                subtitle: Text(
+                  'Copy to clipboard',
+                  style: TextStyle(
+                    color: ConnectColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _copyLink();
@@ -226,10 +236,23 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                     color: ConnectColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.share_rounded, color: ConnectColors.accent, size: 20),
+                  child: Icon(
+                    Icons.share_rounded,
+                    color: ConnectColors.accent,
+                    size: 20,
+                  ),
                 ),
-                title: Text('Share', style: TextStyle(color: ConnectColors.text)),
-                subtitle: Text('Share via other apps', style: TextStyle(color: ConnectColors.textSecondary, fontSize: 12)),
+                title: Text(
+                  'Share',
+                  style: TextStyle(color: ConnectColors.text),
+                ),
+                subtitle: Text(
+                  'Share via other apps',
+                  style: TextStyle(
+                    color: ConnectColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _shareMeeting();
@@ -271,7 +294,9 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   }
 
   /// Get remaining participants not in main grid
-  List<ParticipantTrack> _getOverflowParticipants(List<ParticipantTrack> allTracks) {
+  List<ParticipantTrack> _getOverflowParticipants(
+    List<ParticipantTrack> allTracks,
+  ) {
     final topParticipants = _getTopParticipants(allTracks);
     final topSids = topParticipants.map((t) => t.participant.sid).toSet();
     return allTracks
@@ -291,19 +316,21 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     if (_isConnecting) {
       return Scaffold(
         backgroundColor: ConnectColors.bg,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(ConnectColors.accent),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Connecting...',
-                style: TextStyle(color: ConnectColors.text, fontSize: 16),
-              ),
-            ],
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(ConnectColors.accent),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Connecting...',
+                  style: TextStyle(color: ConnectColors.text, fontSize: 16),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -312,40 +339,42 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     if (_error != null) {
       return Scaffold(
         backgroundColor: ConnectColors.bg,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, color: ConnectColors.error, size: 48),
-                const SizedBox(height: 16),
-                Text(
-                  'Connection Error',
-                  style: TextStyle(
-                    color: ConnectColors.text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, color: ConnectColors.error, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Connection Error',
+                    style: TextStyle(
+                      color: ConnectColors.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: ConnectColors.textSecondary,
-                    fontSize: 14,
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ConnectColors.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ConnectColors.accent,
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ConnectColors.accent,
+                    ),
+                    child: const Text('Go Back'),
                   ),
-                  child: const Text('Go Back'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -379,85 +408,66 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
             screenShareVideoTrack is VideoTrack) {
           return Scaffold(
             backgroundColor: Colors.black,
-            body: ScreenShareViewer(
-              track: screenShareVideoTrack,
-              isFullscreen: true,
-              onToggleFullscreen: () {
-                setState(() => _isScreenShareFullscreen = false);
-              },
+            body: SafeArea(
+              child: ScreenShareViewer(
+                track: screenShareVideoTrack,
+                isFullscreen: true,
+                onToggleFullscreen: () {
+                  setState(() => _isScreenShareFullscreen = false);
+                },
+              ),
             ),
           );
         }
 
         return Scaffold(
           backgroundColor: ConnectColors.bg,
-          body: Stack(
-            children: [
-              if (allTracks.isEmpty)
-                Center(
-                  child: Text(
-                    'Waiting for participants...',
-                    style: TextStyle(
-                      color: ConnectColors.textSecondary,
-                      fontSize: 16,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                if (allTracks.isEmpty)
+                  Center(
+                    child: Text(
+                      'Waiting for participants...',
+                      style: TextStyle(
+                        color: ConnectColors.textSecondary,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                )
-              else
-                SafeArea(
-                  child: Padding(
+                  )
+                else
+                  Padding(
                     padding: const EdgeInsets.all(8),
-                    child: (hasScreenShare && screenShareVideoTrack is VideoTrack)
-                        ? _buildScreenShareLayout(screenShareVideoTrack, allTracks)
+                    child:
+                        (hasScreenShare && screenShareVideoTrack is VideoTrack)
+                        ? _buildScreenShareLayout(
+                            screenShareVideoTrack,
+                            allTracks,
+                          )
                         : _buildMainGrid(allTracks),
                   ),
+
+                // Control bar
+                ControlBar(
+                  isMicEnabled: _controller.isMicEnabled,
+                  isCameraEnabled: _controller.isCameraEnabled,
+                  isScreenSharing: _controller.isScreenSharing,
+                  onToggleMic: _controller.toggleMic,
+                  onToggleCamera: _controller.toggleCamera,
+                  onFlipCamera: _controller.flipCamera,
+                  onToggleScreenShare: _controller.toggleScreenShare,
+                  onLeave: _leave,
                 ),
 
-              // Control bar
-              ControlBar(
-                isMicEnabled: _controller.isMicEnabled,
-                isCameraEnabled: _controller.isCameraEnabled,
-                isScreenSharing: _controller.isScreenSharing,
-                onToggleMic: _controller.toggleMic,
-                onToggleCamera: _controller.toggleCamera,
-                onFlipCamera: _controller.flipCamera,
-                onToggleScreenShare: _controller.toggleScreenShare,
-                onLeave: _leave,
-              ),
-
-              // Participant count badge
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Text(
-                    '${allTracks.length} ${allTracks.length != 1 ? 'participants' : 'participant'}',
-                    style: TextStyle(
-                      color: ConnectColors.text,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Share button (only if meeting code is available)
-              if (widget.meetingCode != null)
+                // Participant count badge
                 Positioned(
                   top: 16,
-                  right: 16,
+                  left: 16,
                   child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(20),
@@ -465,49 +475,74 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                         color: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => _showShareOptions(context),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.share_rounded,
-                                color: ConnectColors.text,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Share',
-                                style: TextStyle(
-                                  color: ConnectColors.text,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                    child: Text(
+                      '${allTracks.length} ${allTracks.length != 1 ? 'participants' : 'participant'}',
+                      style: TextStyle(
+                        color: ConnectColors.text,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
 
-              // +N overflow indicator (bottom-right, above controls)
-              if (!hasScreenShare)
-                Positioned(
-                  bottom: 80,
-                  right: 16,
-                  child: _buildOverflowIndicator(allTracks),
-                ),
-            ],
+                // Share button (only if meeting code is available)
+                if (widget.meetingCode != null)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () => _showShareOptions(context),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.share_rounded,
+                                  color: ConnectColors.text,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Share',
+                                  style: TextStyle(
+                                    color: ConnectColors.text,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // +N overflow indicator (bottom-right, above controls)
+                if (!hasScreenShare)
+                  Positioned(
+                    bottom: 80,
+                    right: 16,
+                    child: _buildOverflowIndicator(allTracks),
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -523,11 +558,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     final topParticipants = _getTopParticipants(allTracks);
 
     return Column(
-      children: [
-        Expanded(
-          child: _buildStableGrid(topParticipants),
-        ),
-      ],
+      children: [Expanded(child: _buildStableGrid(topParticipants))],
     );
   }
 
@@ -608,8 +639,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     VideoTrack screenShareVideoTrack,
     List<ParticipantTrack> allTracks,
   ) {
-    final regularTracks =
-        allTracks.where((t) => !t.isScreenShare).toList();
+    final regularTracks = allTracks.where((t) => !t.isScreenShare).toList();
     final overflowTracks = _getOverflowParticipants(allTracks);
     final hasOverflow = overflowTracks.isNotEmpty;
 
@@ -763,10 +793,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                 decoration: BoxDecoration(
                   color: ConnectColors.accent,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: ConnectColors.bg,
-                    width: 2,
-                  ),
+                  border: Border.all(color: ConnectColors.bg, width: 2),
                 ),
                 child: Center(
                   child: Text(
@@ -878,9 +905,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
         crossAxisSpacing: 0,
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(12),
-            ),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(12)),
             child: _buildAvatarTile(participants[0]),
           ),
           ClipRRect(
@@ -938,11 +963,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.person_rounded,
-              color: ConnectColors.text,
-              size: 16,
-            ),
+            Icon(Icons.person_rounded, color: ConnectColors.text, size: 16),
             const SizedBox(height: 2),
             Text(
               participant.name.isNotEmpty
@@ -964,8 +985,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   /// Tap a participant to bring them into the main grid
   void _showParticipantsExplorer(BuildContext context) {
     final allTracks = _controller.participantTracks;
-    final regularTracks =
-        allTracks.where((t) => !t.isScreenShare).toList();
+    final regularTracks = allTracks.where((t) => !t.isScreenShare).toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -974,88 +994,91 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'All Participants',
-              style: TextStyle(
-                color: ConnectColors.text,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.75,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'All Participants',
+                style: TextStyle(
+                  color: ConnectColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
-                itemCount: regularTracks.length,
-                itemBuilder: (context, index) {
-                  final track = regularTracks[index];
-                  final isPinned = _pinnedParticipants
-                      .contains(track.participant.sid);
-
-                  return GestureDetector(
-                    onTap: () {
-                      // Pin this participant to bring into main view
-                      setState(() {
-                        _pinnedParticipants.clear();
-                        _pinnedParticipants.add(track.participant.sid);
-                      });
-                      Navigator.pop(ctx);
-                    },
-                    child: Stack(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: isPinned
-                                  ? ConnectColors.accent
-                                  : ConnectColors.border,
-                              width: isPinned ? 2 : 1,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ParticipantTile(
-                            participant: track.participant,
-                            isScreenShare: track.isScreenShare,
-                            isLocalParticipant: track.participant ==
-                                _controller.room.localParticipant,
-                          ),
-                        ),
-                        if (isPinned)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: ConnectColors.accent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.push_pin_rounded,
-                                color: Colors.white,
-                                size: 12,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: regularTracks.length,
+                  itemBuilder: (context, index) {
+                    final track = regularTracks[index];
+                    final isPinned = _pinnedParticipants.contains(
+                      track.participant.sid,
+                    );
+
+                    return GestureDetector(
+                      onTap: () {
+                        // Pin this participant to bring into main view
+                        setState(() {
+                          _pinnedParticipants.clear();
+                          _pinnedParticipants.add(track.participant.sid);
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: isPinned
+                                    ? ConnectColors.accent
+                                    : ConnectColors.border,
+                                width: isPinned ? 2 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ParticipantTile(
+                              participant: track.participant,
+                              isScreenShare: track.isScreenShare,
+                              isLocalParticipant:
+                                  track.participant ==
+                                  _controller.room.localParticipant,
+                            ),
+                          ),
+                          if (isPinned)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: ConnectColors.accent,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.push_pin_rounded,
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
