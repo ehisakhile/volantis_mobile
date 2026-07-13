@@ -10,7 +10,14 @@ import '../widgets/control_bar.dart';
 import '../widgets/participant_tile.dart';
 import '../widgets/screen_share_viewer.dart';
 
-/// Full-screen video conferencing room
+/// Full-screen video conferencing room with stable, non-jumping layout
+///
+/// Core principles:
+/// - Max 4 tiles on main screen (always stable, never resizes)
+/// - No tile resizing for active speaker (highlight with border glow instead)
+/// - Overflow shown via +N indicator at bottom-right
+/// - Additional participants accessible via 2-column explorer bottom sheet
+/// - Priority ordering: pinned > host > speaking > video
 class ConnectRoomScreen extends StatefulWidget {
   final String url;
   final String token;
@@ -36,19 +43,11 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   DateTime? _lastUnmuteNotification;
   Timer? _audioCheckTimer;
 
-  // Small grids (<=4 participants) use the exact hand-tuned 1/2/3/4 layouts.
-  // Once there are more people than that, we switch to a swipeable,
-  // Zoom-style paginated grid so everyone stays reachable via a swipe
-  // instead of being crammed into one screen or hidden behind dots you
-  // have to tap one at a time.
-  static const int _soloPageSize = 4;
-  static const int _crowdPageSize = 8;
+  // Main grid is always 4 participants max — stable layout
+  static const int _mainGridSize = 4;
 
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  // Focused tile: tap a tile to expand it; tap again to unfocus
-  String? _focusedParticipantId;
+  // Pinned participants (by SID) to keep them in main view
+  final Set<String> _pinnedParticipants = {};
 
   // Screen share fullscreen mode: hides chrome (control bar, participant
   // strip, badges) so the share fills the entire display.
@@ -244,10 +243,45 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
+  /// Calculate priority score for ordering participants
+  /// Higher score = higher priority in main grid
+  /// Pinned (100) > Speaking (50) > Has Video (30)
+  int _calculatePriority(ParticipantTrack track) {
+    int score = 0;
+
+    if (_pinnedParticipants.contains(track.participant.sid)) score += 100;
+    if (track.participant.isSpeaking) score += 50;
+
+    // Check if participant has a video track (not screen share)
+    final hasVideo = track.participant.videoTrackPublications
+        .where((pub) => !pub.isScreenShare)
+        .isNotEmpty;
+    if (hasVideo) score += 30;
+
+    return score;
+  }
+
+  /// Get the top 4 participants to show in main grid, sorted by priority
+  List<ParticipantTrack> _getTopParticipants(List<ParticipantTrack> allTracks) {
+    final regularTracks = allTracks.where((t) => !t.isScreenShare).toList();
+    regularTracks.sort((a, b) {
+      return _calculatePriority(b).compareTo(_calculatePriority(a));
+    });
+    return regularTracks.take(_mainGridSize).toList();
+  }
+
+  /// Get remaining participants not in main grid
+  List<ParticipantTrack> _getOverflowParticipants(List<ParticipantTrack> allTracks) {
+    final topParticipants = _getTopParticipants(allTracks);
+    final topSids = topParticipants.map((t) => t.participant.sid).toSet();
+    return allTracks
+        .where((t) => !t.isScreenShare && !topSids.contains(t.participant.sid))
+        .toList();
+  }
+
   @override
   void dispose() {
     _audioCheckTimer?.cancel();
-    _pageController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -337,8 +371,6 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                   .track
             : null;
 
-        final regularTracks = allTracks.where((t) => !t.isScreenShare).toList();
-
         // Fullscreen screen share: strip away all other chrome so the share
         // fills the entire display. The viewer itself provides an exit
         // button, so this is the only branch that returns early.
@@ -375,26 +407,9 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(8),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child:
-                              (hasScreenShare &&
-                                  screenShareVideoTrack is VideoTrack)
-                              ? _buildScreenShareLayout(
-                                  screenShareVideoTrack,
-                                  regularTracks,
-                                )
-                              : _buildParticipantPager(regularTracks),
-                        ),
-                        if (!hasScreenShare &&
-                            regularTracks.length > _soloPageSize)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: _buildPaginationDots(regularTracks.length),
-                          ),
-                      ],
-                    ),
+                    child: (hasScreenShare && screenShareVideoTrack is VideoTrack)
+                        ? _buildScreenShareLayout(screenShareVideoTrack, allTracks)
+                        : _buildMainGrid(allTracks),
                   ),
                 ),
 
@@ -484,6 +499,14 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                     ),
                   ),
                 ),
+
+              // +N overflow indicator (bottom-right, above controls)
+              if (!hasScreenShare)
+                Positioned(
+                  bottom: 80,
+                  right: 16,
+                  child: _buildOverflowIndicator(allTracks),
+                ),
             ],
           ),
         );
@@ -491,15 +514,86 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Screen share is showing: give it the spotlight (with full pan/zoom/
-  /// rotate/fit/fullscreen control) and keep every other participant
-  /// reachable in a horizontally scrollable strip below - including anyone
-  /// with camera/mic off, since RoomController now always keeps them in
-  /// the track list.
+  /// Build the main stable 4-tile grid with optional overflow indicator
+  Widget _buildMainGrid(List<ParticipantTrack> allTracks) {
+    if (allTracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final topParticipants = _getTopParticipants(allTracks);
+
+    return Column(
+      children: [
+        Expanded(
+          child: _buildStableGrid(topParticipants),
+        ),
+      ],
+    );
+  }
+
+  /// Build the stable 4-tile grid layout
+  /// Layout is fixed: single tile, 2-split, 3-split (centered), or 2x2
+  Widget _buildStableGrid(List<ParticipantTrack> tracks) {
+    if (tracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (tracks.length == 1) {
+      return _buildTile(tracks[0]);
+    } else if (tracks.length == 2) {
+      return Column(
+        children: [
+          Expanded(child: _buildTile(tracks[0])),
+          const SizedBox(height: 8),
+          Expanded(child: _buildTile(tracks[1])),
+        ],
+      );
+    } else if (tracks.length == 3) {
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: _buildTile(tracks[0])),
+                const SizedBox(width: 8),
+                Expanded(child: _buildTile(tracks[1])),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: _buildTile(tracks[2]),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 4 participants: 2x2 grid
+      return GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+        ),
+        itemCount: tracks.length,
+        itemBuilder: (context, index) => _buildTile(tracks[index]),
+      );
+    }
+  }
+
+  /// Screen share is showing: give it the spotlight with participants below
   Widget _buildScreenShareLayout(
     VideoTrack screenShareVideoTrack,
-    List<ParticipantTrack> regularTracks,
+    List<ParticipantTrack> allTracks,
   ) {
+    final regularTracks =
+        allTracks.where((t) => !t.isScreenShare).toList();
+
     return Column(
       children: [
         Expanded(
@@ -516,149 +610,44 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Expanded(flex: 30, child: _buildStrip(regularTracks)),
+        Expanded(
+          flex: 30,
+          child: _buildStrip(regularTracks),
+        ),
       ],
     );
   }
 
-  /// Swipeable pager over all non-screen-share participants. Groups <=4
-  /// people use the exact hand-tuned layout (1 full / 2 split / 3 split /
-  /// 2x2). Larger groups paginate 8 at a time in a dense grid, swipeable
-  /// left/right, so a class of 20+ students all stay reachable.
-  Widget _buildParticipantPager(List<ParticipantTrack> regularTracks) {
-    if (regularTracks.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  /// Build a single participant tile with active speaker highlighting
+  /// No resizing — only highlight with border glow when speaking
+  Widget _buildTile(ParticipantTrack track) {
+    final isSpeaking = track.participant.isSpeaking;
 
-    // If the user has focused a specific tile, show it large with the rest
-    // in a strip - regardless of how many total participants there are.
-    if (_focusedParticipantId != null &&
-        regularTracks.any((t) => t.participant.sid == _focusedParticipantId)) {
-      final focusTrack = regularTracks.firstWhere(
-        (t) => t.participant.sid == _focusedParticipantId,
-      );
-      final rest = regularTracks
-          .where((t) => t.participant.sid != _focusedParticipantId)
-          .toList();
-      return Column(
-        children: [
-          Expanded(flex: 60, child: _buildTile(focusTrack, isFocused: true)),
-          const SizedBox(height: 8),
-          Expanded(flex: 40, child: _buildStrip(rest)),
-        ],
-      );
-    }
-
-    final pageSize = regularTracks.length <= _soloPageSize
-        ? _soloPageSize
-        : _crowdPageSize;
-    final totalPages = (regularTracks.length / pageSize).ceil();
-    if (_currentPage >= totalPages) {
-      _currentPage = totalPages - 1;
-    }
-
-    return PageView.builder(
-      controller: _pageController,
-      itemCount: totalPages,
-      onPageChanged: (page) => setState(() => _currentPage = page),
-      itemBuilder: (context, pageIndex) {
-        final start = pageIndex * pageSize;
-        final end = (start + pageSize).clamp(0, regularTracks.length);
-        final pageTracks = regularTracks.sublist(start, end);
-        return _buildGridPage(pageTracks);
-      },
-    );
-  }
-
-  /// Lays out a single page of tiles. Small pages (<=4) use the exact
-  /// hand-tuned arrangement; larger pages (5-8, "swipe for more") use a
-  /// dense 2-column grid, similar to a Zoom gallery page.
-  Widget _buildGridPage(List<ParticipantTrack> pageTracks) {
-    if (pageTracks.length == 1) {
-      return _buildTile(pageTracks[0], isFocused: false);
-    } else if (pageTracks.length == 2) {
-      return Column(
-        children: [
-          Expanded(child: _buildTile(pageTracks[0], isFocused: false)),
-          const SizedBox(height: 8),
-          Expanded(child: _buildTile(pageTracks[1], isFocused: false)),
-        ],
-      );
-    } else if (pageTracks.length == 3) {
-      return Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(child: _buildTile(pageTracks[0], isFocused: false)),
-                const SizedBox(width: 8),
-                Expanded(child: _buildTile(pageTracks[1], isFocused: false)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 300),
-                child: _buildTile(pageTracks[2], isFocused: false),
-              ),
-            ),
-          ),
-        ],
-      );
-    } else if (pageTracks.length == 4) {
-      return GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: pageTracks.length,
-        itemBuilder: (context, index) =>
-            _buildTile(pageTracks[index], isFocused: false),
-      );
-    } else {
-      // 5-8 participants on this page: denser 2-column grid (up to 4 rows).
-      return GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          childAspectRatio: 1.1,
-        ),
-        itemCount: pageTracks.length,
-        itemBuilder: (context, index) =>
-            _buildTile(pageTracks[index], isFocused: false),
-      );
-    }
-  }
-
-  /// Build a single participant tile with tap-to-focus
-  Widget _buildTile(ParticipantTrack track, {required bool isFocused}) {
     return GestureDetector(
-      onTap: () {
+      onLongPress: () {
+        // Long-press to pin/unpin
         setState(() {
-          if (_focusedParticipantId == track.participant.sid) {
-            _focusedParticipantId = null; // Unfocus
+          if (_pinnedParticipants.contains(track.participant.sid)) {
+            _pinnedParticipants.remove(track.participant.sid);
           } else {
-            _focusedParticipantId = track.participant.sid; // Focus this tile
+            _pinnedParticipants.add(track.participant.sid);
           }
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          border: isFocused
-              ? Border.all(color: ConnectColors.accent, width: 3)
-              : Border.all(color: ConnectColors.border),
+          border: Border.all(
+            color: isSpeaking ? ConnectColors.accent : ConnectColors.border,
+            width: isSpeaking ? 3 : 1,
+          ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: isFocused
+          boxShadow: isSpeaking
               ? [
                   BoxShadow(
-                    color: ConnectColors.accent.withValues(alpha: 0.3),
-                    blurRadius: 8,
+                    color: ConnectColors.accent.withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    spreadRadius: 2,
                   ),
                 ]
               : null,
@@ -673,8 +662,8 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Build a horizontal, scrollable strip of participants (used below a
-  /// focused tile or an active screen share).
+  /// Build a horizontal scrollable strip of participants
+  /// Used below active screen share
   Widget _buildStrip(List<ParticipantTrack> tracks) {
     if (tracks.isEmpty) {
       return const SizedBox.expand();
@@ -688,45 +677,156 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           padding: EdgeInsets.only(left: index == 0 ? 0 : 8),
           child: AspectRatio(
             aspectRatio: 16 / 9,
-            child: _buildTile(tracks[index], isFocused: false),
+            child: _buildTile(tracks[index]),
           ),
         );
       },
     );
   }
 
-  /// Build pagination dots. Tapping one animates the swipeable pager to
-  /// that page, in sync with an actual left/right swipe.
-  Widget _buildPaginationDots(int participantCount) {
-    final pageSize = participantCount <= _soloPageSize
-        ? _soloPageSize
-        : _crowdPageSize;
-    final totalPages = (participantCount / pageSize).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
+  /// Build the +N overflow indicator
+  /// Shows count of participants not in main grid; tap to open explorer
+  Widget _buildOverflowIndicator(List<ParticipantTrack> allTracks) {
+    final overflow = _getOverflowParticipants(allTracks);
+    final overflowCount = overflow.length;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        totalPages,
-        (index) => GestureDetector(
-          onTap: () {
-            _pageController.animateToPage(
-              index,
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOut,
-            );
-          },
-          child: Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _currentPage == index
-                  ? ConnectColors.accent
-                  : ConnectColors.border,
+    if (overflowCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      onTap: () => _showParticipantsExplorer(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: ConnectColors.accent.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: ConnectColors.accent.withValues(alpha: 0.3),
+              blurRadius: 8,
             ),
-          ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.people_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '+$overflowCount',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Show all participants in a 2-column bottom sheet explorer
+  /// Tap a participant to bring them into the main grid
+  void _showParticipantsExplorer(BuildContext context) {
+    final allTracks = _controller.participantTracks;
+    final regularTracks =
+        allTracks.where((t) => !t.isScreenShare).toList();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ConnectColors.bg,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'All Participants',
+              style: TextStyle(
+                color: ConnectColors.text,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.75,
+                ),
+                itemCount: regularTracks.length,
+                itemBuilder: (context, index) {
+                  final track = regularTracks[index];
+                  final isPinned = _pinnedParticipants
+                      .contains(track.participant.sid);
+
+                  return GestureDetector(
+                    onTap: () {
+                      // Pin this participant to bring into main view
+                      setState(() {
+                        _pinnedParticipants.clear();
+                        _pinnedParticipants.add(track.participant.sid);
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: isPinned
+                                  ? ConnectColors.accent
+                                  : ConnectColors.border,
+                              width: isPinned ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ParticipantTile(
+                            participant: track.participant,
+                            isScreenShare: track.isScreenShare,
+                            isLocalParticipant: track.participant ==
+                                _controller.room.localParticipant,
+                          ),
+                        ),
+                        if (isPinned)
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: ConnectColors.accent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.push_pin_rounded,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
