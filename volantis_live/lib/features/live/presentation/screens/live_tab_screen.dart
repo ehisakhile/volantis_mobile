@@ -6,7 +6,6 @@ import '../../../../core/widgets/loading_shimmer.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../home/data/models/company_model.dart';
 import '../../../home/data/models/recommendations_model.dart';
-import '../../../home/data/models/subscription_model.dart';
 import '../../../home/presentation/providers/home_provider.dart';
 import '../../../streams/presentation/providers/streams_provider.dart';
 import '../../../streams/presentation/widgets/full_screen_player_sheet.dart';
@@ -31,16 +30,11 @@ class _LiveTabScreenState extends State<LiveTabScreen>
   static const _glassCard = Color(0xFF0F1D30);
   static const _surfaceHigh = Color(0xFF1A2D45);
   static const _primary = Color(0xFF38BDF8);
-  static const _primaryDark = Color(0xFF0C4A6E);
-  static const _accentBlue = Color(0xFF0EA5E9);
-  static const _accentPurple = Color(0xFF8B5CF6);
   static const _liveRed = Color(0xFFEF4444);
-  static const _onPrimary = Color(0xFFFFFFFF);
   static const _onSurface = Color(0xFFFFFFFF);
   static const _onSurfaceMedium = Color(0xFFCBD5E1);
   static const _onVariant = Color(0xFF64748B);
   static const _outline = Color(0xFF475569);
-  static const _outlineVar = Color(0xFF1E3A5F);
 
   @override
   void initState() {
@@ -85,6 +79,8 @@ class _LiveTabScreenState extends State<LiveTabScreen>
               return const LoadingShimmer();
             }
 
+            final hasSubscriptions = homeProvider.followedCompanies.isNotEmpty;
+
             return RefreshIndicator(
               color: _primary,
               backgroundColor: _glassCard,
@@ -102,23 +98,34 @@ class _LiveTabScreenState extends State<LiveTabScreen>
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
                   SliverToBoxAdapter(child: _buildHeader(homeProvider)),
-                  SliverToBoxAdapter(child: _buildSearchBar(homeProvider)),
-                  SliverToBoxAdapter(
-                    child: FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: homeProvider.isSearching
-                          ? _buildSearchResults(homeProvider)
-                          : Column(
-                              children: [
-                                _buildPersonalSummary(homeProvider),
-                                if (homeProvider.subscribedLivestreams
-                                    .isNotEmpty)
-                                  _buildLiveNow(homeProvider),
-                                _buildSubscribedCreators(homeProvider),
-                              ],
-                            ),
+                  if (homeProvider.isSearching) ...[
+                    SliverToBoxAdapter(child: _buildSearchBar(homeProvider)),
+                    SliverToBoxAdapter(
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: _buildSearchResults(homeProvider),
+                      ),
                     ),
-                  ),
+                  ] else if (!hasSubscriptions) ...[
+                    SliverToBoxAdapter(child: _buildOnboardingBlock(homeProvider)),
+                  ] else ...[
+                    SliverToBoxAdapter(child: _buildSearchBar(homeProvider)),
+                    SliverToBoxAdapter(
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: Column(
+                          children: [
+                            _buildPersonalSummary(homeProvider),
+                            if (homeProvider
+                                .subscribedLivestreams
+                                .isNotEmpty)
+                              _buildLiveNow(homeProvider),
+                            _buildSubscribedCreators(homeProvider),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SliverPadding(padding: EdgeInsets.only(bottom: 112)),
                 ],
               ),
@@ -134,10 +141,6 @@ class _LiveTabScreenState extends State<LiveTabScreen>
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Row(
         children: [
-          _buildHeaderIconButton(
-            icon: Icons.person_rounded,
-            onTap: () => context.go('/profile'),
-          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -154,8 +157,10 @@ class _LiveTabScreenState extends State<LiveTabScreen>
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    const _LiveIndicator(),
+                    if (provider.subscribedLivestreams.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      const _LiveIndicator(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -172,13 +177,19 @@ class _LiveTabScreenState extends State<LiveTabScreen>
               ],
             ),
           ),
-          _buildRefreshButton(provider.refresh),
+          _buildHeaderIconButton(
+            icon: Icons.person_rounded,
+            onTap: () => context.go('/profile'),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderIconButton({required IconData icon, required VoidCallback onTap}) {
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -187,22 +198,11 @@ class _LiveTabScreenState extends State<LiveTabScreen>
         decoration: BoxDecoration(
           color: _surfaceLight,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: _outline.withOpacity(0.3)),
         ),
         child: Icon(icon, color: _primary, size: 22),
       ),
     );
-  }
-
-  Widget _buildRefreshButton(VoidCallback onTap) {
-    return _RefreshIconButton(onTap: onTap);
   }
 
   Widget _buildSearchBar(HomeProvider provider) {
@@ -214,23 +214,12 @@ class _LiveTabScreenState extends State<LiveTabScreen>
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
-            color: _surface.withOpacity(0.7),
+            color: _surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _searchFocused
-                  ? _primary.withOpacity(0.6)
-                  : _outlineVar.withOpacity(0.3),
+              color: _searchFocused ? _primary : _outline.withOpacity(0.3),
               width: _searchFocused ? 1.5 : 1,
             ),
-            boxShadow: _searchFocused
-                ? [
-                    BoxShadow(
-                      color: _primary.withOpacity(0.1),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
           ),
           child: TextField(
             controller: _searchController,
@@ -242,15 +231,15 @@ class _LiveTabScreenState extends State<LiveTabScreen>
                 }
               });
             },
-            style: const TextStyle(
-              color: _onSurfaceMedium,
-              fontSize: 15,
-            ),
+            style: const TextStyle(color: _onSurfaceMedium, fontSize: 15),
             decoration: InputDecoration(
               hintText: 'Search any organisation or creator',
               hintStyle: TextStyle(color: _outline.withOpacity(0.9)),
-              prefixIcon: const Icon(Icons.search_rounded,
-                  color: _onVariant, size: 22),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: _onVariant,
+                size: 22,
+              ),
               suffixIcon: _searchController.text.isEmpty
                   ? null
                   : IconButton(
@@ -259,8 +248,7 @@ class _LiveTabScreenState extends State<LiveTabScreen>
                         provider.clearSearch();
                         setState(() {});
                       },
-                      icon:
-                          const Icon(Icons.close_rounded, color: _onVariant),
+                      icon: const Icon(Icons.close_rounded, color: _onVariant),
                     ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 15),
@@ -268,6 +256,88 @@ class _LiveTabScreenState extends State<LiveTabScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOnboardingBlock(HomeProvider provider) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 40, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Find your community',
+                style: TextStyle(
+                  color: _onSurface,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Search for an organization or creator to start watching their live streams.',
+                style: TextStyle(
+                  color: _onVariant,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _buildSearchBar(provider),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _glassCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _outline.withOpacity(0.2)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: _primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.search_rounded,
+                    color: _primary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Nothing to see yet',
+                  style: TextStyle(
+                    color: _onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Subscribe to at least one organization to see their live streams and updates in this tab.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _onVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -280,23 +350,9 @@ class _LiveTabScreenState extends State<LiveTabScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _glassCard,
-              _surface.withOpacity(0.4),
-            ],
-          ),
+          color: _glassCard,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.04)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: _outline.withOpacity(0.2)),
         ),
         child: Row(
           children: [
@@ -304,18 +360,18 @@ class _LiveTabScreenState extends State<LiveTabScreen>
               label: 'Subscribed',
               value: '$creatorCount',
               icon: Icons.subscriptions_rounded,
-              gradientColors: const [_accentBlue, _accentPurple],
+              iconColor: _primary,
             ),
             Container(
               width: 1,
               height: 44,
-              color: _outlineVar.withOpacity(0.4),
+              color: _outline.withOpacity(0.2),
             ),
             _ModernSummaryMetric(
               label: 'Live now',
               value: '$liveCount',
               icon: Icons.podcasts_rounded,
-              gradientColors: const [_liveRed, Color(0xFFF97316)],
+              iconColor: _liveRed,
             ),
           ],
         ),
@@ -331,10 +387,7 @@ class _LiveTabScreenState extends State<LiveTabScreen>
           child: SizedBox(
             width: 32,
             height: 32,
-            child: CircularProgressIndicator(
-              color: _primary,
-              strokeWidth: 2.5,
-            ),
+            child: CircularProgressIndicator(color: _primary, strokeWidth: 2.5),
           ),
         ),
       );
@@ -544,136 +597,42 @@ class _LiveTabScreenState extends State<LiveTabScreen>
   }
 }
 
-class _LiveIndicator extends StatefulWidget {
+class _LiveIndicator extends StatelessWidget {
   const _LiveIndicator();
 
   @override
-  State<_LiveIndicator> createState() => _LiveIndicatorState();
-}
-
-class _LiveIndicatorState extends State<_LiveIndicator>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: _LiveTabScreenState._liveRed.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: _LiveTabScreenState._liveRed
-                  .withOpacity(0.3 + (_controller.value * 0.3)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _LiveTabScreenState._liveRed.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: _LiveTabScreenState._liveRed.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: _LiveTabScreenState._liveRed,
+              shape: BoxShape.circle,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _LiveTabScreenState._liveRed,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _LiveTabScreenState._liveRed.withOpacity(0.5),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 5),
-              const Text(
-                'LIVE',
-                style: TextStyle(
-                  color: _LiveTabScreenState._liveRed,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _RefreshIconButton extends StatefulWidget {
-  final VoidCallback onTap;
-
-  const _RefreshIconButton({required this.onTap});
-
-  @override
-  State<_RefreshIconButton> createState() => _RefreshIconButtonState();
-}
-
-class _RefreshIconButtonState extends State<_RefreshIconButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        widget.onTap();
-        _controller.forward(from: 0);
-      },
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: _LiveTabScreenState._surfaceLight,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+          const SizedBox(width: 5),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              color: _LiveTabScreenState._liveRed,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
             ),
-          ],
-        ),
-        child: RotationTransition(
-          turns: _controller,
-          child: Icon(Icons.refresh_rounded, color: _LiveTabScreenState._primary, size: 22),
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -683,13 +642,13 @@ class _ModernSummaryMetric extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final List<Color> gradientColors;
+  final Color iconColor;
 
   const _ModernSummaryMetric({
     required this.label,
     required this.value,
     required this.icon,
-    required this.gradientColors,
+    required this.iconColor,
   });
 
   @override
@@ -702,17 +661,10 @@ class _ModernSummaryMetric extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: gradientColors),
+              color: iconColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: gradientColors.first.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: iconColor, size: 18),
           ),
           const SizedBox(width: 10),
           Column(
@@ -773,17 +725,8 @@ class _SectionTitle extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: const [_LiveTabScreenState._liveRed, Color(0xFFF97316)],
-                ),
+                color: _LiveTabScreenState._liveRed,
                 borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    color: _LiveTabScreenState._liveRed.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
               child: Text(
                 trailing,
@@ -841,16 +784,9 @@ class _CompanySearchTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _LiveTabScreenState._glassCard.withOpacity(0.8),
+            color: _LiveTabScreenState._glassCard,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.04)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            border: Border.all(color: _LiveTabScreenState._outline.withOpacity(0.2)),
           ),
           child: Row(
             children: [
@@ -887,7 +823,9 @@ class _CompanySearchTile extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _ModernSubscribeButton(
-                  isSubscribed: isSubscribed, onTap: onSubscribe),
+                isSubscribed: isSubscribed,
+                onTap: onSubscribe,
+              ),
             ],
           ),
         ),
@@ -919,22 +857,13 @@ class _SubscribedCreatorTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _LiveTabScreenState._glassCard.withOpacity(0.8),
+          color: _LiveTabScreenState._glassCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: hasLive
                 ? _LiveTabScreenState._liveRed.withOpacity(0.3)
-                : Colors.white.withOpacity(0.04),
+                : _LiveTabScreenState._outline.withOpacity(0.2),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: hasLive
-                  ? _LiveTabScreenState._liveRed.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         child: Row(
           children: [
@@ -982,20 +911,8 @@ class _SubscribedCreatorTile extends StatelessWidget {
                 height: 36,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      _LiveTabScreenState._accentBlue,
-                      _LiveTabScreenState._accentPurple
-                    ],
-                  ),
+                  color: _LiveTabScreenState._primary,
                   borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _LiveTabScreenState._accentBlue.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1061,14 +978,7 @@ class _LiveStreamCardState extends State<_LiveStreamCard> {
         decoration: BoxDecoration(
           color: _LiveTabScreenState._glassCard,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          border: Border.all(color: _LiveTabScreenState._outline.withOpacity(0.2)),
         ),
         clipBehavior: Clip.hardEdge,
         child: Stack(
@@ -1099,14 +1009,7 @@ class _LiveStreamCardState extends State<_LiveStreamCard> {
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.1),
-                      Colors.black.withOpacity(0.8),
-                    ],
-                  ),
+                  color: Colors.black.withOpacity(0.55),
                 ),
               ),
             ),
@@ -1145,8 +1048,7 @@ class _LiveStreamCardState extends State<_LiveStreamCard> {
               right: 10,
               bottom: 12,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(999),
@@ -1183,8 +1085,10 @@ class _ModernSubscribeButton extends StatefulWidget {
   final bool isSubscribed;
   final VoidCallback onTap;
 
-  const _ModernSubscribeButton(
-      {required this.isSubscribed, required this.onTap});
+  const _ModernSubscribeButton({
+    required this.isSubscribed,
+    required this.onTap,
+  });
 
   @override
   State<_ModernSubscribeButton> createState() => _ModernSubscribeButtonState();
@@ -1206,31 +1110,13 @@ class _ModernSubscribeButtonState extends State<_ModernSubscribeButton> {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
         decoration: BoxDecoration(
-          gradient: widget.isSubscribed
-              ? null
-              : const LinearGradient(
-                  colors: [
-                    _LiveTabScreenState._accentBlue,
-                    _LiveTabScreenState._accentPurple
-                  ],
-                ),
           color: widget.isSubscribed
               ? _LiveTabScreenState._primary.withOpacity(0.12)
-              : null,
+              : _LiveTabScreenState._primary,
           borderRadius: BorderRadius.circular(999),
           border: widget.isSubscribed
-              ? Border.all(
-                  color: _LiveTabScreenState._primary.withOpacity(0.5))
+              ? Border.all(color: _LiveTabScreenState._primary.withOpacity(0.5))
               : null,
-          boxShadow: widget.isSubscribed
-              ? null
-              : [
-                  BoxShadow(
-                    color: _LiveTabScreenState._accentBlue.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1260,22 +1146,8 @@ class _OrgAvatar extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _LiveTabScreenState._surfaceHigh,
-            _LiveTabScreenState._surfaceLight
-          ],
-        ),
+        color: _LiveTabScreenState._surfaceLight,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       clipBehavior: Clip.hardEdge,
       child: logoUrl == null || logoUrl!.isEmpty
@@ -1309,17 +1181,8 @@ class _ModernLivePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [_LiveTabScreenState._liveRed, Color(0xFFF97316)],
-        ),
+        color: _LiveTabScreenState._liveRed,
         borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: _LiveTabScreenState._liveRed.withOpacity(0.4),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: const Text(
         'LIVE',
@@ -1360,7 +1223,7 @@ class _EmptyPanel extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [
                   _LiveTabScreenState._surfaceHigh,
-                  _LiveTabScreenState._surfaceLight
+                  _LiveTabScreenState._surfaceLight,
                 ],
               ),
               borderRadius: BorderRadius.circular(24),
@@ -1372,8 +1235,7 @@ class _EmptyPanel extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon,
-                color: _LiveTabScreenState._primary, size: 36),
+            child: Icon(icon, color: _LiveTabScreenState._primary, size: 36),
           ),
           const SizedBox(height: 20),
           Text(

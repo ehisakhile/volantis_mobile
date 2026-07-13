@@ -69,25 +69,9 @@ class _HomeScreenState extends State<HomeScreen>
         if (provider.companies.isEmpty && !provider.isLoading) {
           provider.init();
         }
-        _checkUserPreferences();
       }
     });
     _scrollController.addListener(_onScroll);
-  }
-
-  Future<void> _checkUserPreferences() async {
-    final categoryProvider = context.read<CategoryPreferencesProvider>();
-
-    if (categoryProvider.preferencesPromptShown) {
-      return;
-    }
-
-    await categoryProvider.checkUserPreferences();
-
-    if (!categoryProvider.hasUserPreferences && mounted) {
-      categoryProvider.markPreferencesPromptShown();
-      context.push('/set-preferences');
-    }
   }
 
   @override

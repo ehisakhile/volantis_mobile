@@ -73,15 +73,16 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Volantis Live uses the microphone for live audio streaming. This feature will be available in a future update.</string>
+	<string>Volantis Live uses the microphone so others can hear you in a Connect meeting.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Volantis Live uses the camera for video streaming. This feature will be available in a future update.</string>
+	<string>Volantis Live uses the camera so others can see you in a Connect meeting.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+	<string>applinks:volantislive.com</string>
 	<string>applinks:www.volantislive.com</string>
 	</array>
 	<key>CFBundleURLTypes</key>

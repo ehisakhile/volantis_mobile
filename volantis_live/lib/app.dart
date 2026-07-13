@@ -18,6 +18,7 @@ import 'features/recordings/presentation/providers/recordings_provider.dart';
 import 'features/downloads/presentation/providers/downloads_provider.dart';
 import 'features/categories/presentation/providers/category_preferences_provider.dart';
 import 'features/creator/presentation/providers/creator_provider.dart';
+import 'features/connect/presentation/providers/meeting_provider.dart';
 import 'services/download_manager.dart';
 import 'features/recordings/data/services/recordings_downloads_service.dart';
 
@@ -147,6 +148,9 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         ),
         ChangeNotifierProvider(create: (_) => CategoryPreferencesProvider()),
         ChangeNotifierProvider(create: (_) => CreatorProvider()),
+        ChangeNotifierProvider(
+          create: (context) => MeetingProvider(context.read<AuthProvider>()),
+        ),
         ChangeNotifierProvider<AppUpdateManager>.value(
           value: AppUpdateManager(),
         ),

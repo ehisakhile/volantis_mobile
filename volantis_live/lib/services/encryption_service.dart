@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
-import 'package:encrypt/encrypt.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pointycastle/export.dart';
 
 /// Service for encrypting and decrypting downloaded recordings
 /// Uses AES-256-CBC encryption with keys stored in secure storage
@@ -14,8 +15,8 @@ class EncryptionService {
   static const String _ivStorageKey = 'volantis_recording_encryption_iv';
 
   final FlutterSecureStorage _secureStorage;
-  Key? _encryptionKey;
-  IV? _encryptionIV;
+  Uint8List? _encryptionKey;
+  Uint8List? _encryptionIV;
 
   EncryptionService._()
     : _secureStorage = const FlutterSecureStorage(
@@ -40,23 +41,31 @@ class EncryptionService {
 
     if (storedKey != null && storedIV != null) {
       // Use existing key
-      _encryptionKey = Key(base64Decode(storedKey));
-      _encryptionIV = IV(base64Decode(storedIV));
+      _encryptionKey = base64Decode(storedKey);
+      _encryptionIV = base64Decode(storedIV);
     } else {
       // Generate new key and IV
-      _encryptionKey = Key.fromSecureRandom(32); // 256-bit key
-      _encryptionIV = IV.fromSecureRandom(16); // 128-bit IV
+      _encryptionKey = _secureRandomBytes(32); // 256-bit key
+      _encryptionIV = _secureRandomBytes(16); // 128-bit IV
 
       // Store them securely
       await _secureStorage.write(
         key: _keyStorageKey,
-        value: base64Encode(_encryptionKey!.bytes),
+        value: base64Encode(_encryptionKey!),
       );
       await _secureStorage.write(
         key: _ivStorageKey,
-        value: base64Encode(_encryptionIV!.bytes),
+        value: base64Encode(_encryptionIV!),
       );
     }
+  }
+
+  /// Generate cryptographically secure random bytes
+  Uint8List _secureRandomBytes(int length) {
+    final random = Random.secure();
+    return Uint8List.fromList(
+      List<int>.generate(length, (_) => random.nextInt(256)),
+    );
   }
 
   /// Get the encryption key (for storage reference only - never exposed)
@@ -65,34 +74,44 @@ class EncryptionService {
       throw Exception('Encryption service not initialized');
     }
     // Create a hash of the key for identification without exposing the key
-    final keyBytes = _encryptionKey!.bytes;
-    final hash = sha256.convert(keyBytes);
+    final hash = sha256.convert(_encryptionKey!);
     return hash.toString();
+  }
+
+  /// Build a fresh AES-256-CBC cipher (with PKCS7 padding) for the given direction
+  PaddedBlockCipher _buildCipher(bool forEncryption) {
+    if (_encryptionKey == null || _encryptionIV == null) {
+      throw Exception('Encryption service not initialized');
+    }
+
+    final cipher = PaddedBlockCipherImpl(
+      PKCS7Padding(),
+      CBCBlockCipher(AESEngine()),
+    );
+
+    final params =
+        PaddedBlockCipherParameters<CipherParameters?, CipherParameters?>(
+          ParametersWithIV<KeyParameter>(
+            KeyParameter(_encryptionKey!),
+            _encryptionIV!,
+          ),
+          null,
+        );
+
+    cipher.init(forEncryption, params);
+    return cipher;
   }
 
   /// Encrypt data
   Uint8List encrypt(Uint8List data) {
-    if (_encryptionKey == null || _encryptionIV == null) {
-      throw Exception('Encryption service not initialized');
-    }
-
-    final encrypter = Encrypter(AES(_encryptionKey!, mode: AESMode.cbc));
-    final encrypted = encrypter.encryptBytes(data, iv: _encryptionIV);
-    return encrypted.bytes;
+    final cipher = _buildCipher(true);
+    return cipher.process(data);
   }
 
   /// Decrypt data
   Uint8List decrypt(Uint8List encryptedData) {
-    if (_encryptionKey == null || _encryptionIV == null) {
-      throw Exception('Encryption service not initialized');
-    }
-
-    final encrypter = Encrypter(AES(_encryptionKey!, mode: AESMode.cbc));
-    final decrypted = encrypter.decryptBytes(
-      Encrypted(encryptedData),
-      iv: _encryptionIV,
-    );
-    return Uint8List.fromList(decrypted);
+    final cipher = _buildCipher(false);
+    return cipher.process(encryptedData);
   }
 
   /// Encrypt a file and save to destination
