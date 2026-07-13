@@ -9,6 +9,12 @@ import '../room/room_controller.dart';
 import '../widgets/control_bar.dart';
 import '../widgets/participant_tile.dart';
 import '../widgets/screen_share_viewer.dart';
+import '../widgets/reaction_scope.dart';
+import '../widgets/hand_raise_scope.dart';
+import '../widgets/reaction_overlay.dart';
+import '../widgets/raised_hands_list.dart';
+import '../../models/reaction_instance.dart';
+import '../../models/hand_raise_model.dart';
 
 /// Full-screen video conferencing room with stable, non-jumping layout
 ///
@@ -137,6 +143,9 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
 
   void _clearMeetingState() {
     print('ConnectRoomScreen: Clearing all meeting state');
+    // Clear reaction and hand raise state from room stores
+    RoomReactionStore.clear(widget.meetingCode ?? '');
+    RoomHandRaiseStore.clear(widget.meetingCode ?? '');
     // The RoomController's dispose will clean up the LiveKit room
     // and all associated tracks, participants, and streams
     _controller.dispose();
@@ -381,9 +390,13 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
       );
     }
 
-    return ListenableBuilder(
-      listenable: _controller,
-      builder: (context, _) {
+    return ReactionScope(
+      room: _controller.room,
+      child: HandRaiseScope(
+        room: _controller.room,
+        child: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) {
         final allTracks = _controller.participantTracks;
 
         // Separate screen share from regular participants
@@ -447,6 +460,9 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                         : _buildMainGrid(allTracks),
                   ),
 
+                // Reaction overlay - shows animated floating reactions
+                const ReactionOverlay(),
+
                 // Control bar
                 ControlBar(
                   isMicEnabled: _controller.isMicEnabled,
@@ -485,6 +501,13 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                       ),
                     ),
                   ),
+                ),
+
+                // Raised hands list - shows who has hand raised
+                Positioned(
+                  top: 16,
+                  left: 16 + 120, // Next to participant count
+                  child: const RaisedHandsList(),
                 ),
 
                 // Share button (only if meeting code is available)
@@ -547,6 +570,8 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
           ),
         );
       },
+    ),
+      ),
     );
   }
 

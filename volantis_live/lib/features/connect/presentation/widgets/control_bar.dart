@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../connect_colors.dart';
 import 'menu_options_dialog.dart';
+import 'hand_raise_button.dart';
+import 'reaction_picker.dart';
 
 /// Control bar with mic, camera, screen share, menu, and leave buttons
 class ControlBar extends StatefulWidget {
@@ -97,6 +99,11 @@ class _ControlBarState extends State<ControlBar> {
                       ? 'Stop sharing'
                       : 'Share screen',
                 ),
+                const SizedBox(width: 4),
+                const ReactionPicker(),
+                const SizedBox(width: 4),
+                const HandRaiseButton(),
+                const SizedBox(width: 4),
                 _ControlButton(
                   icon: Icons.more_vert_rounded,
                   isActive: false,
