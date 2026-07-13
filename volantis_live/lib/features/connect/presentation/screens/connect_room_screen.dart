@@ -457,6 +457,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
                   onFlipCamera: _controller.flipCamera,
                   onToggleScreenShare: _controller.toggleScreenShare,
                   onLeave: _leave,
+                  room: _controller.room,
                 ),
 
                 // Participant count badge

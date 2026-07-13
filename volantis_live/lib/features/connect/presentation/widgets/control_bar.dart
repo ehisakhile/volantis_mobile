@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:livekit_client/livekit_client.dart';
 import '../connect_colors.dart';
+import 'menu_options_dialog.dart';
 
-/// Control bar with mic, camera, camera-flip, screen share, and leave buttons
+/// Control bar with mic, camera, screen share, menu, and leave buttons
 class ControlBar extends StatefulWidget {
   final bool isMicEnabled;
   final bool isCameraEnabled;
@@ -11,6 +13,7 @@ class ControlBar extends StatefulWidget {
   final VoidCallback onFlipCamera;
   final VoidCallback onToggleScreenShare;
   final VoidCallback onLeave;
+  final Room? room;
 
   const ControlBar({
     super.key,
@@ -22,6 +25,7 @@ class ControlBar extends StatefulWidget {
     required this.onFlipCamera,
     required this.onToggleScreenShare,
     required this.onLeave,
+    this.room,
   });
 
   @override
@@ -29,7 +33,15 @@ class ControlBar extends StatefulWidget {
 }
 
 class _ControlBarState extends State<ControlBar> {
-  bool _isAnimating = false;
+  void _openMenu(BuildContext context) {
+    if (widget.room == null) return;
+
+    showMenuOptionsDialog(
+      context,
+      onFlipCamera: widget.onFlipCamera,
+      room: widget.room!,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,18 +90,18 @@ class _ControlBarState extends State<ControlBar> {
                       : 'Start video',
                 ),
                 _ControlButton(
-                  icon: Icons.flip_camera_ios_rounded,
-                  isActive: true,
-                  onPressed: widget.onFlipCamera,
-                  tooltip: 'Flip camera',
-                ),
-                _ControlButton(
                   icon: Icons.screen_share_rounded,
                   isActive: widget.isScreenSharing,
                   onPressed: widget.onToggleScreenShare,
                   tooltip: widget.isScreenSharing
                       ? 'Stop sharing'
                       : 'Share screen',
+                ),
+                _ControlButton(
+                  icon: Icons.more_vert_rounded,
+                  isActive: false,
+                  onPressed: () => _openMenu(context),
+                  tooltip: 'More options',
                 ),
                 _ControlButton(
                   icon: Icons.call_end_rounded,
@@ -130,7 +142,6 @@ class _ControlButton extends StatefulWidget {
 class _ControlButtonState extends State<_ControlButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  bool _isPressed = false;
 
   @override
   void initState() {
@@ -155,16 +166,13 @@ class _ControlButtonState extends State<_ControlButton>
       onTap: widget.onPressed,
       child: GestureDetector(
         onTapDown: (_) {
-          setState(() => _isPressed = true);
           _controller.forward();
         },
         onTapUp: (_) {
-          setState(() => _isPressed = false);
           _controller.reverse();
           widget.onPressed();
         },
         onTapCancel: () {
-          setState(() => _isPressed = false);
           _controller.reverse();
         },
         child: AnimatedContainer(
@@ -223,3 +231,4 @@ class _ControlButtonState extends State<_ControlButton>
     return ConnectColors.textSecondary;
   }
 }
+
