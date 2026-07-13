@@ -533,6 +533,7 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
 
   /// Build the stable 4-tile grid layout
   /// Layout is fixed: single tile, 2-split, 3-split (centered), or 2x2
+  /// All layouts expand to fill available height
   Widget _buildStableGrid(List<ParticipantTrack> tracks) {
     if (tracks.isEmpty) {
       return const SizedBox.shrink();
@@ -572,16 +573,32 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
         ],
       );
     } else {
-      // 4 participants: 2x2 grid
-      return GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: tracks.length,
-        itemBuilder: (context, index) => _buildTile(tracks[index]),
+      // 4+ participants: 2x2 grid using full height
+      // Use LayoutBuilder to dynamically calculate aspect ratio for full space usage
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate the perfect aspect ratio to fill all available space
+          // For a 2x2 grid: each tile gets half the width and half the height
+          // childAspectRatio = width / height
+          // width per tile = (maxWidth - 8px gap) / 2
+          // height per tile = (maxHeight - 8px gap) / 2
+          final tileWidth = (constraints.maxWidth - 8) / 2;
+          final tileHeight = (constraints.maxHeight - 8) / 2;
+          final aspectRatio = tileWidth / tileHeight;
+
+          return GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: false,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: aspectRatio,
+            ),
+            itemCount: tracks.length,
+            itemBuilder: (context, index) => _buildTile(tracks[index]),
+          );
+        },
       );
     }
   }
@@ -593,6 +610,8 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
   ) {
     final regularTracks =
         allTracks.where((t) => !t.isScreenShare).toList();
+    final overflowTracks = _getOverflowParticipants(allTracks);
+    final hasOverflow = overflowTracks.isNotEmpty;
 
     return Column(
       children: [
@@ -612,7 +631,18 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
         const SizedBox(height: 8),
         Expanded(
           flex: 30,
-          child: _buildStrip(regularTracks),
+          child: Stack(
+            children: [
+              _buildScreenShareStrip(regularTracks),
+              // Overflow indicator for screen share strip
+              if (hasOverflow)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: _buildOverflowIndicator(allTracks),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -662,21 +692,28 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Build a horizontal scrollable strip of participants
-  /// Used below active screen share
-  Widget _buildStrip(List<ParticipantTrack> tracks) {
+  /// Build a horizontal scrollable strip of participants for screen share
+  /// Uses smaller tiles (square) so more participants fit on screen
+  Widget _buildScreenShareStrip(List<ParticipantTrack> tracks) {
     if (tracks.isEmpty) {
-      return const SizedBox.expand();
+      return Center(
+        child: Text(
+          'No participants',
+          style: TextStyle(color: ConnectColors.textSecondary, fontSize: 12),
+        ),
+      );
     }
 
     return ListView.builder(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       itemCount: tracks.length,
       itemBuilder: (context, index) {
         return Padding(
-          padding: EdgeInsets.only(left: index == 0 ? 0 : 8),
+          padding: EdgeInsets.only(left: index == 0 ? 0 : 6, right: 6),
           child: AspectRatio(
-            aspectRatio: 16 / 9,
+            // Smaller aspect ratio (square-ish) so more tiles fit
+            aspectRatio: 1.0,
             child: _buildTile(tracks[index]),
           ),
         );
@@ -684,8 +721,8 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
     );
   }
 
-  /// Build the +N overflow indicator
-  /// Shows count of participants not in main grid; tap to open explorer
+  /// Build the +N overflow indicator with avatar collage
+  /// Shows up to 4 participant avatars in a mini grid + count overlay
   Widget _buildOverflowIndicator(List<ParticipantTrack> allTracks) {
     final overflow = _getOverflowParticipants(allTracks);
     final overflowCount = overflow.length;
@@ -694,34 +731,226 @@ class _ConnectRoomScreenState extends State<ConnectRoomScreen> {
       return const SizedBox.shrink();
     }
 
+    // Take first 4 overflow participants for the collage
+    final previewParticipants = overflow.take(4).toList();
+
     return GestureDetector(
       onTap: () => _showParticipantsExplorer(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: 64,
+        height: 64,
         decoration: BoxDecoration(
-          color: ConnectColors.accent.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: ConnectColors.accent.withValues(alpha: 0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 8,
             ),
           ],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          children: [
+            // Avatar collage grid
+            _buildAvatarCollage(previewParticipants),
+
+            // +N overlay at bottom-right
+            Positioned(
+              bottom: -4,
+              right: -4,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: ConnectColors.accent,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: ConnectColors.bg,
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    '+$overflowCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build avatar collage for overflow indicator
+  /// Arranges 1-4 participant avatars in a grid pattern
+  Widget _buildAvatarCollage(List<ParticipantTrack> participants) {
+    if (participants.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: ConnectColors.border,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.people_rounded,
+            color: ConnectColors.text,
+            size: 28,
+          ),
+        ),
+      );
+    }
+
+    if (participants.length == 1) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: _buildAvatarTile(participants[0]),
+      );
+    } else if (participants.length == 2) {
+      return Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                bottomLeft: Radius.circular(12),
+              ),
+              child: _buildAvatarTile(participants[0]),
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(12),
+                bottomRight: Radius.circular(12),
+              ),
+              child: _buildAvatarTile(participants[1]),
+            ),
+          ),
+        ],
+      );
+    } else if (participants.length == 3) {
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                    ),
+                    child: _buildAvatarTile(participants[0]),
+                  ),
+                ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(12),
+                    ),
+                    child: _buildAvatarTile(participants[1]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(12),
+                bottomRight: Radius.circular(12),
+              ),
+              child: _buildAvatarTile(participants[2]),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // 4 participants: 2x2 grid
+      return GridView.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 0,
+        crossAxisSpacing: 0,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(12),
+            ),
+            child: _buildAvatarTile(participants[0]),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(12),
+            ),
+            child: _buildAvatarTile(participants[1]),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(12),
+            ),
+            child: _buildAvatarTile(participants[2]),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomRight: Radius.circular(12),
+            ),
+            child: _buildAvatarTile(participants[3]),
+          ),
+        ],
+      );
+    }
+  }
+
+  /// Build a single avatar tile for the collage
+  /// Shows participant video or fallback avatar
+  Widget _buildAvatarTile(ParticipantTrack track) {
+    final participant = track.participant;
+
+    // Try to get the participant's camera video track
+    try {
+      final videoTrack = participant.videoTrackPublications
+          .firstWhere((pub) => !pub.isScreenShare)
+          .track;
+
+      if (videoTrack is VideoTrack) {
+        return Container(
+          color: Colors.black,
+          child: VideoTrackRenderer(
+            videoTrack,
+            mirrorMode: VideoViewMirrorMode.auto,
+            fit: VideoViewFit.cover,
+          ),
+        );
+      }
+    } catch (e) {
+      // No video track available, use fallback
+    }
+
+    // Fallback: show avatar with initials or name
+    return Container(
+      color: ConnectColors.border,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.people_rounded,
-              color: Colors.white,
+              Icons.person_rounded,
+              color: ConnectColors.text,
               size: 16,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(height: 2),
             Text(
-              '+$overflowCount',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
+              participant.name.isNotEmpty
+                  ? participant.name.substring(0, 1).toUpperCase()
+                  : '?',
+              style: TextStyle(
+                color: ConnectColors.text,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
             ),
