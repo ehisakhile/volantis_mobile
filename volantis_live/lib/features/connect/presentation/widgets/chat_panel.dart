@@ -70,6 +70,18 @@ class _ChatPanelState extends State<ChatPanel> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToBottom(animate: false),
     );
+
+    // ✅ Keep the message list pinned to the bottom as the keyboard opens
+    // or closes, so the input never ends up covering unread content.
+    _inputFocusNode.addListener(() {
+      if (_inputFocusNode.hasFocus) {
+        // Wait a frame so viewInsets has updated after the keyboard
+        // animation starts, then re-scroll.
+        Future.delayed(const Duration(milliseconds: 250), () {
+          if (mounted) _scrollToBottom();
+        });
+      }
+    });
   }
 
   /// ✅ Register a handler for incoming "lk.chat" text streams.
@@ -312,6 +324,9 @@ class _ChatPanelState extends State<ChatPanel> {
   @override
   Widget build(BuildContext context) {
     final items = _buildDisplayItems();
+    // ✅ Height of the on-screen keyboard (0 when closed). We use this to
+    // push the input bar (and the whole panel, if needed) up above it.
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Column(
       children: [
@@ -416,76 +431,95 @@ class _ChatPanelState extends State<ChatPanel> {
         ),
 
         /// Message input
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 120),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: ConnectColors.border.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _inputFocusNode,
-                        enabled: !_isLoading,
-                        minLines: 1,
-                        maxLines: 5,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: TextStyle(
-                          color: ConnectColors.text,
-                          fontSize: 14.5,
+        /// ✅ FIX: AnimatedPadding tracks the keyboard's viewInsets.bottom so
+        /// this bar (and therefore the TextField) always rides just above
+        /// the keyboard instead of being hidden underneath it. This matters
+        /// specifically when ChatPanel lives inside a modal bottom sheet,
+        /// because the sheet itself does NOT automatically resize for the
+        /// keyboard the way a Scaffold body does — see the showModalBottomSheet
+        /// note below.
+        AnimatedPadding(
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: SafeArea(
+            top: false,
+            // When the keyboard is open, the OS-level bottom safe area
+            // (home indicator) is already covered by the keyboard itself,
+            // so let SafeArea skip adding extra bottom padding in that case.
+            minimum: EdgeInsets.zero,
+            maintainBottomViewPadding: keyboardInset == 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 120),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: ConnectColors.border.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(22),
                         ),
-                        decoration: InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(
-                            color: ConnectColors.textSecondary,
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _inputFocusNode,
+                          enabled: !_isLoading,
+                          minLines: 1,
+                          maxLines: 5,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: TextStyle(
+                            color: ConnectColors.text,
                             fontSize: 14.5,
                           ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 11,
+                          decoration: InputDecoration(
+                            hintText: 'Message',
+                            hintStyle: TextStyle(
+                              color: ConnectColors.textSecondary,
+                              fontSize: 14.5,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 11,
+                            ),
                           ),
+                          onSubmitted: (_) => _sendMessage(),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  decoration: BoxDecoration(
-                    color: _hasText
-                        ? ConnectColors.accent
-                        : ConnectColors.accent.withOpacity(0.4),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: _isLoading
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                  const SizedBox(width: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    decoration: BoxDecoration(
+                      color: _hasText
+                          ? ConnectColors.accent
+                          : ConnectColors.accent.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: _isLoading
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
-                            ),
-                          )
-                        : const Icon(Icons.arrow_upward_rounded, size: 20),
-                    color: Colors.white,
-                    onPressed: (_isLoading || !_hasText) ? null : _sendMessage,
+                            )
+                          : const Icon(Icons.arrow_upward_rounded, size: 20),
+                      color: Colors.white,
+                      onPressed: (_isLoading || !_hasText)
+                          ? null
+                          : _sendMessage,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
