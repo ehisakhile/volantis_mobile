@@ -18,15 +18,13 @@ class ParticipantTile extends StatelessWidget {
   VideoTrack? _getVideoTrack() {
     try {
       if (isScreenShare) {
-        return participant.videoTrackPublications
-                .firstWhere((pub) => pub.isScreenShare)
-                .track
-            as VideoTrack?;
+        final pub = participant.videoTrackPublications
+            .firstWhere((pub) => pub.isScreenShare);
+        return !pub.muted ? pub.track as VideoTrack? : null;
       } else {
-        return participant.videoTrackPublications
-                .firstWhere((pub) => !pub.isScreenShare)
-                .track
-            as VideoTrack?;
+        final pub = participant.videoTrackPublications
+            .firstWhere((pub) => !pub.isScreenShare);
+        return !pub.muted ? pub.track as VideoTrack? : null;
       }
     } catch (e) {
       return null;

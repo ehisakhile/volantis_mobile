@@ -105,7 +105,7 @@ class _ControlBarState extends State<ControlBar> {
                 const HandRaiseButton(),
                 const SizedBox(width: 4),
                 _ControlButton(
-                  icon: Icons.more_vert_rounded,
+                  icon: Icons.chat_bubble,
                   isActive: false,
                   onPressed: () => _openMenu(context),
                   tooltip: 'More options',
@@ -238,4 +238,3 @@ class _ControlButtonState extends State<_ControlButton>
     return ConnectColors.textSecondary;
   }
 }
-
