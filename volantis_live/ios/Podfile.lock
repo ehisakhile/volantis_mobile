@@ -2,15 +2,20 @@ PODS:
   - Flutter (1.0.0)
   - flutter_secure_storage (6.0.0):
     - Flutter
-  - flutter_webrtc (0.12.6):
+  - flutter_webrtc (1.4.0):
     - Flutter
-    - WebRTC-SDK (= 125.6422.06)
-  - WebRTC-SDK (125.6422.06)
+    - WebRTC-SDK (= 144.7559.01)
+  - livekit_client (2.8.1):
+    - Flutter
+    - flutter_webrtc
+    - WebRTC-SDK (= 144.7559.01)
+  - WebRTC-SDK (144.7559.01)
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - flutter_webrtc (from `.symlinks/plugins/flutter_webrtc/ios`)
+  - livekit_client (from `.symlinks/plugins/livekit_client/ios`)
 
 SPEC REPOS:
   trunk:
@@ -23,12 +28,15 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_secure_storage/ios"
   flutter_webrtc:
     :path: ".symlinks/plugins/flutter_webrtc/ios"
+  livekit_client:
+    :path: ".symlinks/plugins/livekit_client/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
-  flutter_webrtc: 57f32415b8744e806f9c2a96ccdb60c6a627ba33
-  WebRTC-SDK: 79942c006ea64f6fb48d7da8a4786dfc820bc1db
+  flutter_webrtc: ec91d94b484ad49cf191ef93413f64a40ffd3b4c
+  livekit_client: a28e738fa0d6b16d780631bfe7a4ea76a9be382d
+  WebRTC-SDK: ab9b5319e458c2bfebdc92b3600740da35d5630d
 
 PODFILE CHECKSUM: 4833326016c30614ca7233bb7af56479172785f6
 

@@ -1,13 +1,8 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import '../../../services/app_update_manager.dart';
-import '../../../features/auth/presentation/providers/auth_provider.dart';
-import '../../../features/onboarding/presentation/providers/onboarding_provider.dart';
 
-/// VolantisLive Splash Screen
-/// Glassy, modern design with logo and animated waveform
+/// Shared VolantisLive and VolantisConnect splash screen.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -89,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen>
               top: -100,
               left: -100,
               child: _GlowBlob(
-                color: const Color(0xFF0EA5E9).withOpacity(0.15),
+                color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
                 size: 300,
               ),
             ),
@@ -97,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen>
               bottom: -120,
               right: -120,
               child: _GlowBlob(
-                color: const Color(0xFF6366F1).withOpacity(0.1),
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.14),
                 size: 350,
               ),
             ),
@@ -105,124 +100,78 @@ class _SplashScreenState extends State<SplashScreen>
               top: 100,
               right: -50,
               child: _GlowBlob(
-                color: const Color(0xFF89CEFF).withOpacity(0.08),
+                color: const Color(0xFFD2BBFF).withValues(alpha: 0.08),
                 size: 200,
               ),
             ),
-            Center(
-              child: FadeTransition(
-                opacity: _fadeIn,
-                child: ScaleTransition(
-                  scale: _scaleAnim,
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                child: FadeTransition(
+                  opacity: _fadeIn,
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(32),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.2),
-                              blurRadius: 40,
-                              spreadRadius: 0,
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.asset(
-                            'assets/images/volantislive_logo.jpeg',
-                            height: 100,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 120,
-                              height: 60,
-                              color: Colors.transparent,
-                              child: const Center(
-                                child: Text(
-                                  'VolantisLive',
-                                  style: TextStyle(
-                                    fontFamily: 'Georgia',
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: -1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                      const Spacer(),
+                      ScaleTransition(
+                        scale: _scaleAnim,
+                        child: const _VolantisMark(),
+                      ),
+                      const SizedBox(height: 30),
+                      const Text(
+                        'Broadcast widely.\nConnect personally.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFFF4F7FF),
+                          fontSize: 34,
+                          height: 1.08,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.4,
                         ),
                       ),
-                      const SizedBox(height: 48),
-                      SizedBox(
-                        height: 48,
-                        child: _AnimatedWaveform(controller: _controller),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Two ways to bring people together, all in one place.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFFBEC8D2),
+                          fontSize: 16,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: _ProductCard(
+                              icon: Icons.podcasts_rounded,
+                              color: Color(0xFF89CEFF),
+                              name: 'VolantisLive',
+                              purpose: 'Broadcast & discover',
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: _ProductCard(
+                              icon: Icons.video_call_rounded,
+                              color: Color(0xFFD2BBFF),
+                              name: 'VolantisConnect',
+                              purpose: 'Meet & collaborate',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      const Text(
+                        'ONE APP · TWO EXPERIENCES',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF88929B),
+                          letterSpacing: 1.6,
+                        ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 80,
-              left: 0,
-              right: 0,
-              child: FadeTransition(
-                opacity: _fadeIn,
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
-                      child: const Text(
-                        'Fly. Broadcast. Connect.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF89CEFF),
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: FadeTransition(
-                opacity: _fadeIn,
-                child: const Text(
-                  'VolantisLive',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF88929B),
-                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -234,97 +183,113 @@ class _SplashScreenState extends State<SplashScreen>
   }
 }
 
-class _AnimatedWaveform extends StatefulWidget {
-  final AnimationController controller;
-
-  const _AnimatedWaveform({required this.controller});
-
-  @override
-  State<_AnimatedWaveform> createState() => _AnimatedWaveformState();
-}
-
-class _AnimatedWaveformState extends State<_AnimatedWaveform>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _waveController;
-
-  static const List<double> _baseHeights = [
-    4,
-    8,
-    12,
-    6,
-    10,
-    14,
-    8,
-    12,
-    16,
-    10,
-    6,
-    12,
-    8,
-    14,
-    10,
-    6,
-    12,
-    8,
-    4,
-    2,
-  ];
-  static const double _maxBarPx = 48.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _waveController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _waveController.dispose();
-    super.dispose();
-  }
+class _VolantisMark extends StatelessWidget {
+  const _VolantisMark();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _waveController,
-      builder: (context, _) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: List.generate(_baseHeights.length, (i) {
-            final phase = _waveController.value - (i * 0.05);
-            final sine = (math.sin(phase * math.pi * 2) + 1) / 2;
-            final animHeight = (_baseHeights[i] + sine * 6).clamp(
-              2.0,
-              _maxBarPx,
-            );
-
-            return Container(
-              width: 3,
-              height: animHeight,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [const Color(0xFF89CEFF), const Color(0xFF0EA5E9)],
-                ),
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0EA5E9).withOpacity(0.4),
-                    blurRadius: 4,
-                    spreadRadius: 0,
+    return Container(
+      width: 112,
+      height: 112,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0EA5E9).withValues(alpha: 0.20),
+            blurRadius: 40,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(23),
+        child: const Row(
+          children: [
+            Expanded(
+              child: ColoredBox(
+                color: Color(0xFF0EA5E9),
+                child: Center(
+                  child: Icon(
+                    Icons.graphic_eq_rounded,
+                    color: Color(0xFF001E2F),
+                    size: 30,
                   ),
-                ],
+                ),
               ),
-            );
-          }),
-        );
-      },
+            ),
+            Expanded(
+              child: ColoredBox(
+                color: Color(0xFF8B5CF6),
+                child: Center(
+                  child: Icon(
+                    Icons.people_alt_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String name;
+  final String purpose;
+
+  const _ProductCard({
+    required this.icon,
+    required this.color,
+    required this.name,
+    required this.purpose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 27),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              name,
+              maxLines: 1,
+              style: const TextStyle(
+                color: Color(0xFFF4F7FF),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            purpose,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF9CA8B5),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
