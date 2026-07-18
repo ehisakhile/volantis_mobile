@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/widgets/loading_shimmer.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -23,6 +24,9 @@ class _LiveTabScreenState extends State<LiveTabScreen>
   bool _searchFocused = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  
+  bool _showSearchTooltip = false;
+  static const String _tooltipKey = 'has_seen_search_tooltip';
 
   static const _bg = Color(0xFF07111F);
   static const _surface = Color(0xFF0C1929);
@@ -58,7 +62,19 @@ class _LiveTabScreenState extends State<LiveTabScreen>
       if (streamsProvider.allStreams.isEmpty && !streamsProvider.isLoading) {
         streamsProvider.init();
       }
+
+      _checkAndShowTooltip(homeProvider);
     });
+  }
+
+  Future<void> _checkAndShowTooltip(HomeProvider homeProvider) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenTooltip = prefs.getBool(_tooltipKey) ?? false;
+    if (!hasSeenTooltip && homeProvider.followedCompanies.isEmpty) {
+      if (mounted) {
+        setState(() => _showSearchTooltip = true);
+      }
+    }
   }
 
   @override
@@ -260,9 +276,12 @@ class _LiveTabScreenState extends State<LiveTabScreen>
   }
 
   Widget _buildOnboardingBlock(HomeProvider provider) {
-    return Column(
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Padding(
+        Column(
+          children: [
+            Padding(
           padding: const EdgeInsets.fromLTRB(20, 40, 20, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,8 +357,27 @@ class _LiveTabScreenState extends State<LiveTabScreen>
           ),
         ),
       ],
-    );
-  }
+    ),
+    if (_showSearchTooltip)
+      Positioned(
+        top: 175,
+        left: 0,
+        right: 0,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: _showSearchTooltip ? 1.0 : 0.0,
+          child: _SearchTooltip(
+            onDismiss: () async {
+              setState(() => _showSearchTooltip = false);
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(_tooltipKey, true);
+            },
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
   Widget _buildPersonalSummary(HomeProvider provider) {
     final liveCount = provider.subscribedLivestreams.length;
@@ -636,6 +674,128 @@ class _LiveIndicator extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SearchTooltip extends StatelessWidget {
+  final VoidCallback onDismiss;
+
+  const _SearchTooltip({required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onDismiss,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(
+              width: double.infinity,
+              height: 50,
+              padding: const EdgeInsets.only(left: 120, right: 60),
+              child: CustomPaint(
+                painter: _DashedArrowPainter(),
+              ),
+            ),
+            Container(
+              width: 220,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF38BDF8),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF38BDF8).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Start here! Search for your favorite creators.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: onDismiss,
+                    child: const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedArrowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF38BDF8)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    // Start at bottom right
+    path.moveTo(size.width, size.height);
+    // Draw a curvy squiggly line pointing to top-left
+    path.cubicTo(
+      size.width * 0.9, size.height * 0.4, 
+      size.width * 0.4, size.height * 0.9, 
+      0, 0,
+    );
+
+    // Draw dashed line
+    const dashWidth = 4.0;
+    const dashSpace = 4.0;
+    for (var metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(distance, distance + dashWidth),
+          paint,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    // Draw arrowhead at (0,0) pointing mostly up and slightly left
+    final arrowPaint = Paint()
+      ..color = const Color(0xFF38BDF8)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+      
+    final arrowPath = Path()
+      ..moveTo(2, 10)
+      ..lineTo(0, 0)
+      ..lineTo(10, 2);
+    canvas.drawPath(arrowPath, arrowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ModernSummaryMetric extends StatelessWidget {
