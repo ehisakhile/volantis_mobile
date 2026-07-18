@@ -242,6 +242,17 @@ class AppRouter {
           print('AppRouter: Update check not complete, staying on splash');
           return null; // stay on splash
         }
+        
+        if (!hasCompletedOnboarding) {
+          print('AppRouter: Redirecting to onboarding');
+          return AppRoutes.onboarding;
+        }
+
+        if (!isLoggedIn) {
+          print('AppRouter: Redirecting to login');
+          return AppRoutes.login;
+        }
+
         print('AppRouter: Redirecting from splash to Live');
         return AppRoutes.home;
       }

@@ -16,6 +16,7 @@ import 'services/live_stream_service.dart';
 import 'services/whep_audio_handler.dart';
 import 'package:dio/dio.dart';
 import 'core/constants/api_constants.dart';
+import 'services/api_service.dart';
 
 const String _iOSApiKey = 'AIzaSyA_hsxRK1s5lmbT67NuSKnwFdLy6mdcDxg';
 const String _iOSProjectId = 'volantis-live';
@@ -27,6 +28,9 @@ WhepAudioHandler? _whepAudioHandler;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Check if it's the first run to clear old keychain data on iOS
+  await ApiService.checkAndClearIfFirstRun();
 
   // Initialize WHEP audio handler for live stream notifications
   _whepAudioHandler = await AudioService.init(

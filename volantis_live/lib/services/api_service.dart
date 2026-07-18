@@ -293,6 +293,23 @@ class ApiService {
     }
   }
 
+  /// Checks if this is the first run of the app after a fresh install.
+  /// If it is, clears any lingering tokens from the iOS Keychain.
+  static Future<void> checkAndClearIfFirstRun() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasRunBefore = prefs.getBool('has_run_before') ?? false;
+      
+      if (!hasRunBefore) {
+        // First run after install, clear the secure storage which might persist from a previous install on iOS
+        await clearTokens();
+        await prefs.setBool('has_run_before', true);
+      }
+    } catch (e) {
+      print('API Service: checkAndClearIfFirstRun error: $e');
+    }
+  }
+
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     print(
