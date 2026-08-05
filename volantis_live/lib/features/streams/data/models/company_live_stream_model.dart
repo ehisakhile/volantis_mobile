@@ -69,11 +69,11 @@ class CompanyLiveStreamDetail {
       title: json['title'] ?? '',
       slug: json['slug'] ?? '',
       description: json['description'],
-      isLive: json['is_live'] ?? false,
+      isLive: json['is_live'] ?? json['is_active'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
       peakViewers: json['peak_viewers'] ?? 0,
       totalViews: json['total_views'] ?? 0,
-      webrtcPlaybackUrl: json['webrtc_playback_url'],
+      webrtcPlaybackUrl: json['webrtc_playback_url'] ?? json['cf_webrtc_playback_url'] ?? json['whep_url'],
       hlsUrl: json['hls_url'],
       startedAt: json['started_at'] != null
           ? DateTime.tryParse(json['started_at'])

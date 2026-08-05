@@ -1266,14 +1266,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
-
-    final isSameStream = await provider.openStream(stream);
-
-    if (isSameStream) {
-      provider.expand();
-    }
-
-    if (!context.mounted) return;
+    final isSameStream = provider.prepareStream(stream);
 
     showModalBottomSheet(
       context: context,
@@ -1284,6 +1277,10 @@ class _HomeScreenState extends State<HomeScreen>
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 
   // ── Subscribed Recordings strip (legacy - for non-subscribed users) ────────

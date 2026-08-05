@@ -616,12 +616,7 @@ class _LiveTabScreenState extends State<LiveTabScreen>
 
   Future<void> _navigateToPlayer(LiveStream stream) async {
     final provider = context.read<StreamsProvider>();
-    final isSameStream = await provider.openStream(stream);
-    if (isSameStream) {
-      provider.expand();
-    }
-
-    if (!mounted) return;
+    final isSameStream = provider.prepareStream(stream);
 
     showModalBottomSheet(
       context: context,
@@ -632,6 +627,10 @@ class _LiveTabScreenState extends State<LiveTabScreen>
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 }
 

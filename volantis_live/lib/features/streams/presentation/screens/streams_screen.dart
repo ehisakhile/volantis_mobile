@@ -908,9 +908,8 @@ class _StreamsScreenState extends State<StreamsScreen> {
     }
 
     final provider = context.read<StreamsProvider>();
-    final isSameStream = await provider.openStream(stream);
-    if (isSameStream) provider.expand();
-    if (!context.mounted) return;
+    final isSameStream = provider.prepareStream(stream);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -920,6 +919,10 @@ class _StreamsScreenState extends State<StreamsScreen> {
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 }
 

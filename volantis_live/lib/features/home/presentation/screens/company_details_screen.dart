@@ -1120,18 +1120,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   /// Navigate to stream player screen - handles single stream logic
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
+    final isSameStream = provider.prepareStream(stream);
 
-    // Open stream - returns true if same stream (continue listening), false if new
-    final isSameStream = await provider.openStream(stream);
-
-    if (isSameStream) {
-      // Same stream - just expand the player
-      provider.expand();
-    }
-
-    if (!context.mounted) return;
-
-    // Use bottom sheet instead of full screen navigation (like recordings player)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1141,6 +1131,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 }
 

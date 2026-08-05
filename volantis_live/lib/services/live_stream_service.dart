@@ -118,10 +118,11 @@ class LiveStreamService {
     debugPrint('{AUDIOS} Starting stream via AudioManager: ${stream.title}');
 
     try {
-      String whepUrl =
-          stream.whepUrl ??
-          stream.playbackUrl ??
-          _generateFakeStreamUrl(stream.id);
+      String? whepUrl = stream.whepUrl ?? stream.playbackUrl;
+      if (whepUrl == null || whepUrl.isEmpty || whepUrl.contains('fake-stream.local')) {
+        debugPrint('WHEP ERROR: No valid WHEP playback URL provided by API for stream: ${stream.title}. whepUrl=${stream.whepUrl}, playbackUrl=${stream.playbackUrl}');
+        throw Exception('Stream is missing a valid WebRTC playback URL (cf_webrtc_playback_url).');
+      }
 
       await AudioManager.instance.playLiveStream(
         streamUrl: whepUrl,
@@ -133,7 +134,7 @@ class LiveStreamService {
 
       _currentStream = stream;
       _notifyStateChange();
-      debugPrint('Started stream: ${stream.title}');
+      debugPrint('Started stream: ${stream.title} with WHEP URL: $whepUrl');
     } catch (e) {
       debugPrint('Error starting stream: $e');
       _notifyStateChange();
@@ -197,11 +198,13 @@ class LiveStreamService {
   }
 
   void _notifyStateChange() {
+    if (_stateController.isClosed) return;
     _stateController.add(
       LiveStreamState(
         liveStream: _currentStream,
         isPlaying: isPlaying,
         isMuted: isMuted,
+        error: AudioManager.instance.currentState.error,
       ),
     );
   }
@@ -214,22 +217,19 @@ class LiveStreamService {
     _currentStream = null;
     _webrtcCleanupCallback = null;
   }
-
-  String _generateFakeStreamUrl(int streamId) {
-    final randomPart = DateTime.now().millisecondsSinceEpoch.toString();
-    return 'https://fake-stream.local/$streamId/$randomPart.mp3';
-  }
 }
 
 class LiveStreamState {
   final LiveStreamData? liveStream;
   final bool isPlaying;
   final bool isMuted;
+  final String? error;
 
   LiveStreamState({
     this.liveStream,
     required this.isPlaying,
     required this.isMuted,
+    this.error,
   });
 }
 

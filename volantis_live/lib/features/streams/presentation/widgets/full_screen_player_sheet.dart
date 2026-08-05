@@ -76,15 +76,38 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   }
 
   void _onAudioStateChanged(AudioState state) {
-    debugPrint('[FullScreenPlayerSheet] AudioState changed: ${state.sourceType}, isPlaying: ${state.isPlaying}');
+    debugPrint('[FullScreenPlayerSheet] AudioState changed: ${state.sourceType}, isPlaying: ${state.isPlaying}, error: ${state.error}');
     if (!mounted) return;
     
-    if (state.sourceType == AudioSourceType.none || 
-        (state.sourceType == AudioSourceType.liveStream && !state.isPlaying && !state.isConnecting)) {
-      debugPrint('[FullScreenPlayerSheet] Stream stopped, closing player');
-      Navigator.of(context).maybePop();
+    if (state.error == 'stream_ended') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The live stream has ended.'),
+          duration: Duration(seconds: 4),
+          backgroundColor: Color(0xFF222A3D),
+        ),
+      );
+      final provider = context.read<StreamsProvider>();
+      provider.closePlayer();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+      });
+      return;
     }
-    setState(() {});
+
+    final provider = context.read<StreamsProvider>();
+    if (!provider.isPlayerOpen) {
+      debugPrint('[FullScreenPlayerSheet] Player is no longer open in provider, closing sheet');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+      });
+    } else {
+      setState(() {});
+    }
   }
 
   @override
@@ -286,6 +309,9 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   }
 
   Widget _buildPlayerView(dynamic stream, StreamsProvider provider, LiveStreamService livestreamService) {
+    if (provider.isConnecting && !provider.isPlaying) {
+      return _buildConnectingView(stream, provider);
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -303,6 +329,83 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
           const SizedBox(height: 48),
           _buildControls(provider, livestreamService),
           const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectingView(dynamic stream, StreamsProvider provider) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          const SizedBox(height: 32),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 112,
+                height: 112,
+                child: CircularProgressIndicator(
+                  color: _primary,
+                  strokeWidth: 2.5,
+                ),
+              ),
+              _buildAvatar(stream, false),
+            ],
+          ),
+          const SizedBox(height: 28),
+          Text(
+            stream.companyName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            stream.title,
+            style: const TextStyle(
+              color: _onVariant,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 36),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF131F37),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: _primary.withOpacity(0.35)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    color: _primary,
+                    strokeWidth: 2,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Connecting to live audio stream...',
+                  style: TextStyle(
+                    color: _primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 48),
         ],
       ),
     );

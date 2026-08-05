@@ -43,6 +43,14 @@ class LiveStream {
   });
 
   factory LiveStream.fromJson(Map<String, dynamic> json) {
+    final whepUrl = json['whep_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'];
+    final playbackUrl = json['playback_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'] ??
+        json['hls_url'];
+
     return LiveStream(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
@@ -51,15 +59,15 @@ class LiveStream {
       companySlug: json['company_slug'] ?? '',
       companyName: json['company_name'] ?? '',
       companyLogoUrl: json['company_logo_url'],
-      isLive: json['is_live'] ?? false,
+      isLive: json['is_live'] ?? json['is_active'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
       totalViews: json['total_views'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
       startedAt: json['started_at'] != null
           ? DateTime.tryParse(json['started_at'])
           : null,
-      whepUrl: json['whep_url'],
-      playbackUrl: json['playback_url'],
+      whepUrl: whepUrl,
+      playbackUrl: playbackUrl,
     );
   }
 
@@ -129,6 +137,7 @@ class StreamsProvider extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isMuted = false;
   bool _isConnecting = false;
+  String? _playerError;
   StreamSubscription? _streamSubscription;
 
   StreamsProvider() {
@@ -140,6 +149,7 @@ class StreamsProvider extends ChangeNotifier {
   void _onStreamStateChanged(LiveStreamState state) {
     _isPlaying = state.isPlaying;
     _isMuted = state.isMuted;
+    _playerError = state.error;
     if (state.liveStream != null) {
       _currentStream = LiveStream(
         id: state.liveStream!.id,
@@ -157,7 +167,7 @@ class StreamsProvider extends ChangeNotifier {
         whepUrl: state.liveStream!.whepUrl,
         playbackUrl: state.liveStream!.playbackUrl,
       );
-    } else {
+    } else if (!_isPlayerOpen) {
       _currentStream = null;
     }
     notifyListeners();
@@ -205,6 +215,7 @@ class StreamsProvider extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   bool get isMuted => _isMuted;
   bool get isConnecting => _isConnecting;
+  String? get playerError => _playerError;
   bool get hasActivePlayer => _isPlayerOpen && _currentStream != null;
 
   /// Initialize streams data
@@ -341,12 +352,31 @@ class StreamsProvider extends ChangeNotifier {
     return 'Failed to load streams';
   }
 
+  /// Immediately set player state to open & connecting so UI presents instant feedback
+  bool prepareStream(LiveStream stream) {
+    if (_liveStreamService.isStreamPlaying(stream.id)) {
+      _isPlayerOpen = true;
+      _isPlayerExpanded = true;
+      notifyListeners();
+      return true; // Indicates same stream already playing
+    }
+
+    _currentStream = stream;
+    _isPlayerOpen = true;
+    _isPlayerExpanded = true;
+    _isPlaying = false;
+    _isConnecting = true;
+    _error = null;
+    notifyListeners();
+    return false;
+  }
+
   /// Open a stream - handles single stream logic
   /// If same stream is already playing, shows continue listening
   /// If different stream, closes old one and plays new
   Future<bool> openStream(LiveStream stream) async {
     // Check if this is the same stream that's already playing
-    if (_currentStream != null && _currentStream!.id == stream.id) {
+    if (_liveStreamService.isStreamPlaying(stream.id)) {
       // Same stream - show continue listening
       _isPlayerOpen = true;
       _isPlayerExpanded = true;
@@ -363,27 +393,57 @@ class StreamsProvider extends ChangeNotifier {
     _isConnecting = true;
     _error = null;
 
+    String? whepUrl = stream.whepUrl ?? stream.playbackUrl;
+
+    // If WHEP URL is missing from the initial stream model, pre-fetch stream details from API
+    if (whepUrl == null || whepUrl.isEmpty || whepUrl.contains('fake-stream.local')) {
+      try {
+        print('API: WHEP URL missing for ${stream.slug}, pre-fetching stream details...');
+        final res = await _apiService.get(ApiConstants.getStreamEndpoint(stream.slug));
+        if (res.data != null && res.data is Map<String, dynamic>) {
+          final data = res.data as Map<String, dynamic>;
+          whepUrl = data['cf_webrtc_playback_url'] ??
+              data['webrtc_playback_url'] ??
+              data['whep_url'] ??
+              data['playback_url'];
+
+          if (whepUrl != null && whepUrl.isNotEmpty) {
+            _currentStream = stream.copyWith(
+              whepUrl: whepUrl,
+              playbackUrl: whepUrl,
+            );
+          }
+        }
+      } catch (e) {
+        print('API: Error pre-fetching stream details for ${stream.slug}: $e');
+      }
+    }
+
+    final activeStream = _currentStream ?? stream;
+
     // Convert to LiveStreamData and start stream
     final liveStreamData = LiveStreamData(
-      id: stream.id,
-      title: stream.title,
-      slug: stream.slug,
-      companyId: stream.companyId,
-      companySlug: stream.companySlug,
-      companyName: stream.companyName,
-      companyLogoUrl: stream.companyLogoUrl,
-      isLive: stream.isLive,
-      viewerCount: stream.viewerCount,
-      totalViews: stream.totalViews,
-      thumbnailUrl: stream.thumbnailUrl,
-      startedAt: stream.startedAt,
-      whepUrl: stream.whepUrl,
-      playbackUrl: stream.playbackUrl,
+      id: activeStream.id,
+      title: activeStream.title,
+      slug: activeStream.slug,
+      companyId: activeStream.companyId,
+      companySlug: activeStream.companySlug,
+      companyName: activeStream.companyName,
+      companyLogoUrl: activeStream.companyLogoUrl,
+      isLive: activeStream.isLive,
+      viewerCount: activeStream.viewerCount,
+      totalViews: activeStream.totalViews,
+      thumbnailUrl: activeStream.thumbnailUrl,
+      startedAt: activeStream.startedAt,
+      whepUrl: whepUrl ?? activeStream.whepUrl,
+      playbackUrl: whepUrl ?? activeStream.playbackUrl,
     );
 
     await _liveStreamService.switchStream(liveStreamData);
 
-    await startListeningToStream(stream.slug);
+    _currentStream ??= activeStream;
+
+    await startListeningToStream(activeStream.slug);
 
     notifyListeners();
     return false; // Indicates new stream

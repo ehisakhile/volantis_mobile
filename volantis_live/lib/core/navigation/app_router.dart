@@ -38,6 +38,7 @@ class AppRoutes {
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 /// App Router configuration
 class AppRouter {
@@ -92,6 +93,7 @@ class AppRouter {
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
       ShellRoute(
+        navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => _MainShell(child: child),
         routes: [
           GoRoute(

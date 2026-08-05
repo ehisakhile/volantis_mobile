@@ -13,12 +13,16 @@ class WhepAudioHandler extends BaseAudioHandler {
   bool _isDisposed = false;
   String? _streamUrl;
   Timer? _reconnectTimer;
+  Timer? _statsTimer;
   String? _lastError;
   MediaStreamTrack? _audioTrack;
+  MediaStream? _remoteStream;
   _AudioPlaybackMode _playbackMode = _AudioPlaybackMode.liveStream;
   Future<void> Function()? _externalPlay;
   Future<void> Function()? _externalPause;
   Future<void> Function()? _externalStop;
+  
+  final RTCVideoRenderer _audioRenderer = RTCVideoRenderer();
 
   static const _iceServerUrls = [
     'stun:stun.cloudflare.com:3478',
@@ -38,6 +42,7 @@ class WhepAudioHandler extends BaseAudioHandler {
   // audio_service needs at least one state emission to register the handler
   // as active before any notification can be shown.
   WhepAudioHandler() {
+    _audioRenderer.initialize();
     playbackState.add(
       _buildState(playing: false, processingState: AudioProcessingState.ready),
     );
@@ -157,6 +162,7 @@ class WhepAudioHandler extends BaseAudioHandler {
       developer.log('WHEP: Creating peer connection...');
       _pc = await createPeerConnection(_iceConfig);
 
+      // Add audio transceiver for WHEP audio playback
       await _pc!.addTransceiver(
         kind: RTCRtpMediaType.RTCRtpMediaTypeAudio,
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
@@ -164,9 +170,34 @@ class WhepAudioHandler extends BaseAudioHandler {
 
       // Register onTrack before createOffer to avoid missing the first event
       _pc!.onTrack = (RTCTrackEvent event) {
-        if (event.track.kind == 'audio') {
-          _audioTrack = event.track;
-          developer.log('WHEP: Audio track received');
+        final track = event.track;
+        final trackInfo = '[WHEP DIAGNOSTICS] ON_TRACK EVENT received:\n'
+            '  Kind: ${track.kind}\n'
+            '  Track ID: ${track.id}\n'
+            '  Enabled: ${track.enabled}\n'
+            '  Muted: ${track.muted}\n'
+            '  Streams Count: ${event.streams.length}';
+        developer.log(trackInfo, name: 'WHEP_DIAGNOSTICS');
+        print('========================================================================');
+        print(trackInfo);
+        print('========================================================================');
+
+        track.onMute = () {
+          developer.log('[WHEP DIAGNOSTICS] Track MUTED by system: ${track.kind} (${track.id})');
+          print('[WHEP DIAGNOSTICS] Track MUTED by system: ${track.kind} (${track.id})');
+        };
+
+        if (track.kind == 'audio') {
+          _audioTrack = track;
+          if (event.streams.isNotEmpty) {
+            _remoteStream = event.streams.first;
+            _audioRenderer.srcObject = _remoteStream;
+          }
+          _audioTrack!.enabled = !_isMuted; // apply any existing mute state
+          Helper.setSpeakerphoneOn(true); // Route WebRTC audio to the loudspeaker!
+          developer.log('WHEP: Audio track received and routed to speakerphone');
+        } else if (track.kind == 'video') {
+          developer.log('WHEP DIAGNOSTICS: Remote VIDEO track available (ID: ${track.id})');
         }
       };
 
@@ -265,6 +296,7 @@ class WhepAudioHandler extends BaseAudioHandler {
         BaseOptions(
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
+          validateStatus: (status) => status != null && status < 500,
         ),
       );
 
@@ -278,15 +310,21 @@ class WhepAudioHandler extends BaseAudioHandler {
       );
 
       if (response.statusCode != 201 && response.statusCode != 200) {
-        throw Exception('WHEP error: ${response.statusCode}');
+        developer.log('WHEP HTTP ERROR ${response.statusCode}: ${response.data}');
+        print('WHEP HTTP ERROR ${response.statusCode}: ${response.data}');
+        throw Exception('WHEP error ${response.statusCode}: ${response.data}');
       }
 
       final answerSdp = response.data ?? '';
       if (answerSdp.isEmpty) throw Exception('Empty SDP answer from server');
 
+      _analyzeSdpAnswer(answerSdp);
+
       await _pc!.setRemoteDescription(
         RTCSessionDescription(answerSdp, 'answer'),
       );
+
+      _startStatsLogging();
 
       _isConnecting = false;
       developer.log('WHEP: SDP exchange complete, waiting for ICE...');
@@ -295,14 +333,34 @@ class WhepAudioHandler extends BaseAudioHandler {
       _isPlaying = false;
       _lastError = e.toString();
       developer.log('WHEP connection error: $_lastError\n$st', name: 'WHEP');
+      
+      bool isStreamEnded = false;
+      if (e is DioException) {
+        final statusCode = e.response?.statusCode;
+        if (statusCode == 404 || statusCode == 403) {
+          isStreamEnded = true;
+          developer.log('WHEP: Stream appears to have ended (HTTP $statusCode)');
+        }
+      }
+
       if (!_isDisposed) {
-        playbackState.add(
-          _buildState(
-            playing: false,
-            processingState: AudioProcessingState.error,
-          ),
-        );
-        _scheduleReconnect();
+        if (isStreamEnded) {
+          playbackState.add(
+            _buildState(
+              playing: false,
+              processingState: AudioProcessingState.completed,
+            ),
+          );
+          // Do not schedule reconnect if stream ended
+        } else {
+          playbackState.add(
+            _buildState(
+              playing: false,
+              processingState: AudioProcessingState.error,
+            ),
+          );
+          _scheduleReconnect();
+        }
       }
     }
   }
@@ -338,13 +396,124 @@ class WhepAudioHandler extends BaseAudioHandler {
   }
 
   Future<void> _cleanupPeerConnection() async {
+    developer.log('WHEP: Cleaning up peer connection...');
+    _statsTimer?.cancel();
+    _statsTimer = null;
+    _audioRenderer.srcObject = null;
+    _remoteStream = null;
+    _audioTrack = null;
+    _isConnecting = false;
+    _isPlaying = false;
     if (_pc != null) {
       _pc!.onConnectionState = null;
       _pc!.onIceConnectionState = null;
       _pc!.onTrack = null;
       await _pc!.close();
+      await _pc!.dispose();
       _pc = null;
     }
+  }
+
+  void _analyzeSdpAnswer(String answerSdp) {
+    final lines = answerSdp.split('\n');
+    String currentMedia = 'none';
+    bool hasAudio = false;
+    bool hasVideo = false;
+    String audioDirection = 'unknown';
+    String videoDirection = 'unknown';
+    int audioPort = -1;
+    int videoPort = -1;
+
+    for (var line in lines) {
+      line = line.trim();
+      if (line.startsWith('m=audio')) {
+        currentMedia = 'audio';
+        hasAudio = true;
+        final parts = line.split(' ');
+        if (parts.length >= 2) {
+          audioPort = int.tryParse(parts[1]) ?? -1;
+        }
+      } else if (line.startsWith('m=video')) {
+        currentMedia = 'video';
+        hasVideo = true;
+        final parts = line.split(' ');
+        if (parts.length >= 2) {
+          videoPort = int.tryParse(parts[1]) ?? -1;
+        }
+      } else if (line.startsWith('a=sendrecv') ||
+          line.startsWith('a=sendonly') ||
+          line.startsWith('a=recvonly') ||
+          line.startsWith('a=inactive')) {
+        if (currentMedia == 'audio') audioDirection = line.substring(2);
+        if (currentMedia == 'video') videoDirection = line.substring(2);
+      }
+    }
+
+    final isAudioActive = hasAudio && audioPort > 0 && audioDirection != 'inactive';
+    final sdpSummary = '[WHEP DIAGNOSTICS SDP ANSWER ANALYSIS]\n'
+        '  Audio Section Present: $hasAudio (Port: $audioPort, Direction: $audioDirection)\n'
+        '  Video Section Present: $hasVideo (Port: $videoPort, Direction: $videoDirection)\n'
+        '  Is Audio Active in Server Answer?: $isAudioActive';
+
+    developer.log(sdpSummary, name: 'WHEP_DIAGNOSTICS');
+    print('========================================================================');
+    print(sdpSummary);
+    if (!isAudioActive) {
+      print('[WHEP DIAGNOSTICS WARNING] The WHEP server SDP answer does NOT contain an active audio track! The live stream publisher may be streaming video-only or audio is disabled on the server side.');
+    }
+    print('========================================================================');
+  }
+
+  void _startStatsLogging() {
+    _statsTimer?.cancel();
+    _statsTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (_pc == null || _isDisposed) {
+        timer.cancel();
+        return;
+      }
+      try {
+        final stats = await _pc!.getStats();
+        int audioBytes = 0;
+        int audioPackets = 0;
+        int videoBytes = 0;
+        int videoPackets = 0;
+        double? audioLevel;
+
+        for (var report in stats) {
+          final values = report.values;
+          final type = report.type;
+          if (type == 'inbound-rtp') {
+            final kind = values['kind'] ?? values['mediaType'];
+            if (kind == 'audio') {
+              audioBytes = int.tryParse(values['bytesReceived']?.toString() ?? '0') ?? 0;
+              audioPackets = int.tryParse(values['packetsReceived']?.toString() ?? '0') ?? 0;
+              if (values.containsKey('audioLevel')) {
+                audioLevel = double.tryParse(values['audioLevel'].toString());
+              }
+            } else if (kind == 'video') {
+              videoBytes = int.tryParse(values['bytesReceived']?.toString() ?? '0') ?? 0;
+              videoPackets = int.tryParse(values['packetsReceived']?.toString() ?? '0') ?? 0;
+            }
+          }
+        }
+
+        final logMsg = '[WHEP DIAGNOSTICS WEBRTC STATS]\n'
+            '  Audio Bytes Received: $audioBytes\n'
+            '  Audio Packets Received: $audioPackets\n'
+            '  Audio Level: ${audioLevel ?? 'N/A'}\n'
+            '  Video Bytes Received: $videoBytes\n'
+            '  Video Packets Received: $videoPackets\n'
+            '  Audio Track Enabled: ${_audioTrack?.enabled}\n'
+            '  Audio Track Muted: ${_audioTrack?.muted}';
+
+        developer.log(logMsg, name: 'WHEP_DIAGNOSTICS');
+        print('========================================================================');
+        print(logMsg);
+        print('========================================================================');
+      } catch (e) {
+        developer.log('WHEP: Error fetching WebRTC stats: $e');
+      }
+    });
   }
 
   void registerExternalPlaybackControls({
@@ -374,15 +543,7 @@ class WhepAudioHandler extends BaseAudioHandler {
     );
   }
 
-  void updateRecordingPlaybackState(bool playing) {
-    if (_playbackMode != _AudioPlaybackMode.recording) return;
-    playbackState.add(
-      _buildState(
-        playing: playing,
-        processingState: AudioProcessingState.ready,
-      ),
-    );
-  }
+
 
   void resetToLiveStreamMode() {
     if (_playbackMode == _AudioPlaybackMode.liveStream) return;
@@ -395,7 +556,7 @@ class WhepAudioHandler extends BaseAudioHandler {
     );
   }
 
-  @override
+  // Called by old versions of audio_service, or custom usage
   Future<void> onStart(Map<String, dynamic>? extras) async {
     developer.log('WHEP: onStart called, extras: $extras');
     if (!_isDisposed && _streamUrl != null) {
@@ -403,7 +564,7 @@ class WhepAudioHandler extends BaseAudioHandler {
     }
   }
 
-  @override
+  // Called by old versions of audio_service, or custom usage
   Future<void> onStop() async {
     developer.log('WHEP: onStop called');
     await _disconnect();
@@ -435,6 +596,36 @@ class WhepAudioHandler extends BaseAudioHandler {
     );
   }
 
+  void updateRecordingPlaybackState({
+    required bool playing,
+    Duration? position,
+    Duration? bufferedPosition,
+    double speed = 1.0,
+  }) {
+    if (_playbackMode != _AudioPlaybackMode.recording) return;
+
+    playbackState.add(
+      PlaybackState(
+        controls: [
+          playing ? MediaControl.pause : MediaControl.play,
+          MediaControl.stop,
+        ],
+        androidCompactActionIndices: const [0, 1],
+        processingState: playing ? AudioProcessingState.ready : AudioProcessingState.idle,
+        playing: playing,
+        updatePosition: position ?? Duration.zero,
+        bufferedPosition: bufferedPosition ?? Duration.zero,
+        speed: speed,
+        systemActions: const {
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.seek,
+          MediaAction.stop,
+        },
+      ),
+    );
+  }
+
   @override
   Future<void> onTaskRemoved() async {
     await stop();
@@ -444,6 +635,7 @@ class WhepAudioHandler extends BaseAudioHandler {
     _isDisposed = true;
     _reconnectTimer?.cancel();
     await _cleanupPeerConnection();
+    await _audioRenderer.dispose();
     developer.log('WHEP: Handler disposed');
   }
 
