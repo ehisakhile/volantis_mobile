@@ -22,7 +22,7 @@ class RecordingsDownloadsService {
 
   RecordingsDownloadsService._(this._dio, this._encryptionService)
     : _secureStorage = const FlutterSecureStorage(
-        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+        aOptions: AndroidOptions(),
       );
 
   static RecordingsDownloadsService get instance {

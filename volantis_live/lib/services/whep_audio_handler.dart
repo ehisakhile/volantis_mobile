@@ -21,6 +21,7 @@ class WhepAudioHandler extends BaseAudioHandler {
   Future<void> Function()? _externalPlay;
   Future<void> Function()? _externalPause;
   Future<void> Function()? _externalStop;
+  void Function(bool isPlaying, bool isConnecting)? onStateChanged;
   
   final RTCVideoRenderer _audioRenderer = RTCVideoRenderer();
 
@@ -146,11 +147,25 @@ class WhepAudioHandler extends BaseAudioHandler {
     _reconnectTimer?.cancel();
     await _disconnect();
     _isPlaying = false;
+    _isConnecting = false;
     _lastError = null;
     playbackState.add(
       _buildState(playing: false, processingState: AudioProcessingState.idle),
     );
-    await super.stop(); // removes the notification
+    // NOTE: We intentionally do NOT call super.stop() here.
+    // super.stop() tears down the audio_service foreground service and
+    // disconnects the proxy's event relay. After that, playbackState.add()
+    // events from this handler no longer reach UI-side listeners
+    // (AudioManager._onLiveStreamState). Since we reuse this handler for
+    // stream switching, we must keep the proxy alive.
+  }
+
+  /// Fully shuts down the handler including the audio_service foreground
+  /// service and proxy relay. Call only when the app is truly done with
+  /// audio (e.g. on app exit).
+  Future<void> hardStop() async {
+    await stop();
+    await super.stop();
   }
 
   Future<void> _connect() async {
@@ -164,6 +179,7 @@ class WhepAudioHandler extends BaseAudioHandler {
         processingState: AudioProcessingState.loading,
       ),
     );
+    onStateChanged?.call(false, true);
 
     try {
       await _cleanupPeerConnection();
@@ -201,6 +217,14 @@ class WhepAudioHandler extends BaseAudioHandler {
           _audioTrack!.enabled = !_isMuted; // apply any existing mute state
           Helper.setSpeakerphoneOn(true); // Route WebRTC audio to the loudspeaker!
           developer.log('WHEP: Audio track received and routed to speakerphone', name: 'WHEP_DIAGNOSTICS');
+
+          if (!_isPlaying) {
+            _isPlaying = true;
+            _isConnecting = false;
+            playbackState.add(_buildState(playing: true));
+            onStateChanged?.call(true, false);
+            developer.log('WHEP: Audio track received — setting playing:true', name: 'WHEP_DIAGNOSTICS');
+          }
         } else if (track.kind == 'video') {
           developer.log('WHEP DIAGNOSTICS: Remote VIDEO track available (ID: ${track.id})', name: 'WHEP_DIAGNOSTICS');
         }
@@ -220,6 +244,7 @@ class WhepAudioHandler extends BaseAudioHandler {
               _isPlaying = true;
               _isConnecting = false;
               playbackState.add(_buildState(playing: true));
+              onStateChanged?.call(true, false);
               developer.log(
                 'WHEP: playing:true emitted — notification should appear',
               );
@@ -233,6 +258,7 @@ class WhepAudioHandler extends BaseAudioHandler {
                 processingState: AudioProcessingState.buffering,
               ),
             );
+            onStateChanged?.call(false, true);
             _scheduleReconnect();
             break;
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -245,10 +271,12 @@ class WhepAudioHandler extends BaseAudioHandler {
                 processingState: AudioProcessingState.error,
               ),
             );
+            onStateChanged?.call(false, false);
             _scheduleReconnect();
             break;
           case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
             _isPlaying = false;
+            onStateChanged?.call(false, false);
             break;
           default:
             break;
@@ -270,6 +298,7 @@ class WhepAudioHandler extends BaseAudioHandler {
               _isPlaying = true;
               _isConnecting = false;
               playbackState.add(_buildState(playing: true));
+              onStateChanged?.call(true, false);
               developer.log('WHEP: ICE fallback — notification triggered');
             }
             break;
@@ -283,6 +312,7 @@ class WhepAudioHandler extends BaseAudioHandler {
                   processingState: AudioProcessingState.error,
                 ),
               );
+              onStateChanged?.call(false, false);
               _scheduleReconnect();
             }
             break;
@@ -331,7 +361,10 @@ class WhepAudioHandler extends BaseAudioHandler {
       _startStatsLogging();
 
       _isConnecting = false;
-      developer.log('WHEP: SDP exchange complete, waiting for ICE...', name: 'WHEP');
+      _isPlaying = true;
+      playbackState.add(_buildState(playing: true));
+      onStateChanged?.call(true, false);
+      developer.log('WHEP: SDP exchange complete — setting playing:true', name: 'WHEP');
     } catch (e, st) {
       _isConnecting = false;
       _isPlaying = false;
@@ -571,7 +604,7 @@ class WhepAudioHandler extends BaseAudioHandler {
     playbackState.add(
       _buildState(playing: false, processingState: AudioProcessingState.idle),
     );
-    await super.stop();
+    // Don't call super.stop() — see stop() comments above.
   }
 
   PlaybackState _buildState({

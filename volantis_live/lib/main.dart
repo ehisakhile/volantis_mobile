@@ -33,8 +33,9 @@ Future<void> main() async {
   await ApiService.checkAndClearIfFirstRun();
 
   // Initialize WHEP audio handler for live stream notifications
+  final whepHandler = WhepAudioHandler();
   _whepAudioHandler = await AudioService.init(
-    builder: () => WhepAudioHandler(),
+    builder: () => whepHandler,
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.volantis.live.stream',
       androidNotificationChannelName: 'Volantis Audio',
@@ -71,7 +72,7 @@ Future<void> main() async {
   await ConnectivityService().init();
 
   // Initialize centralized AudioManager with WHEP handler for unified audio control
-  await AudioManager.instance.init(whepHandler: _whepAudioHandler!);
+  await AudioManager.instance.init(whepHandler: whepHandler);
 
   // Initialize LiveStreamService with AudioManager integration
   await LiveStreamService.instance.init();

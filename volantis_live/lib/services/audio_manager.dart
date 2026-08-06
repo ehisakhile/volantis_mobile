@@ -136,6 +136,7 @@ class AudioManager extends ChangeNotifier {
       _recordingPlayer!.playerStateStream.listen(_onRecordingPlayerState);
       _recordingPlayer!.positionStream.listen(_onRecordingPosition);
       _whepHandler?.playbackState.listen(_onLiveStreamState);
+      _whepHandler?.onStateChanged = _onWhepStateChanged;
 
       _isInitialized = true;
       debugPrint('AudioManager initialized');
@@ -182,10 +183,12 @@ class AudioManager extends ChangeNotifier {
   }
 
   void _onLiveStreamState(PlaybackState state) {
-    if (_currentState.sourceType != AudioSourceType.liveStream) return;
+    if (_currentState.sourceType != AudioSourceType.liveStream) {
+      debugPrint('[AudioManager] _onLiveStreamState SKIPPED: sourceType=${_currentState.sourceType}, processingState=${state.processingState}, playing=${state.playing}');
+      return;
+    }
 
     bool isConnecting = false;
-    bool isPlaying = false;
 
     if (state.processingState == AudioProcessingState.loading ||
         state.processingState == AudioProcessingState.buffering) {
@@ -195,13 +198,13 @@ class AudioManager extends ChangeNotifier {
       // Not connecting or playing
     } else if (state.processingState == AudioProcessingState.completed) {
       // Stream ended
-      isPlaying = false;
       isConnecting = false;
     } else if (state.processingState == AudioProcessingState.error) {
       // Error occurred
-      isPlaying = false;
       isConnecting = false;
     }
+
+    debugPrint('[AudioManager] _onLiveStreamState: processingState=${state.processingState}, playing=${state.playing}, isConnecting=$isConnecting');
 
     if (state.processingState == AudioProcessingState.completed) {
       _currentState = _currentState.copyWith(
@@ -225,6 +228,25 @@ class AudioManager extends ChangeNotifier {
         isConnecting: isConnecting,
       );
     }
+    debugPrint('[AudioManager] _onLiveStreamState RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}, sourceType=${_currentState.sourceType}');
+    _stateController.add(_currentState);
+    notifyListeners();
+  }
+
+  void _onWhepStateChanged(bool isPlaying, bool isConnecting) {
+    debugPrint('[AudioManager] _onWhepStateChanged: isPlaying=$isPlaying, isConnecting=$isConnecting, currentSourceType=${_currentState.sourceType}');
+    if (_currentState.sourceType != AudioSourceType.liveStream) {
+      debugPrint('[AudioManager] _onWhepStateChanged SKIPPED: sourceType=${_currentState.sourceType}');
+      return;
+    }
+    
+    // Always trust direct connection state from WhepAudioHandler over audio_service playbackState
+    // which may drop events on iOS due to native AudioSession lifecycle differences.
+    _currentState = _currentState.copyWith(
+      isPlaying: isPlaying,
+      isConnecting: isConnecting,
+    );
+    debugPrint('[AudioManager] _onWhepStateChanged RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}');
     _stateController.add(_currentState);
     notifyListeners();
   }
@@ -300,7 +322,24 @@ class AudioManager extends ChangeNotifier {
 
       debugPrint('[AudioManager] initStream done, calling play()...');
       await _whepHandler?.play();
-      debugPrint('[AudioManager] play() called. Relying on _onLiveStreamState for updates.');
+      debugPrint('[AudioManager] play() returned. Handler isConnected=${_whepHandler?.isConnected}');
+
+      // ── iOS FIX: Force-sync state from handler ────────────────────────
+      // On iOS, the audio_service playbackState BehaviorSubject events
+      // and onStateChanged callbacks can silently fail to reach our
+      // _onLiveStreamState listener. After play() returns, directly read
+      // the handler's actual state and force-update if needed.
+      if (_whepHandler != null &&
+          _whepHandler!.isConnected &&
+          !_currentState.isPlaying) {
+        debugPrint('[AudioManager] iOS FIX: Handler is connected but AudioManager state is stale. Force-updating isPlaying=true');
+        _currentState = _currentState.copyWith(
+          isPlaying: true,
+          isConnecting: false,
+        );
+        _stateController.add(_currentState);
+        notifyListeners();
+      }
     } catch (e, st) {
       debugPrint('Error playing live stream: $e\n$st');
       _currentState = _currentState.copyWith(

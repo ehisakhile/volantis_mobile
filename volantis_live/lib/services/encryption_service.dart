@@ -20,7 +20,7 @@ class EncryptionService {
 
   EncryptionService._()
     : _secureStorage = const FlutterSecureStorage(
-        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+        aOptions: AndroidOptions(),
       );
 
   static EncryptionService get instance {

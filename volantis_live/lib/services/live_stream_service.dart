@@ -199,14 +199,15 @@ class LiveStreamService {
 
   void _notifyStateChange() {
     if (_stateController.isClosed) return;
-    _stateController.add(
-      LiveStreamState(
-        liveStream: _currentStream,
-        isPlaying: isPlaying,
-        isMuted: isMuted,
-        error: AudioManager.instance.currentState.error,
-      ),
+    final state = LiveStreamState(
+      liveStream: _currentStream,
+      isPlaying: isPlaying,
+      isMuted: isMuted,
+      isConnecting: AudioManager.instance.currentState.isConnecting,
+      error: AudioManager.instance.currentState.error,
     );
+    debugPrint('[LiveStreamService] _notifyStateChange: isPlaying=${state.isPlaying}, isConnecting=${state.isConnecting}, hasLiveStream=${state.liveStream != null}, amIsPlaying=${AudioManager.instance.isPlaying}, amSourceType=${AudioManager.instance.currentSourceType}');
+    _stateController.add(state);
   }
 
   Future<void> dispose() async {
@@ -223,12 +224,14 @@ class LiveStreamState {
   final LiveStreamData? liveStream;
   final bool isPlaying;
   final bool isMuted;
+  final bool isConnecting;
   final String? error;
 
   LiveStreamState({
     this.liveStream,
     required this.isPlaying,
     required this.isMuted,
+    this.isConnecting = false,
     this.error,
   });
 }

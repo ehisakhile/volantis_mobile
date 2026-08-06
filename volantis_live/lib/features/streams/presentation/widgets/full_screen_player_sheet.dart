@@ -309,6 +309,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   }
 
   Widget _buildPlayerView(dynamic stream, StreamsProvider provider, LiveStreamService livestreamService) {
+    debugPrint('[FullScreenPlayerSheet] _buildPlayerView: isConnecting=${provider.isConnecting}, isPlaying=${provider.isPlaying}');
     if (provider.isConnecting && !provider.isPlaying) {
       return _buildConnectingView(stream, provider);
     }

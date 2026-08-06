@@ -17,7 +17,7 @@ class ApiService {
   static FlutterSecureStorage? get _secureStorage {
     try {
       return const FlutterSecureStorage(
-        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+        aOptions: AndroidOptions(),
       );
     } catch (e) {
       return null;

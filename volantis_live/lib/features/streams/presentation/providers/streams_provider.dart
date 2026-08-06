@@ -147,8 +147,10 @@ class StreamsProvider extends ChangeNotifier {
   }
 
   void _onStreamStateChanged(LiveStreamState state) {
+    debugPrint('[StreamsProvider] _onStreamStateChanged: isPlaying=${state.isPlaying}, isConnecting=${state.isConnecting}, hasLiveStream=${state.liveStream != null}');
     _isPlaying = state.isPlaying;
     _isMuted = state.isMuted;
+    _isConnecting = state.isConnecting;
     _playerError = state.error;
     if (state.liveStream != null) {
       _currentStream = LiveStream(
@@ -170,6 +172,7 @@ class StreamsProvider extends ChangeNotifier {
     } else if (!_isPlayerOpen) {
       _currentStream = null;
     }
+    debugPrint('[StreamsProvider] after update: _isPlaying=$_isPlaying, _isConnecting=$_isConnecting, _isPlayerOpen=$_isPlayerOpen');
     notifyListeners();
   }
 

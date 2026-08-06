@@ -138,6 +138,14 @@ class _StreamPlayerScreenState extends State<StreamPlayerScreen>
     setState(() {
       _isPlaying = p.isPlaying;
       _isMuted = p.isMuted;
+      if (p.isPlaying) {
+        _connectionState = 'connected';
+      } else if (p.isConnecting) {
+        _connectionState = 'connecting';
+      } else if (p.playerError != null) {
+        _connectionState = 'failed';
+        _errorMessage = p.playerError;
+      }
     });
   }
 
