@@ -389,7 +389,7 @@ class StreamsProvider extends ChangeNotifier {
     _currentStream = stream;
     _isPlayerOpen = true;
     _isPlayerExpanded = true;
-    _isPlaying = true;
+    _isPlaying = false; // Start with not playing, will be set to true when connected
     _isConnecting = true;
     _error = null;
 
@@ -419,6 +419,15 @@ class StreamsProvider extends ChangeNotifier {
       }
     }
 
+    // Validate that we have a WHEP URL before attempting to connect
+    if (whepUrl == null || whepUrl.isEmpty) {
+      _error = 'Unable to retrieve stream URL. Please try again later.';
+      _isConnecting = false;
+      _isPlaying = false;
+      notifyListeners();
+      return false;
+    }
+
     final activeStream = _currentStream ?? stream;
 
     // Convert to LiveStreamData and start stream
@@ -435,8 +444,8 @@ class StreamsProvider extends ChangeNotifier {
       totalViews: activeStream.totalViews,
       thumbnailUrl: activeStream.thumbnailUrl,
       startedAt: activeStream.startedAt,
-      whepUrl: whepUrl ?? activeStream.whepUrl,
-      playbackUrl: whepUrl ?? activeStream.playbackUrl,
+      whepUrl: whepUrl,
+      playbackUrl: whepUrl,
     );
 
     await _liveStreamService.switchStream(liveStreamData);

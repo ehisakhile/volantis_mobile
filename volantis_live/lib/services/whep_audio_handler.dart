@@ -104,7 +104,16 @@ class WhepAudioHandler extends BaseAudioHandler {
     }
 
     if (_isPlaying || _isConnecting || _isDisposed) return;
-    if (_streamUrl == null) return;
+    if (_streamUrl == null) {
+      _lastError = 'Stream URL is missing';
+      playbackState.add(
+        _buildState(
+          playing: false,
+          processingState: AudioProcessingState.error,
+        ),
+      );
+      return;
+    }
     await _connect();
   }
 
@@ -178,13 +187,9 @@ class WhepAudioHandler extends BaseAudioHandler {
             '  Muted: ${track.muted}\n'
             '  Streams Count: ${event.streams.length}';
         developer.log(trackInfo, name: 'WHEP_DIAGNOSTICS');
-        print('========================================================================');
-        print(trackInfo);
-        print('========================================================================');
 
         track.onMute = () {
-          developer.log('[WHEP DIAGNOSTICS] Track MUTED by system: ${track.kind} (${track.id})');
-          print('[WHEP DIAGNOSTICS] Track MUTED by system: ${track.kind} (${track.id})');
+          developer.log('[WHEP DIAGNOSTICS] Track MUTED by system: ${track.kind} (${track.id})', name: 'WHEP_DIAGNOSTICS');
         };
 
         if (track.kind == 'audio') {
@@ -195,9 +200,9 @@ class WhepAudioHandler extends BaseAudioHandler {
           }
           _audioTrack!.enabled = !_isMuted; // apply any existing mute state
           Helper.setSpeakerphoneOn(true); // Route WebRTC audio to the loudspeaker!
-          developer.log('WHEP: Audio track received and routed to speakerphone');
+          developer.log('WHEP: Audio track received and routed to speakerphone', name: 'WHEP_DIAGNOSTICS');
         } else if (track.kind == 'video') {
-          developer.log('WHEP DIAGNOSTICS: Remote VIDEO track available (ID: ${track.id})');
+          developer.log('WHEP DIAGNOSTICS: Remote VIDEO track available (ID: ${track.id})', name: 'WHEP_DIAGNOSTICS');
         }
       };
 
@@ -290,7 +295,7 @@ class WhepAudioHandler extends BaseAudioHandler {
       await _pc!.setLocalDescription(offer);
 
       final sdpBody = _normaliseSdp(offer.sdp ?? '');
-      developer.log('WHEP: Sending offer to $_streamUrl');
+      developer.log('WHEP: Sending offer to $_streamUrl', name: 'WHEP');
 
       final dio = Dio(
         BaseOptions(
@@ -310,8 +315,7 @@ class WhepAudioHandler extends BaseAudioHandler {
       );
 
       if (response.statusCode != 201 && response.statusCode != 200) {
-        developer.log('WHEP HTTP ERROR ${response.statusCode}: ${response.data}');
-        print('WHEP HTTP ERROR ${response.statusCode}: ${response.data}');
+        developer.log('WHEP HTTP ERROR ${response.statusCode}: ${response.data}', name: 'WHEP');
         throw Exception('WHEP error ${response.statusCode}: ${response.data}');
       }
 
@@ -327,7 +331,7 @@ class WhepAudioHandler extends BaseAudioHandler {
       _startStatsLogging();
 
       _isConnecting = false;
-      developer.log('WHEP: SDP exchange complete, waiting for ICE...');
+      developer.log('WHEP: SDP exchange complete, waiting for ICE...', name: 'WHEP');
     } catch (e, st) {
       _isConnecting = false;
       _isPlaying = false;
@@ -456,12 +460,9 @@ class WhepAudioHandler extends BaseAudioHandler {
         '  Is Audio Active in Server Answer?: $isAudioActive';
 
     developer.log(sdpSummary, name: 'WHEP_DIAGNOSTICS');
-    print('========================================================================');
-    print(sdpSummary);
     if (!isAudioActive) {
-      print('[WHEP DIAGNOSTICS WARNING] The WHEP server SDP answer does NOT contain an active audio track! The live stream publisher may be streaming video-only or audio is disabled on the server side.');
+      developer.log('[WHEP DIAGNOSTICS WARNING] The WHEP server SDP answer does NOT contain an active audio track! The live stream publisher may be streaming video-only or audio is disabled on the server side.', name: 'WHEP_DIAGNOSTICS');
     }
-    print('========================================================================');
   }
 
   void _startStatsLogging() {
@@ -507,9 +508,6 @@ class WhepAudioHandler extends BaseAudioHandler {
             '  Audio Track Muted: ${_audioTrack?.muted}';
 
         developer.log(logMsg, name: 'WHEP_DIAGNOSTICS');
-        print('========================================================================');
-        print(logMsg);
-        print('========================================================================');
       } catch (e) {
         developer.log('WHEP: Error fetching WebRTC stats: $e');
       }

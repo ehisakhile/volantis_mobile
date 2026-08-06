@@ -130,12 +130,6 @@ class AudioManager extends ChangeNotifier {
           avAudioSessionCategoryOptions:
               AVAudioSessionCategoryOptions.allowBluetooth,
           avAudioSessionMode: AVAudioSessionMode.defaultMode,
-          androidAudioAttributes: AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.media,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: false,
         ),
       );
 
@@ -190,11 +184,24 @@ class AudioManager extends ChangeNotifier {
   void _onLiveStreamState(PlaybackState state) {
     if (_currentState.sourceType != AudioSourceType.liveStream) return;
 
-    final isConnecting = state.processingState == AudioProcessingState.loading ||
-        state.processingState == AudioProcessingState.buffering ||
-        state.processingState == AudioProcessingState.error; // We auto-reconnect on error, so it's still connecting
+    bool isConnecting = false;
+    bool isPlaying = false;
 
-    final isPlaying = state.playing || isConnecting; // If connecting, we consider it "trying to play"
+    if (state.processingState == AudioProcessingState.loading ||
+        state.processingState == AudioProcessingState.buffering) {
+      isConnecting = true;
+    } else if (state.processingState == AudioProcessingState.ready ||
+               state.processingState == AudioProcessingState.idle) {
+      // Not connecting or playing
+    } else if (state.processingState == AudioProcessingState.completed) {
+      // Stream ended
+      isPlaying = false;
+      isConnecting = false;
+    } else if (state.processingState == AudioProcessingState.error) {
+      // Error occurred
+      isPlaying = false;
+      isConnecting = false;
+    }
 
     if (state.processingState == AudioProcessingState.completed) {
       _currentState = _currentState.copyWith(
@@ -204,9 +211,17 @@ class AudioManager extends ChangeNotifier {
         error: 'stream_ended',
       );
       _whepHandler?.resetToLiveStreamMode();
+    } else if (state.processingState == AudioProcessingState.error) {
+      _currentState = _currentState.copyWith(
+        isPlaying: false,
+        isConnecting: false,
+        sourceType: AudioSourceType.none,
+        error: _whepHandler?.lastError ?? 'Unknown error',
+      );
+      _whepHandler?.resetToLiveStreamMode();
     } else {
       _currentState = _currentState.copyWith(
-        isPlaying: isPlaying,
+        isPlaying: state.playing,
         isConnecting: isConnecting,
       );
     }
