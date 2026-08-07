@@ -371,7 +371,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
               setState(() => _replyTo = msg);
               _focusNode.requestFocus();
             },
-            onDelete: widget.isCreator ? (id) => _deleteMessage(id) : null,
+            onDelete: (id) => _deleteMessage(id),
           );
         },
       ),
@@ -829,7 +829,7 @@ class _ChatMessageItem extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (isCreator && onDelete != null)
+                if (message.username == currentUsername && onDelete != null)
                   const PopupMenuItem(
                     value: 'delete',
                     child: Row(

@@ -280,16 +280,16 @@ class _LoginScreenState extends State<LoginScreen>
 
                         const SizedBox(height: 20),
 
-                        const AuthFeatureCard(
-                          icon: Icons.auto_awesome_rounded,
-                          iconBg: Color(0xFF6001D1),
-                          iconColor: Color(0xFFC9AEFF),
-                          title: 'AI-Powered Experience',
-                          subtitle:
-                              'Real-time transcription and adaptive noise cancellation for every session.',
-                        ),
+                        // const AuthFeatureCard(
+                        //   icon: Icons.auto_awesome_rounded,
+                        //   iconBg: Color(0xFF6001D1),
+                        //   iconColor: Color(0xFFC9AEFF),
+                        //   title: 'AI-Powered Experience',
+                        //   subtitle:
+                        //       'Real-time transcription and adaptive noise cancellation for every session.',
+                        // ),
 
-                        const SizedBox(height: 40),
+                        // const SizedBox(height: 40),
                       ],
                     ),
                   ),
