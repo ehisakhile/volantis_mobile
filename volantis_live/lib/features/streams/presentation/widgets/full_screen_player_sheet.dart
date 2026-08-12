@@ -7,9 +7,19 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../services/audio_manager.dart';
 import '../../../../services/live_stream_service.dart';
 import '../../../../services/share_service.dart';
+import '../../../../services/video_stream_service.dart';
 import '../../data/models/company_live_stream_model.dart';
 import '../../../chat/presentation/widgets/live_chat_widget.dart';
 import '../providers/streams_provider.dart';
+import 'video_stream_player_widget.dart';
+
+enum VideoConnectionState {
+  disconnected,
+  connecting,
+  connected,
+  reconnecting,
+  error,
+}
 
 class FullScreenPlayerSheet extends StatefulWidget {
   const FullScreenPlayerSheet({super.key});
@@ -39,19 +49,16 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   bool _showChat = false;
   StreamSubscription? _liveStreamStateSubscription;
   StreamSubscription? _audioStateSubscription;
+  StreamSubscription? _videoStreamStateSubscription;
+  VideoConnectionState _videoConnectionState =
+      VideoConnectionState.disconnected;
 
-  static const _iceServerUrls = [
-    'stun:stun.cloudflare.com:3478',
-    'stun:stun.l.google.com:19302',
-    'stun:stun1.l.google.com:19302',
-  ];
-
-  Map<String, dynamic> get _iceConfig => {
-    'iceServers': _iceServerUrls.map((url) => {'urls': url}).toList(),
-    'sdpSemantics': 'unified-plan',
-    'bundlePolicy': 'max-bundle',
-    'rtcpMuxPolicy': 'require',
-  };
+  bool _isVideoStream(dynamic stream) {
+    if (stream is LiveStream) {
+      return stream.streamType == 'video';
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -66,8 +73,11 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
       duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
 
-    _liveStreamStateSubscription = LiveStreamService.instance.stateStream.listen(_onStateChanged);
-    _audioStateSubscription = AudioManager.instance.stateStream.listen(_onAudioStateChanged);
+    _liveStreamStateSubscription = LiveStreamService.instance.stateStream
+        .listen(_onStateChanged);
+    _audioStateSubscription = AudioManager.instance.stateStream.listen(
+      _onAudioStateChanged,
+    );
   }
 
   void _onStateChanged(LiveStreamState state) {
@@ -76,15 +86,24 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
   }
 
   void _onAudioStateChanged(AudioState state) {
-    debugPrint('[FullScreenPlayerSheet] AudioState changed: ${state.sourceType}, isPlaying: ${state.isPlaying}');
+    debugPrint(
+      '[FullScreenPlayerSheet] AudioState changed: ${state.sourceType}, isPlaying: ${state.isPlaying}',
+    );
     if (!mounted) return;
-    
-    if (state.sourceType == AudioSourceType.none || 
-        (state.sourceType == AudioSourceType.liveStream && !state.isPlaying && !state.isConnecting)) {
+
+    if (state.sourceType == AudioSourceType.none ||
+        (state.sourceType == AudioSourceType.liveStream &&
+            !state.isPlaying &&
+            !state.isConnecting)) {
       debugPrint('[FullScreenPlayerSheet] Stream stopped, closing player');
       Navigator.of(context).maybePop();
     }
     setState(() {});
+  }
+
+  void _handleVideoStreamStop() {
+    _videoStreamStateSubscription?.cancel();
+    VideoStreamService.instance.stopStream();
   }
 
   @override
@@ -93,6 +112,7 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
     _pulseCtrl.dispose();
     _liveStreamStateSubscription?.cancel();
     _audioStateSubscription?.cancel();
+    _videoStreamStateSubscription?.cancel();
     super.dispose();
   }
 
@@ -142,7 +162,10 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white,
+                      ),
                       onPressed: () {
                         provider.minimize();
                         Navigator.of(context).pop();
@@ -153,16 +176,23 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                       children: [
                         IconButton(
                           icon: const Icon(Icons.share, color: Colors.white),
-                          onPressed: () => ShareService().shareStreamWithSharePlus(
-                            companySlug: stream.companySlug,
-                            streamSlug: stream.slug,
-                            streamTitle: stream.title,
-                            companyName: stream.companyName,
-                          ),
+                          onPressed: () =>
+                              ShareService().shareStreamWithSharePlus(
+                                companySlug: stream.companySlug,
+                                streamSlug: stream.slug,
+                                streamTitle: stream.title,
+                                companyName: stream.companyName,
+                              ),
                         ),
                         IconButton(
-                          icon: Icon(_showChat ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                              color: _showChat ? const Color(0xFF38BDF8) : Colors.white),
+                          icon: Icon(
+                            _showChat
+                                ? Icons.chat_bubble
+                                : Icons.chat_bubble_outline,
+                            color: _showChat
+                                ? const Color(0xFF38BDF8)
+                                : Colors.white,
+                          ),
                           onPressed: () {
                             setState(() => _showChat = !_showChat);
                           },
@@ -175,7 +205,13 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
               Expanded(
                 child: _showChat
                     ? _buildChatView(stream, provider)
-                    : _buildPlayerView(stream, provider, livestreamService),
+                    : _isVideoStream(stream)
+                    ? _buildVideoPlayerView(stream, provider, livestreamService)
+                    : _buildAudioPlayerView(
+                        stream,
+                        provider,
+                        livestreamService,
+                      ),
               ),
             ],
           ),
@@ -214,10 +250,20 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(color: badgeColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
-              Text(badgeText, style: TextStyle(color: badgeColor, fontSize: 10, fontWeight: FontWeight.bold)),
+              Text(
+                badgeText,
+                style: TextStyle(
+                  color: badgeColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         );
@@ -234,7 +280,9 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B).withOpacity(0.4),
-              border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+              ),
             ),
             child: Row(
               children: [
@@ -244,13 +292,21 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF222A3D),
-                    border: Border.all(color: const Color(0xFF060E20), width: 2),
+                    border: Border.all(
+                      color: const Color(0xFF060E20),
+                      width: 2,
+                    ),
                   ),
                   child: ClipOval(
                     child: stream.companyLogoUrl != null
-                        ? CachedNetworkImage(imageUrl: stream.companyLogoUrl!, fit: BoxFit.cover,
-                            placeholder: (_, __) => const Icon(Icons.live_tv, color: _primary),
-                            errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: _primary))
+                        ? CachedNetworkImage(
+                            imageUrl: stream.companyLogoUrl!,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) =>
+                                const Icon(Icons.live_tv, color: _primary),
+                            errorWidget: (_, __, ___) =>
+                                const Icon(Icons.live_tv, color: _primary),
+                          )
                         : const Icon(Icons.live_tv, color: _primary),
                   ),
                 ),
@@ -259,16 +315,46 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(stream.companyName, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        stream.companyName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       Row(
                         children: [
-                          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          const Text('LIVE', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.visibility, color: _onVariant, size: 12),
+                          const Icon(
+                            Icons.visibility,
+                            color: _onVariant,
+                            size: 12,
+                          ),
                           const SizedBox(width: 2),
-                          Text('${stream.totalViews}', style: TextStyle(color: _onVariant, fontSize: 12)),
+                          Text(
+                            '${stream.totalViews}',
+                            style: TextStyle(color: _onVariant, fontSize: 12),
+                          ),
                         ],
                       ),
                     ],
@@ -279,13 +365,22 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
           ),
         ),
         Expanded(
-          child: LiveChatWidget(slug: stream.slug, isCreator: provider.currentStream?.companySlug == stream.companySlug, companyName: stream.companyName),
+          child: LiveChatWidget(
+            slug: stream.slug,
+            isCreator:
+                provider.currentStream?.companySlug == stream.companySlug,
+            companyName: stream.companyName,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPlayerView(dynamic stream, StreamsProvider provider, LiveStreamService livestreamService) {
+  Widget _buildAudioPlayerView(
+    dynamic stream,
+    StreamsProvider provider,
+    LiveStreamService livestreamService,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -293,78 +388,221 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
           const SizedBox(height: 24),
           _buildAvatar(stream, provider.isPlaying),
           const SizedBox(height: 20),
-          Text(stream.companyName, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
+          Text(
+            stream.companyName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 6),
-          Text(stream.title, style: const TextStyle(color: _onVariant, fontSize: 15, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
+          Text(
+            stream.title,
+            style: const TextStyle(
+              color: _onVariant,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 32),
           _buildWaveform(),
           const SizedBox(height: 32),
           _buildStreamInfo(stream, provider),
           const SizedBox(height: 48),
-          _buildControls(provider, livestreamService),
+          _buildAudioControls(provider, livestreamService),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _buildAvatar(dynamic stream, bool isConnected) {
-    return AnimatedBuilder(
-      animation: _pulseCtrl,
-      builder: (_, __) {
-        final pulse = _pulseCtrl.value;
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 96 + pulse * 8,
-              height: 96 + pulse * 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isConnected ? _tertiary.withOpacity(0.35 * (1 - pulse)) : Colors.grey.withOpacity(0.2),
-                  width: 2,
-                ),
+  Widget _buildVideoPlayerView(
+    dynamic stream,
+    StreamsProvider provider,
+    LiveStreamService livestreamService,
+  ) {
+    return Column(
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: VideoStreamPlayerWidget(
+                whepUrl: stream.whepUrl,
+                playbackUrl: stream.playbackUrl,
+                thumbnailUrl: stream.thumbnailUrl,
+                onConnectionStateChanged: _onVideoConnectionStateChanged,
               ),
             ),
-            Container(
-              width: 96, height: 96,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _tertiary.withOpacity(0.7), width: 2)),
-              child: ClipOval(
-                child: stream.companyLogoUrl != null
-                    ? CachedNetworkImage(imageUrl: stream.companyLogoUrl!, fit: BoxFit.cover,
-                        placeholder: (_, __) => const Icon(Icons.live_tv, color: _primary),
-                        errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: _primary))
-                    : const Icon(Icons.live_tv, color: _primary),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+        _buildVideoStreamInfo(stream, provider),
+        _buildVideoControls(provider),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
-  Widget _buildStreamInfo(dynamic stream, StreamsProvider provider) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.circle, color: Colors.white, size: 6),
-              SizedBox(width: 4),
-              Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
+  void _onVideoConnectionStateChanged() {
+    setState(() {});
+  }
+
+  Widget _buildVideoStreamInfo(dynamic stream, StreamsProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stream.companyName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (stream.isLive) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Icon(Icons.visibility, color: _onVariant, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${provider.currentTotalViews > 0 ? provider.currentTotalViews : stream.totalViews}',
+                      style: TextStyle(color: _onVariant, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        const Icon(Icons.visibility, color: _onVariant, size: 16),
-        const SizedBox(width: 4),
-        Text('${provider.currentTotalViews > 0 ? provider.currentTotalViews : stream.totalViews} views', style: TextStyle(color: _onVariant, fontSize: 14)),
-      ],
+          _buildVideoConnectionBadge(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoConnectionBadge() {
+    final isConnected = VideoStreamService.instance.isConnected;
+    final isConnecting = VideoStreamService.instance.isConnecting;
+    final hasError = VideoStreamService.instance.error != null;
+
+    Color badgeColor;
+    String badgeText;
+
+    if (isConnected) {
+      badgeColor = Colors.green;
+      badgeText = 'CONNECTED';
+    } else if (isConnecting) {
+      badgeColor = Colors.orange;
+      badgeText = 'CONNECTING';
+    } else if (hasError) {
+      badgeColor = Colors.red;
+      badgeText = 'ERROR';
+    } else {
+      badgeColor = Colors.grey;
+      badgeText = 'DISCONNECTED';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: badgeColor.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: badgeColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            badgeText,
+            style: TextStyle(
+              color: badgeColor,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVideoControls(StreamsProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _ControlButton(
+            icon: provider.isMuted ? Icons.volume_off : Icons.volume_up,
+            label: provider.isMuted ? 'Unmute' : 'Mute',
+            onTap: () {
+              VideoStreamService.instance.renderer?.srcObject
+                  ?.getAudioTracks()
+                  .forEach((track) {
+                    track.enabled = !provider.isMuted;
+                  });
+              provider.toggleMute();
+            },
+          ),
+          const SizedBox(width: 24),
+          _ControlButton(
+            icon: Icons.refresh,
+            label: 'Retry',
+            onTap: () {
+              VideoStreamService.instance.retry();
+            },
+          ),
+          const SizedBox(width: 24),
+          _ControlButton(
+            icon: Icons.close,
+            label: 'Stop',
+            onTap: () {
+              _handleVideoStreamStop();
+              provider.closePlayer();
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -385,12 +623,18 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
                 builder: (_, __) {
                   final phase = _waveCtrl.value * 2 * math.pi;
                   final barSeed = _barSeeds[i];
-                  final height = 20 + 30 * (0.5 + 0.5 * math.sin(phase + barSeed * 2 * math.pi));
+                  final height =
+                      20 +
+                      30 *
+                          (0.5 + 0.5 * math.sin(phase + barSeed * 2 * math.pi));
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     width: 4,
                     height: height,
-                    decoration: BoxDecoration(color: _primary.withOpacity(0.6), borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(
+                      color: _primary.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   );
                 },
               );
@@ -401,7 +645,10 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
     );
   }
 
-  Widget _buildControls(StreamsProvider provider, LiveStreamService livestreamService) {
+  Widget _buildAudioControls(
+    StreamsProvider provider,
+    LiveStreamService livestreamService,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -425,6 +672,90 @@ class _FullScreenPlayerSheetState extends State<FullScreenPlayerSheet>
       ],
     );
   }
+
+  Widget _buildAvatar(dynamic stream, bool isConnected) {
+    return AnimatedBuilder(
+      animation: _pulseCtrl,
+      builder: (_, __) {
+        final pulse = _pulseCtrl.value;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 96 + pulse * 8,
+              height: 96 + pulse * 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isConnected
+                      ? _tertiary.withOpacity(0.35 * (1 - pulse))
+                      : Colors.grey.withOpacity(0.2),
+                  width: 2,
+                ),
+              ),
+            ),
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _tertiary.withOpacity(0.7), width: 2),
+              ),
+              child: ClipOval(
+                child: stream.companyLogoUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: stream.companyLogoUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) =>
+                            const Icon(Icons.live_tv, color: _primary),
+                        errorWidget: (_, __, ___) =>
+                            const Icon(Icons.live_tv, color: _primary),
+                      )
+                    : const Icon(Icons.live_tv, color: _primary),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStreamInfo(dynamic stream, StreamsProvider provider) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.red,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.circle, color: Colors.white, size: 6),
+              SizedBox(width: 4),
+              Text(
+                'LIVE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Icon(Icons.visibility, color: _onVariant, size: 16),
+        const SizedBox(width: 4),
+        Text(
+          '${provider.currentTotalViews > 0 ? provider.currentTotalViews : stream.totalViews} views',
+          style: TextStyle(color: _onVariant, fontSize: 14),
+        ),
+      ],
+    );
+  }
 }
 
 class _ControlButton extends StatelessWidget {
@@ -432,7 +763,11 @@ class _ControlButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _ControlButton({required this.icon, required this.label, required this.onTap});
+  const _ControlButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -444,11 +779,17 @@ class _ControlButton extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, color: Colors.white, size: 24),
           ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 10),
+          ),
         ],
       ),
     );

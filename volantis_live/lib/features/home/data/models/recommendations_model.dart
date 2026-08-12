@@ -41,8 +41,9 @@ class SubscribedLivestream {
   final int viewerCount;
   final int totalViews;
   final String? thumbnailUrl;
+  final String? streamType;
 
-  SubscribedLivestream({
+  const SubscribedLivestream({
     required this.id,
     required this.title,
     required this.slug,
@@ -53,7 +54,10 @@ class SubscribedLivestream {
     required this.viewerCount,
     this.totalViews = 0,
     this.thumbnailUrl,
+    this.streamType,
   });
+
+  bool get isVideoStream => streamType == 'video';
 
   factory SubscribedLivestream.fromJson(Map<String, dynamic> json) {
     return SubscribedLivestream(
@@ -67,6 +71,7 @@ class SubscribedLivestream {
       viewerCount: json['viewer_count'] ?? 0,
       totalViews: json['total_views'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
+      streamType: json['stream_type'],
     );
   }
 }

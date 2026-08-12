@@ -47,7 +47,10 @@ class HomeRecording {
     this.watchStatus,
   });
 
-  factory HomeRecording.fromJson(Map<String, dynamic> json, String companySlug) {
+  factory HomeRecording.fromJson(
+    Map<String, dynamic> json,
+    String companySlug,
+  ) {
     return HomeRecording(
       id: json['id'] as int? ?? 0,
       companyId: json['company_id'] as int? ?? 0,
@@ -63,7 +66,9 @@ class HomeRecording {
       fileSizeBytes: json['file_size_bytes'] as int?,
       isProcessed: json['is_processed'] as bool? ?? false,
       thumbnailUrl: json['thumbnail_url'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      createdAt: DateTime.parse(
+        json['created_at'] as String? ?? DateTime.now().toIso8601String(),
+      ),
       replayCount: json['replay_count'] as int?,
       watchStatus: json['watch_status'] as String?,
     );
@@ -196,6 +201,7 @@ class HomeProvider extends ChangeNotifier {
 
     try {
       final response = await _apiService.get(ApiConstants.recommendations);
+      print('API: Recommendations response: ${response.data}');
       _recommendations = RecommendationsResponse.fromJson(response.data);
       print('API: Recommendations loaded successfully');
     } catch (e) {
@@ -230,7 +236,9 @@ class HomeProvider extends ChangeNotifier {
           );
 
           final recordingsList = (response.data as List)
-              .map((j) => HomeRecording.fromJson(j as Map<String, dynamic>, slug))
+              .map(
+                (j) => HomeRecording.fromJson(j as Map<String, dynamic>, slug),
+              )
               .toList();
 
           allRecordings.addAll(recordingsList);
@@ -389,8 +397,9 @@ class HomeProvider extends ChangeNotifier {
 
   /// Check if a company has an active livestream
   bool companyHasActiveLivestream(String companySlug) {
-    return _recommendations?.subscribedLivestreams
-            .any((livestream) => livestream.companySlug == companySlug) ??
+    return _recommendations?.subscribedLivestreams.any(
+          (livestream) => livestream.companySlug == companySlug,
+        ) ??
         false;
   }
 

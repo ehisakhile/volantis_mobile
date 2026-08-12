@@ -461,18 +461,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            _primary.withOpacity(0.15),
-            _primaryCont.withOpacity(0.08),
-          ],
+          colors: [_primary.withOpacity(0.15), _primaryCont.withOpacity(0.08)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _primary.withOpacity(0.25),
-          width: 1,
-        ),
+        border: Border.all(color: _primary.withOpacity(0.25), width: 1),
       ),
       child: Row(
         children: [
@@ -505,10 +499,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'You\'ll never miss a stream from ${_company?.name ?? "this creator"}',
-                  style: const TextStyle(
-                    color: _onVariant,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: _onVariant, fontSize: 11),
                 ),
               ],
             ),
@@ -1113,6 +1104,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       totalViews: stream.totalViews,
       thumbnailUrl: stream.thumbnailUrl,
       startedAt: stream.createdAt,
+      streamType: stream.streamType,
+      playbackUrl: stream.cfWebrtcPlaybackUrl,
     );
     _navigateToPlayer(liveStream);
   }

@@ -9,6 +9,8 @@ import '../../../home/data/models/recommendations_model.dart';
 import '../../../home/presentation/providers/home_provider.dart';
 import '../../../streams/presentation/providers/streams_provider.dart';
 import '../../../streams/presentation/widgets/full_screen_player_sheet.dart';
+import '../../../../services/live_stream_service.dart';
+import '../../../../services/video_stream_service.dart';
 
 class LiveTabScreen extends StatefulWidget {
   const LiveTabScreen({super.key});
@@ -572,6 +574,7 @@ class _LiveTabScreenState extends State<LiveTabScreen>
       viewerCount: livestream.viewerCount,
       totalViews: livestream.totalViews,
       thumbnailUrl: livestream.thumbnailUrl,
+      streamType: livestream.streamType,
     );
     _navigateToPlayer(stream);
   }
@@ -579,6 +582,28 @@ class _LiveTabScreenState extends State<LiveTabScreen>
   Future<void> _navigateToPlayer(LiveStream stream) async {
     final provider = context.read<StreamsProvider>();
     final isSameStream = await provider.openStream(stream);
+
+    if (stream.streamType == 'video') {
+      final videoData = VideoStreamData(
+        id: stream.id,
+        title: stream.title,
+        slug: stream.slug,
+        companyId: stream.companyId,
+        companySlug: stream.companySlug,
+        companyName: stream.companyName,
+        companyLogoUrl: null,
+        isLive: stream.isLive,
+        viewerCount: stream.viewerCount,
+        totalViews: stream.totalViews,
+        thumbnailUrl: stream.thumbnailUrl,
+        startedAt: null,
+        whepUrl: stream.whepUrl,
+        playbackUrl: stream.playbackUrl,
+        streamType: stream.streamType,
+      );
+      await VideoStreamService.instance.startStream(videoData);
+    }
+
     if (isSameStream) {
       provider.expand();
     }

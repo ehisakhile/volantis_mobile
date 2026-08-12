@@ -248,8 +248,9 @@ class LiveStreamData {
   final DateTime? startedAt;
   final String? whepUrl;
   final String? playbackUrl;
+  final String? streamType;
 
-  LiveStreamData({
+  const LiveStreamData({
     required this.id,
     required this.title,
     required this.slug,
@@ -264,7 +265,10 @@ class LiveStreamData {
     this.startedAt,
     this.whepUrl,
     this.playbackUrl,
+    this.streamType,
   });
+
+  bool get isVideoStream => streamType == 'video';
 
   factory LiveStreamData.fromLiveStream(dynamic liveStream) {
     return LiveStreamData(
@@ -282,6 +286,7 @@ class LiveStreamData {
       startedAt: liveStream.startedAt,
       whepUrl: liveStream.whepUrl,
       playbackUrl: liveStream.playbackUrl,
+      streamType: liveStream.streamType,
     );
   }
 }

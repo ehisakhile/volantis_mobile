@@ -24,6 +24,7 @@ class LiveStream {
   final DateTime? startedAt;
   final String? whepUrl;
   final String? playbackUrl;
+  final String? streamType; // e.g., "video", "audio-only", etc.
 
   LiveStream({
     required this.id,
@@ -40,6 +41,7 @@ class LiveStream {
     this.startedAt,
     this.whepUrl,
     this.playbackUrl,
+    this.streamType,
   });
 
   factory LiveStream.fromJson(Map<String, dynamic> json) {
@@ -59,7 +61,8 @@ class LiveStream {
           ? DateTime.tryParse(json['started_at'])
           : null,
       whepUrl: json['whep_url'],
-      playbackUrl: json['playback_url'],
+      playbackUrl: json['cf_webrtc_playback_url'],
+      streamType: json['stream_type'],
     );
   }
 
@@ -78,6 +81,7 @@ class LiveStream {
     DateTime? startedAt,
     String? whepUrl,
     String? playbackUrl,
+    String? streamType,
   }) {
     return LiveStream(
       id: id ?? this.id,
@@ -94,6 +98,7 @@ class LiveStream {
       startedAt: startedAt ?? this.startedAt,
       whepUrl: whepUrl ?? this.whepUrl,
       playbackUrl: playbackUrl ?? this.playbackUrl,
+      streamType: streamType ?? this.streamType,
     );
   }
 }
@@ -156,6 +161,7 @@ class StreamsProvider extends ChangeNotifier {
         startedAt: state.liveStream!.startedAt,
         whepUrl: state.liveStream!.whepUrl,
         playbackUrl: state.liveStream!.playbackUrl,
+        streamType: state.liveStream!.streamType,
       );
     } else {
       _currentStream = null;
@@ -345,6 +351,9 @@ class StreamsProvider extends ChangeNotifier {
   /// If same stream is already playing, shows continue listening
   /// If different stream, closes old one and plays new
   Future<bool> openStream(LiveStream stream) async {
+    print(
+      'Attempting to open stream: ${stream.title} (ID: ${stream.playbackUrl})',
+    );
     // Check if this is the same stream that's already playing
     if (_currentStream != null && _currentStream!.id == stream.id) {
       // Same stream - show continue listening
@@ -379,6 +388,7 @@ class StreamsProvider extends ChangeNotifier {
       startedAt: stream.startedAt,
       whepUrl: stream.whepUrl,
       playbackUrl: stream.playbackUrl,
+      streamType: stream.streamType,
     );
 
     await _liveStreamService.switchStream(liveStreamData);
