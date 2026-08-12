@@ -130,17 +130,13 @@ class AudioManager extends ChangeNotifier {
           avAudioSessionCategoryOptions:
               AVAudioSessionCategoryOptions.allowBluetooth,
           avAudioSessionMode: AVAudioSessionMode.defaultMode,
-          androidAudioAttributes: AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.media,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: false,
         ),
       );
 
       _recordingPlayer!.playerStateStream.listen(_onRecordingPlayerState);
       _recordingPlayer!.positionStream.listen(_onRecordingPosition);
+      _whepHandler?.playbackState.listen(_onLiveStreamState);
+      _whepHandler?.onStateChanged = _onWhepStateChanged;
 
       _isInitialized = true;
       debugPrint('AudioManager initialized');
@@ -150,19 +146,113 @@ class AudioManager extends ChangeNotifier {
   }
 
   void _onRecordingPlayerState(PlayerState state) {
+    if (_currentState.sourceType != AudioSourceType.recording) return;
+
+    final isConnecting = state.processingState == ProcessingState.loading ||
+        state.processingState == ProcessingState.buffering;
+    final isPlaying = state.playing;
+
     if (state.processingState == ProcessingState.completed) {
+      _stopPositionTimer();
       _currentState = _currentState.copyWith(
         isPlaying: false,
+        isConnecting: false,
         sourceType: AudioSourceType.none,
       );
       _whepHandler?.resetToLiveStreamMode();
-      _stateController.add(_currentState);
-      notifyListeners();
+    } else {
+      if (isPlaying) {
+        _startPositionTimer();
+      } else {
+        _stopPositionTimer();
+      }
+      
+      _currentState = _currentState.copyWith(
+        isPlaying: isPlaying,
+        isConnecting: isConnecting,
+      );
+      _whepHandler?.updateRecordingPlaybackState(
+        playing: isPlaying,
+        position: _recordingPlayer?.position,
+        bufferedPosition: _recordingPlayer?.bufferedPosition,
+        speed: _recordingPlayer?.speed ?? 1.0,
+      );
     }
+    _stateController.add(_currentState);
+    notifyListeners();
   }
 
-  void _onRecordingPosition(Duration pos) {
-    _currentState = _currentState.copyWith(position: pos);
+  void _onLiveStreamState(PlaybackState state) {
+    if (_currentState.sourceType != AudioSourceType.liveStream) {
+      debugPrint('[AudioManager] _onLiveStreamState SKIPPED: sourceType=${_currentState.sourceType}, processingState=${state.processingState}, playing=${state.playing}');
+      return;
+    }
+
+    bool isConnecting = false;
+
+    if (state.processingState == AudioProcessingState.loading ||
+        state.processingState == AudioProcessingState.buffering) {
+      isConnecting = true;
+    } else if (state.processingState == AudioProcessingState.ready ||
+               state.processingState == AudioProcessingState.idle) {
+      // Not connecting or playing
+    } else if (state.processingState == AudioProcessingState.completed) {
+      // Stream ended
+      isConnecting = false;
+    } else if (state.processingState == AudioProcessingState.error) {
+      // Error occurred
+      isConnecting = false;
+    }
+
+    debugPrint('[AudioManager] _onLiveStreamState: processingState=${state.processingState}, playing=${state.playing}, isConnecting=$isConnecting');
+
+    if (state.processingState == AudioProcessingState.completed) {
+      _currentState = _currentState.copyWith(
+        isPlaying: false,
+        isConnecting: false,
+        sourceType: AudioSourceType.none,
+        error: 'stream_ended',
+      );
+      _whepHandler?.resetToLiveStreamMode();
+    } else if (state.processingState == AudioProcessingState.error) {
+      _currentState = _currentState.copyWith(
+        isPlaying: false,
+        isConnecting: false,
+        sourceType: AudioSourceType.none,
+        error: _whepHandler?.lastError ?? 'Unknown error',
+      );
+      _whepHandler?.resetToLiveStreamMode();
+    } else {
+      _currentState = _currentState.copyWith(
+        isPlaying: state.playing,
+        isConnecting: isConnecting,
+      );
+    }
+    debugPrint('[AudioManager] _onLiveStreamState RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}, sourceType=${_currentState.sourceType}');
+    _stateController.add(_currentState);
+    notifyListeners();
+  }
+
+  void _onWhepStateChanged(bool isPlaying, bool isConnecting) {
+    debugPrint('[AudioManager] _onWhepStateChanged: isPlaying=$isPlaying, isConnecting=$isConnecting, currentSourceType=${_currentState.sourceType}');
+    if (_currentState.sourceType != AudioSourceType.liveStream) {
+      debugPrint('[AudioManager] _onWhepStateChanged SKIPPED: sourceType=${_currentState.sourceType}');
+      return;
+    }
+    
+    // Always trust direct connection state from WhepAudioHandler over audio_service playbackState
+    // which may drop events on iOS due to native AudioSession lifecycle differences.
+    _currentState = _currentState.copyWith(
+      isPlaying: isPlaying,
+      isConnecting: isConnecting,
+    );
+    debugPrint('[AudioManager] _onWhepStateChanged RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}');
+    _stateController.add(_currentState);
+    notifyListeners();
+  }
+
+  void _onRecordingPosition(Duration position) {
+    _currentState = _currentState.copyWith(position: position);
     _stateController.add(_currentState);
   }
 
@@ -170,9 +260,7 @@ class AudioManager extends ChangeNotifier {
     debugPrint('[AudioManager] _stopAllAndClear() called');
 
     if (_currentState.sourceType == AudioSourceType.recording) {
-      _positionTimer?.cancel();
-      _recordingPositionSubscription?.cancel();
-      _recordingStateSubscription?.cancel();
+      _stopPositionTimer();
       if (_recordingPlayer != null) {
         await _recordingPlayer!.stop();
       }
@@ -234,15 +322,24 @@ class AudioManager extends ChangeNotifier {
 
       debugPrint('[AudioManager] initStream done, calling play()...');
       await _whepHandler?.play();
-      debugPrint('[AudioManager] play() called');
+      debugPrint('[AudioManager] play() returned. Handler isConnected=${_whepHandler?.isConnected}');
 
-      _currentState = _currentState.copyWith(
-        isConnecting: false,
-        isPlaying: true,
-        clearError: true,
-      );
-      _stateController.add(_currentState);
-      notifyListeners();
+      // ── iOS FIX: Force-sync state from handler ────────────────────────
+      // On iOS, the audio_service playbackState BehaviorSubject events
+      // and onStateChanged callbacks can silently fail to reach our
+      // _onLiveStreamState listener. After play() returns, directly read
+      // the handler's actual state and force-update if needed.
+      if (_whepHandler != null &&
+          _whepHandler!.isConnected &&
+          !_currentState.isPlaying) {
+        debugPrint('[AudioManager] iOS FIX: Handler is connected but AudioManager state is stale. Force-updating isPlaying=true');
+        _currentState = _currentState.copyWith(
+          isPlaying: true,
+          isConnecting: false,
+        );
+        _stateController.add(_currentState);
+        notifyListeners();
+      }
     } catch (e, st) {
       debugPrint('Error playing live stream: $e\n$st');
       _currentState = _currentState.copyWith(
@@ -288,7 +385,7 @@ class AudioManager extends ChangeNotifier {
       _whepHandler?.registerExternalPlaybackControls(
         play: () async {
           if (_recordingPlayer?.playing != true) {
-            await _recordingPlayer?.play();
+            _recordingPlayer?.play(); // do not await
           }
         },
         pause: () async {
@@ -331,7 +428,7 @@ class AudioManager extends ChangeNotifier {
         await _recordingPlayer?.seek(startPosition);
       }
 
-      await _recordingPlayer?.play();
+      _recordingPlayer?.play(); // do not await
       debugPrint('[AudioManager] Recording playback started');
       _startPositionTimer();
 
@@ -350,9 +447,37 @@ class AudioManager extends ChangeNotifier {
     }
   }
 
+  Duration _lastNativePosition = Duration.zero;
+  int _stuckCount = 0;
+
   void _startPositionTimer() {
     _positionTimer?.cancel();
-    _positionTimer = Timer.periodic(_positionInterval, (_) => _saveRecordingPosition());
+    _lastNativePosition = _recordingPlayer?.position ?? Duration.zero;
+    _stuckCount = 0;
+
+    _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (_recordingPlayer != null) {
+        var pos = _recordingPlayer!.position;
+        
+        if (pos == _lastNativePosition) {
+          _stuckCount++;
+          if (_stuckCount >= 2 && _currentState.position != null) {
+            pos = _currentState.position! + const Duration(milliseconds: 500);
+          }
+        } else {
+          _lastNativePosition = pos;
+          _stuckCount = 0;
+        }
+
+        _currentState = _currentState.copyWith(position: pos);
+        _stateController.add(_currentState);
+      }
+    });
+  }
+
+  void _stopPositionTimer() {
+    _positionTimer?.cancel();
+    _positionTimer = null;
   }
 
   void _saveRecordingPosition() {
@@ -381,7 +506,7 @@ class AudioManager extends ChangeNotifier {
     if (_currentState.sourceType == AudioSourceType.liveStream) {
       await _whepHandler?.play();
     } else if (_currentState.sourceType == AudioSourceType.recording) {
-      await _recordingPlayer?.play();
+      _recordingPlayer?.play(); // do not await
     }
 
     _currentState = _currentState.copyWith(isPlaying: true);
@@ -464,7 +589,7 @@ class AudioManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    _positionTimer?.cancel();
+    _stopPositionTimer();
     _recordingPositionSubscription?.cancel();
     _recordingStateSubscription?.cancel();
     _recordingPlayer?.dispose();

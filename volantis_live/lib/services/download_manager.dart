@@ -74,18 +74,18 @@ class DownloadManager {
 
   /// Initialize connectivity listener
   void _initConnectivityListener() {
-    _connectivityService.onConnectivityResultChanged.listen((status) {
-      if (status == ConnectivityResult.wifi ||
-          status == ConnectivityResult.ethernet) {
+    _connectivityService.onConnectivityResultChanged.listen((statuses) {
+      if (statuses.contains(ConnectivityResult.wifi) ||
+          statuses.contains(ConnectivityResult.ethernet)) {
         // WiFi connected - resume if paused
         if (_isPaused && _queue.isNotEmpty) {
           _isPaused = false;
           _processQueue();
         }
-      } else if (status == ConnectivityResult.mobile) {
+      } else if (statuses.contains(ConnectivityResult.mobile)) {
         // Mobile data - check preferences
         _checkAndPauseForMobileData();
-      } else if (status == ConnectivityResult.none) {
+      } else if (statuses.contains(ConnectivityResult.none) || statuses.isEmpty) {
         // No connection - pause downloads
         _pauseAll();
       }

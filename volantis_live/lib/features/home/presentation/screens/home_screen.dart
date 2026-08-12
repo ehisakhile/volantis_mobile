@@ -69,25 +69,9 @@ class _HomeScreenState extends State<HomeScreen>
         if (provider.companies.isEmpty && !provider.isLoading) {
           provider.init();
         }
-        _checkUserPreferences();
       }
     });
     _scrollController.addListener(_onScroll);
-  }
-
-  Future<void> _checkUserPreferences() async {
-    final categoryProvider = context.read<CategoryPreferencesProvider>();
-
-    if (categoryProvider.preferencesPromptShown) {
-      return;
-    }
-
-    await categoryProvider.checkUserPreferences();
-
-    if (!categoryProvider.hasUserPreferences && mounted) {
-      categoryProvider.markPreferencesPromptShown();
-      context.push('/set-preferences');
-    }
   }
 
   @override
@@ -1282,14 +1266,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
-
-    final isSameStream = await provider.openStream(stream);
-
-    if (isSameStream) {
-      provider.expand();
-    }
-
-    if (!context.mounted) return;
+    final isSameStream = provider.prepareStream(stream);
 
     showModalBottomSheet(
       context: context,
@@ -1300,6 +1277,10 @@ class _HomeScreenState extends State<HomeScreen>
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 
   // ── Subscribed Recordings strip (legacy - for non-subscribed users) ────────

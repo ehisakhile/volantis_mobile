@@ -11,6 +11,8 @@ class ActiveLivestream {
   final int viewerCount;
   final String? thumbnailUrl;
   final DateTime? startedAt;
+  final String? whepUrl;
+  final String? playbackUrl;
 
   ActiveLivestream({
     required this.id,
@@ -24,9 +26,19 @@ class ActiveLivestream {
     required this.viewerCount,
     this.thumbnailUrl,
     this.startedAt,
+    this.whepUrl,
+    this.playbackUrl,
   });
 
   factory ActiveLivestream.fromJson(Map<String, dynamic> json) {
+    final whep = json['whep_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'];
+    final playback = json['playback_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'] ??
+        json['hls_url'];
+
     return ActiveLivestream(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
@@ -35,12 +47,14 @@ class ActiveLivestream {
       companySlug: json['company_slug'] ?? '',
       companyName: json['company_name'] ?? '',
       companyLogoUrl: json['company_logo_url'],
-      isLive: json['is_live'] ?? false,
+      isLive: json['is_live'] ?? json['is_active'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
       startedAt: json['started_at'] != null
           ? DateTime.tryParse(json['started_at'])
           : null,
+      whepUrl: whep,
+      playbackUrl: playback,
     );
   }
 
@@ -57,6 +71,8 @@ class ActiveLivestream {
       'viewer_count': viewerCount,
       'thumbnail_url': thumbnailUrl,
       'started_at': startedAt?.toIso8601String(),
+      'whep_url': whepUrl,
+      'playback_url': playbackUrl,
     };
   }
 

@@ -19,10 +19,16 @@ import '../../data/models/subscription_model.dart';
 import '../providers/home_provider.dart';
 
 /// Company details screen — VolantisLive dark glass design
+/// Handles deep links from creator share links (e.g., volantislive.com/creator_slug)
 class CompanyDetailsScreen extends StatefulWidget {
   final String companySlug;
+  final bool isFromDeepLink;
 
-  const CompanyDetailsScreen({super.key, required this.companySlug});
+  const CompanyDetailsScreen({
+    super.key,
+    required this.companySlug,
+    this.isFromDeepLink = false,
+  });
 
   @override
   State<CompanyDetailsScreen> createState() => _CompanyDetailsScreenState();
@@ -393,6 +399,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Deep link welcome banner for new users
+          if (widget.isFromDeepLink) _buildWelcomeBanner(),
+
           // Name row
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -439,6 +448,71 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           ],
 
           const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  // ── Welcome banner for deep link users ──────────────────────────────────
+
+  Widget _buildWelcomeBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _primary.withOpacity(0.15),
+            _primaryCont.withOpacity(0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _primary.withOpacity(0.25),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _primary.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.notifications_active_rounded,
+              color: _primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Follow to get notified when they go live',
+                  style: TextStyle(
+                    color: _onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'You\'ll never miss a stream from ${_company?.name ?? "this creator"}',
+                  style: const TextStyle(
+                    color: _onVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1046,18 +1120,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   /// Navigate to stream player screen - handles single stream logic
   Future<void> _navigateToPlayer(stream) async {
     final provider = context.read<StreamsProvider>();
+    final isSameStream = provider.prepareStream(stream);
 
-    // Open stream - returns true if same stream (continue listening), false if new
-    final isSameStream = await provider.openStream(stream);
-
-    if (isSameStream) {
-      // Same stream - just expand the player
-      provider.expand();
-    }
-
-    if (!context.mounted) return;
-
-    // Use bottom sheet instead of full screen navigation (like recordings player)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1067,6 +1131,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         child: const FullScreenPlayerSheet(),
       ),
     );
+
+    if (!isSameStream) {
+      await provider.openStream(stream);
+    }
   }
 }
 

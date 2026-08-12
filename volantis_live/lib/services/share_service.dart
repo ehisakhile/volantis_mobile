@@ -127,12 +127,7 @@ class ShareService {
     final shareText = '$text\n$streamUrl';
 
     try {
-      await Share.share(
-        shareText,
-        subject: subject,
-        // ignore: avoid_dynamic_calls
-        // uri: Uri.parse(streamUrl),
-      );
+      await Share.share(shareText, subject: subject);
       developer.log('Stream share initiated successfully: $streamSlug');
     } catch (e) {
       developer.log('Error sharing stream: $e');

@@ -1,18 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../../core/constants/app_colors.dart';
+import '../../../../services/audio_manager.dart';
 import '../providers/streams_provider.dart';
 import 'full_screen_player_sheet.dart';
+import 'dart:async';
 
-class LiveStreamMiniPlayer extends StatelessWidget {
+class LiveStreamMiniPlayer extends StatefulWidget {
   const LiveStreamMiniPlayer({super.key});
 
+  @override
+  State<LiveStreamMiniPlayer> createState() => _LiveStreamMiniPlayerState();
+}
+
+class _LiveStreamMiniPlayerState extends State<LiveStreamMiniPlayer> {
   // Theme Constants
   static const _bg = Color(0xFF060E20);
   static const _onSurface = Color(0xFFDAE2FD);
   static const _onVariant = Color(0xFFBEC8D2);
   static const _primary = Color(0xFF89CEFF);
+
+  StreamSubscription? _audioStateSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _audioStateSubscription = AudioManager.instance.stateStream.listen(_onAudioStateChanged);
+  }
+
+  void _onAudioStateChanged(AudioState state) {
+    if (!mounted) return;
+    
+    if (state.error == 'stream_ended') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The live stream has ended.'),
+          duration: Duration(seconds: 4),
+          backgroundColor: Color(0xFF222A3D),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioStateSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,66 +1,273 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../connect_colors.dart';
+import '../providers/meeting_provider.dart';
+import '../widgets/prejoin_sheet.dart';
+import '../widgets/share_meeting_sheet.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
-class ConnectScreen extends StatelessWidget {
+/// Connect tab main screen for creating and joining meetings
+class ConnectScreen extends StatefulWidget {
   const ConnectScreen({super.key});
 
-  static const _bg = Color(0xFF080D1A);
-  static const _surface = Color(0xFF0F1629);
-  static const _surfaceLight = Color(0xFF1A2235);
-  static const _glassCard = Color(0xFF141D30);
-  static const _surfaceHigh = Color(0xFF1E2940);
-  static const _primary = Color(0xFF60A5FA);
-  static const _primaryDark = Color(0xFF1E3A5F);
-  static const _accentBlue = Color(0xFF3B82F6);
-  static const _accentPurple = Color(0xFFA78BFA);
-  static const _onPrimary = Color(0xFFFFFFFF);
-  static const _onSurface = Color(0xFFFFFFFF);
-  static const _onSurfaceMedium = Color(0xFFCBD5E1);
-  static const _onVariant = Color(0xFF94A3B8);
-  static const _outlineVar = Color(0xFF334155);
+  @override
+  State<ConnectScreen> createState() => _ConnectScreenState();
+}
+
+class _ConnectScreenState extends State<ConnectScreen> {
+  final _joinCodeController = TextEditingController();
+  final _joinFocusNode = FocusNode();
+
+  bool _isCreatingMeeting = false;
+  bool _isJoiningMeeting = false;
+  String? _joinError;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      body: SafeArea(
-        child: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 112),
-          children: [
-            _buildHeader(context),
-            const SizedBox(height: 8),
-            _buildSubtitle(),
-            const SizedBox(height: 28),
-            const _MeetingPreview(),
-            const SizedBox(height: 20),
-            _buildActionButtons(),
-            const SizedBox(height: 20),
-            const _JoinCodeField(),
-            const SizedBox(height: 20),
-            const _UpcomingPanel(),
-          ],
+  void initState() {
+    super.initState();
+    // Rebuild on every keystroke so the Join button + parsed-code preview
+    // stay in sync with what's typed/pasted.
+    _joinCodeController.addListener(_onJoinTextChanged);
+  }
+
+  void _onJoinTextChanged() {
+    if (_joinError != null) {
+      setState(() => _joinError = null);
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _joinCodeController.removeListener(_onJoinTextChanged);
+    _joinCodeController.dispose();
+    _joinFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Extracts a clean meeting code from whatever the user typed or pasted.
+  ///
+  /// Handles:
+  ///  - Full links, e.g. https://connect.volantislive.com/btzm8pnjedsy
+  ///  - Links with trailing slashes, query params, or fragments
+  ///  - Links without a scheme, e.g. connect.volantislive.com/btzm8pnjedsy
+  ///  - Raw codes with stray whitespace, dashes, or mixed case
+  ///
+  /// Returns null if no plausible code could be found.
+  static String? extractMeetingCode(String raw) {
+    var input = raw.trim();
+    if (input.isEmpty) return null;
+
+    // If it looks like a link (has a scheme or a dot-separated host followed
+    // by a path), pull the last non-empty path segment.
+    final looksLikeUrl =
+        input.contains('/') &&
+        (input.startsWith('http://') ||
+            input.startsWith('https://') ||
+            RegExp(r'^[\w-]+(\.[\w-]+)+/').hasMatch(input));
+
+    if (looksLikeUrl) {
+      final normalized =
+          input.startsWith('http://') || input.startsWith('https://')
+          ? input
+          : 'https://$input';
+
+      final uri = Uri.tryParse(normalized);
+      final segments = uri?.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments != null && segments.isNotEmpty) {
+        input = segments.last;
+      }
+    }
+
+    // Strip anything that isn't alphanumeric (handles stray dashes, spaces
+    // pasted in the middle of a code, etc.) and normalize case.
+    final code = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+
+    if (code.length < 4) return null;
+    return code;
+  }
+
+  String? get _parsedCode => extractMeetingCode(_joinCodeController.text);
+
+  Future<void> _createMeeting() async {
+    final authProvider = context.read<AuthProvider>();
+    final meetingProvider = context.read<MeetingProvider>();
+
+    if (!authProvider.isAuthenticated) {
+      context.push('/login');
+      return;
+    }
+
+    setState(() => _isCreatingMeeting = true);
+
+    try {
+      final meeting = await meetingProvider.createInstantMeeting();
+
+      if (!mounted) return;
+
+      // Show share meeting sheet first
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
+        builder: (ctx) => ShareMeetingSheet(
+          meetingCode: meeting.niceId,
+          meetingTitle: meeting.title,
+          onJoin: () {},
         ),
-      ),
+      );
+
+      if (!mounted) return;
+
+      // Show prejoin sheet
+      final settings = await showModalBottomSheet<PrejoinSettings>(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) => const PrejoinSheet(isGuest: false),
+      );
+
+      if (settings == null) {
+        setState(() => _isCreatingMeeting = false);
+        return;
+      }
+
+      if (!mounted) return;
+
+      // Now we have user's preference - navigate to room
+      context.push(
+        '/connect/room/${meeting.niceId}',
+        extra: MeetingJoinArgs(
+          token: meeting.livekit?.token ?? '',
+          url: meeting.livekit?.livekitUrl ?? '',
+          room: meeting.livekit?.room ?? '',
+          displayName: authProvider.user?.username ?? 'User',
+          meetingCode: meeting.niceId,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingMeeting = false);
+      }
+    }
+  }
+
+  Future<void> _joinMeeting() async {
+    final code = extractMeetingCode(_joinCodeController.text);
+
+    if (code == null) {
+      setState(
+        () =>
+            _joinError = "That doesn't look like a valid meeting code or link",
+      );
+      return;
+    }
+
+    setState(() {
+      _joinError = null;
+      _isJoiningMeeting = true;
+    });
+    _joinFocusNode.unfocus();
+
+    final meetingProvider = context.read<MeetingProvider>();
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      if (authProvider.isAuthenticated) {
+        // Authenticated join
+        final args = await meetingProvider.resolveJoin(code);
+        if (!mounted) return;
+        context.push('/connect/room/$code', extra: MeetingJoinArgs(
+          token: args.token,
+          url: args.url,
+          room: args.room,
+          displayName: args.displayName,
+          meetingCode: code,
+        ));
+      } else {
+        // Guest join - show prejoin sheet with name field
+        final settings = await showModalBottomSheet<PrejoinSettings>(
+          context: context,
+          isScrollControlled: true,
+          builder: (context) => const PrejoinSheet(isGuest: true),
+        );
+
+        if (settings == null || settings.guestName == null) {
+          setState(() => _isJoiningMeeting = false);
+          return;
+        }
+
+        if (!mounted) return;
+
+        // Resolve join with guest name
+        final args = await meetingProvider.resolveJoin(
+          code,
+          guestName: settings.guestName,
+        );
+
+        if (!mounted) return;
+
+        context.push('/connect/room/$code', extra: MeetingJoinArgs(
+          token: args.token,
+          url: args.url,
+          room: args.room,
+          displayName: args.displayName,
+          meetingCode: code,
+        ));
+      }
+    } catch (e) {
+      setState(() {
+        _joinError =
+            'Could not join that meeting. Double-check the code and try again.';
+        _isJoiningMeeting = false;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isJoiningMeeting = false);
+      }
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty) return;
+
+    _joinCodeController.text = text.trim();
+    _joinCodeController.selection = TextSelection.collapsed(
+      offset: _joinCodeController.text.length,
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        _buildHeaderIconButton(
-          icon: Icons.person_rounded,
-          onTap: () => context.go('/profile'),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
+  @override
+  Widget build(BuildContext context) {
+    final hasText = _joinCodeController.text.trim().isNotEmpty;
+    final parsedCode = _parsedCode;
+    final canJoin =
+        !_isJoiningMeeting && !_isCreatingMeeting && parsedCode != null;
+
+    return Scaffold(
+      backgroundColor: ConnectColors.bg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              // Header
+              Text(
                 'Connect',
                 style: TextStyle(
-                  color: _onSurface,
+                  color: ConnectColors.text,
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
@@ -72,506 +279,305 @@ class ConnectScreen extends StatelessWidget {
                 height: 3,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [_accentBlue, _accentPurple],
+                    colors: [Color(0xFF3B82F6), Color(0xFFA78BFA)],
                   ),
                   borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Subtitle
+              Text(
+                'Start or join a private audio and video room.',
+                style: TextStyle(
+                  color: ConnectColors.textTertiary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.1,
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // Create Room Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
+                    return ElevatedButton.icon(
+                      onPressed: _isCreatingMeeting || _isJoiningMeeting
+                          ? null
+                          : _createMeeting,
+                      icon: _isCreatingMeeting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.video_call_rounded, size: 22),
+                      label: Text(
+                        authProvider.isAuthenticated
+                            ? 'New Meeting'
+                            : 'Sign In to Create',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3B82F6),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
+                  Expanded(child: Divider(color: ConnectColors.border)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'OR JOIN A MEETING',
+                      style: TextStyle(
+                        color: ConnectColors.textTertiary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: ConnectColors.border)),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Join Code Field
+              TextField(
+                controller: _joinCodeController,
+                focusNode: _joinFocusNode,
+                onSubmitted: canJoin ? (_) => _joinMeeting() : null,
+                enabled: !_isJoiningMeeting,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.go,
+                autocorrect: false,
+                style: TextStyle(color: ConnectColors.text, fontSize: 15),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: ConnectColors.bgCard,
+                  hintText: 'Paste a link or enter a meeting code',
+                  hintStyle: TextStyle(color: ConnectColors.textTertiary),
+                  prefixIcon: Icon(
+                    Icons.link_rounded,
+                    color: ConnectColors.accent,
+                    size: 22,
+                  ),
+                  suffixIcon: _isJoiningMeeting
+                      ? Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                ConnectColors.accent,
+                              ),
+                            ),
+                          ),
+                        )
+                      : hasText
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: ConnectColors.textTertiary,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            _joinCodeController.clear();
+                            setState(() => _joinError = null);
+                          },
+                        )
+                      : IconButton(
+                          icon: Icon(
+                            Icons.content_paste_rounded,
+                            color: ConnectColors.textTertiary,
+                            size: 20,
+                          ),
+                          tooltip: 'Paste',
+                          onPressed: _pasteFromClipboard,
+                        ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: ConnectColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: _joinError != null
+                          ? ConnectColors.error
+                          : ConnectColors.border,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: _joinError != null
+                          ? ConnectColors.error
+                          : ConnectColors.accent,
+                      width: 1.5,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+
+              // Join error message
+              if (_joinError != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: ConnectColors.error,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _joinError!,
+                        style: TextStyle(
+                          color: ConnectColors.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ]
+              // Live preview of the parsed code so people know what they'll
+              // actually join, e.g. when they paste a full link.
+              else if (hasText && parsedCode != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: ConnectColors.accent,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Joining code: $parsedCode',
+                      style: TextStyle(
+                        color: ConnectColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Join Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: canJoin ? _joinMeeting : null,
+                  icon: const Icon(Icons.input_rounded, size: 20),
+                  label: const Text(
+                    'Join Meeting',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ConnectColors.accent,
+                    disabledForegroundColor: ConnectColors.textTertiary
+                        .withValues(alpha: 0.6),
+                    side: BorderSide(
+                      color: canJoin
+                          ? ConnectColors.accent.withValues(alpha: 0.5)
+                          : ConnectColors.border,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // Info box
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: ConnectColors.bgCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: ConnectColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: ConnectColors.accent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'How it works',
+                          style: TextStyle(
+                            color: ConnectColors.text,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create a meeting or join with a code. Invite others by sharing the '
+                      'generated link, e.g. connect.volantislive.com/btzm8pnjedsy — pasting '
+                      'the full link or just the code both work. '
+                      'You can enable or disable your camera and microphone at any time.',
+                      style: TextStyle(
+                        color: ConnectColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        _buildHeaderIconButton(
-          icon: Icons.settings_rounded,
-          onTap: () => context.go('/profile'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHeaderIconButton({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: _surfaceLight,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: _primary, size: 22),
-      ),
-    );
-  }
-
-  Widget _buildSubtitle() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 58),
-      child: Text(
-        'Start or join a private audio room.',
-        style: TextStyle(
-          color: _onVariant,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          letterSpacing: 0.1,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _GradientButton(
-            icon: Icons.video_call_rounded,
-            label: 'New Room',
-            onTap: () {},
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _GlassButton(
-            icon: Icons.keyboard_rounded,
-            label: 'Join Code',
-            onTap: () {},
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GradientButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _GradientButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_GradientButton> createState() => _GradientButtonState();
-}
-
-class _GradientButtonState extends State<_GradientButton> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 56,
-        transform: Matrix4.identity()..scale(_isPressed ? 0.97 : 1.0),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [ConnectScreen._accentBlue, ConnectScreen._accentPurple],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: ConnectScreen._accentBlue.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(widget.icon, color: Colors.white, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _GlassButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_GlassButton> createState() => _GlassButtonState();
-}
-
-class _GlassButtonState extends State<_GlassButton> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 56,
-        transform: Matrix4.identity()..scale(_isPressed ? 0.97 : 1.0),
-        decoration: BoxDecoration(
-          color: ConnectScreen._surfaceLight.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: ConnectScreen._outlineVar.withOpacity(0.5),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(widget.icon, color: ConnectScreen._primary, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                color: ConnectScreen._onSurfaceMedium,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MeetingPreview extends StatelessWidget {
-  const _MeetingPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 260,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            ConnectScreen._glassCard,
-            ConnectScreen._surface.withOpacity(0.8),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: GridView.count(
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  children: const [
-                    _ParticipantTile(name: 'You', color: Color(0xFF60A5FA)),
-                    _ParticipantTile(name: 'Host', color: Color(0xFFA78BFA)),
-                    _ParticipantTile(name: 'Guest', color: Color(0xFFF472B6)),
-                    _ParticipantTile(name: 'Team', color: Color(0xFF34D399)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _ControlBar(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParticipantTile extends StatelessWidget {
-  final String name;
-  final Color color;
-
-  const _ParticipantTile({required this.name, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            ConnectScreen._surfaceHigh,
-            ConnectScreen._surfaceLight.withOpacity(0.6),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              name.characters.first,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            name,
-            style: const TextStyle(
-              color: ConnectScreen._onSurfaceMedium,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ControlBar extends StatelessWidget {
-  const _ControlBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _ModernControlButton(icon: Icons.mic_rounded, isActive: true),
-          SizedBox(width: 16),
-          _ModernControlButton(icon: Icons.videocam_rounded, isActive: false),
-          SizedBox(width: 16),
-          _ModernControlButton(icon: Icons.screen_share_rounded, isActive: false),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModernControlButton extends StatefulWidget {
-  final IconData icon;
-  final bool isActive;
-
-  const _ModernControlButton({required this.icon, required this.isActive});
-
-  @override
-  State<_ModernControlButton> createState() => _ModernControlButtonState();
-}
-
-class _ModernControlButtonState extends State<_ModernControlButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isHovered = true),
-      onTapUp: (_) => setState(() => _isHovered = false),
-      onTapCancel: () => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: widget.isActive
-              ? (_isHovered ? ConnectScreen._accentBlue : ConnectScreen._surfaceLight)
-              : (_isHovered ? ConnectScreen._surfaceLight.withOpacity(0.8) : Colors.white.withOpacity(0.1)),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: widget.isActive
-                ? ConnectScreen._accentBlue.withOpacity(0.5)
-                : Colors.white.withOpacity(0.1),
-          ),
-          boxShadow: widget.isActive
-              ? [
-                  BoxShadow(
-                    color: ConnectScreen._accentBlue.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Icon(
-          widget.icon,
-          color: widget.isActive ? Colors.white : ConnectScreen._onVariant,
-          size: 22,
-        ),
-      ),
-    );
-  }
-}
-
-class _JoinCodeField extends StatelessWidget {
-  const _JoinCodeField();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: ConnectScreen._surface.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ConnectScreen._outlineVar.withOpacity(0.4)),
-      ),
-      child: const TextField(
-        enabled: false,
-        style: TextStyle(color: ConnectScreen._onSurfaceMedium, fontSize: 15),
-        decoration: InputDecoration(
-          icon: Icon(Icons.link_rounded, color: ConnectScreen._primary, size: 22),
-          hintText: 'Enter a room code or link',
-          hintStyle: TextStyle(color: ConnectScreen._onVariant),
-          border: InputBorder.none,
-        ),
-      ),
-    );
-  }
-}
-
-class _UpcomingPanel extends StatelessWidget {
-  const _UpcomingPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            ConnectScreen._glassCard,
-            ConnectScreen._surface.withOpacity(0.4),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [ConnectScreen._accentBlue, ConnectScreen._accentPurple],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: ConnectScreen._accentBlue.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: Colors.white,
-              size: 26,
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Rooms coming soon',
-                  style: TextStyle(
-                    color: ConnectScreen._onSurface,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'The API can plug into this surface when meeting creation and invites are ready.',
-                  style: TextStyle(
-                    color: ConnectScreen._onVariant,
-                    fontSize: 12.5,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

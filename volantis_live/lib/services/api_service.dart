@@ -17,7 +17,7 @@ class ApiService {
   static FlutterSecureStorage? get _secureStorage {
     try {
       return const FlutterSecureStorage(
-        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+        aOptions: AndroidOptions(),
       );
     } catch (e) {
       return null;
@@ -290,6 +290,23 @@ class ApiService {
       await prefs.remove(_userIdKey);
     } catch (e) {
       // Ignore errors
+    }
+  }
+
+  /// Checks if this is the first run of the app after a fresh install.
+  /// If it is, clears any lingering tokens from the iOS Keychain.
+  static Future<void> checkAndClearIfFirstRun() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasRunBefore = prefs.getBool('has_run_before') ?? false;
+      
+      if (!hasRunBefore) {
+        // First run after install, clear the secure storage which might persist from a previous install on iOS
+        await clearTokens();
+        await prefs.setBool('has_run_before', true);
+      }
+    } catch (e) {
+      print('API Service: checkAndClearIfFirstRun error: $e');
     }
   }
 

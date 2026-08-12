@@ -302,41 +302,56 @@ class FullScreenPlayerSheet extends StatelessWidget {
         ),
         const SizedBox(width: 20),
 
-        // Play / Pause — large gradient circle
-        StreamBuilder<PlayerState>(
-          stream: provider.playerStateStream,
-          builder: (_, snap) {
-            final playing = snap.data?.playing ?? false;
-            return GestureDetector(
-              onTap: () => provider.togglePlayPause(),
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_primary, _primaryCont],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        // Play / Pause / Loading — large gradient circle
+        Builder(builder: (context) {
+          final playerState = provider.playerState;
+          final playing = playerState.playing;
+          final isLoading =
+              playerState.processingState == ProcessingState.loading ||
+              playerState.processingState == ProcessingState.buffering;
+
+          return GestureDetector(
+            onTap: () => provider.togglePlayPause(),
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_primary, _primaryCont],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _primary.withOpacity(0.3),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 6),
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _primary.withOpacity(0.3),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: _onPrimary,
-                  size: 36,
-                ),
+                ],
               ),
-            );
-          },
-        ),
+              child: Center(
+                child: isLoading
+                    ? const SizedBox(
+                        width: 30,
+                        height: 30,
+                        child: CircularProgressIndicator(
+                          color: _onPrimary,
+                          strokeWidth: 3,
+                        ),
+                      )
+                    : Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: _onPrimary,
+                        size: 36,
+                      ),
+              ),
+            ),
+          );
+        }),
 
         const SizedBox(width: 20),
 

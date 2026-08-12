@@ -41,6 +41,8 @@ class SubscribedLivestream {
   final int viewerCount;
   final int totalViews;
   final String? thumbnailUrl;
+  final String? whepUrl;
+  final String? playbackUrl;
 
   SubscribedLivestream({
     required this.id,
@@ -53,9 +55,19 @@ class SubscribedLivestream {
     required this.viewerCount,
     this.totalViews = 0,
     this.thumbnailUrl,
+    this.whepUrl,
+    this.playbackUrl,
   });
 
   factory SubscribedLivestream.fromJson(Map<String, dynamic> json) {
+    final whep = json['whep_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'];
+    final playback = json['playback_url'] ??
+        json['cf_webrtc_playback_url'] ??
+        json['webrtc_playback_url'] ??
+        json['hls_url'];
+
     return SubscribedLivestream(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
@@ -63,10 +75,12 @@ class SubscribedLivestream {
       companyId: json['company_id'] ?? 0,
       companyName: json['company_name'] ?? '',
       companySlug: json['company_slug'] ?? '',
-      isLive: json['is_live'] ?? false,
+      isLive: json['is_live'] ?? json['is_active'] ?? false,
       viewerCount: json['viewer_count'] ?? 0,
       totalViews: json['total_views'] ?? 0,
       thumbnailUrl: json['thumbnail_url'],
+      whepUrl: whep,
+      playbackUrl: playback,
     );
   }
 }

@@ -468,6 +468,18 @@ class RecordingsProvider extends ChangeNotifier {
       AudioManager.instance.isPlaying &&
       AudioManager.instance.currentSourceType == AudioSourceType.recording;
 
+  PlayerState get playerState {
+    final state = AudioManager.instance.currentState;
+    final processingState = state.isConnecting
+        ? ProcessingState.loading
+        : state.isPlaying
+            ? ProcessingState.ready
+            : ProcessingState.idle;
+    final playing =
+        state.isPlaying && state.sourceType == AudioSourceType.recording;
+    return PlayerState(playing, processingState);
+  }
+
   Duration get position => AudioManager.instance.position;
   Duration? get duration => AudioManager.instance.duration;
 

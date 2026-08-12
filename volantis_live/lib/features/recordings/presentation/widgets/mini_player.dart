@@ -269,39 +269,54 @@ class _MiniControls extends StatelessWidget {
         const SizedBox(width: 4),
 
         // Play / Pause — gradient circle
-        StreamBuilder<PlayerState>(
-          stream: provider.playerStateStream,
-          builder: (_, snap) {
-            final playing = snap.data?.playing ?? false;
-            return GestureDetector(
-              onTap: () => provider.togglePlayPause(),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF89CEFF), Color(0xFF0EA5E9)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        Builder(builder: (context) {
+          final playerState = provider.playerState;
+          final playing = playerState.playing;
+          final isLoading =
+              playerState.processingState == ProcessingState.loading ||
+              playerState.processingState == ProcessingState.buffering;
+
+          return GestureDetector(
+            onTap: () => provider.togglePlayPause(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF89CEFF), Color(0xFF0EA5E9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF89CEFF).withOpacity(0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF89CEFF).withOpacity(0.25),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: const Color(0xFF00344D),
-                  size: 22,
-                ),
+                ],
               ),
-            );
-          },
-        ),
+              child: Center(
+                child: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF00344D),
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: const Color(0xFF00344D),
+                        size: 22,
+                      ),
+              ),
+            ),
+          );
+        }),
 
         const SizedBox(width: 4),
 

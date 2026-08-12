@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/onboarding_provider.dart';
 
 /// Onboarding screen — paginated PageView with pinned CTA
-/// • Users swipe through 3 value-prop slides
-/// • "Continue with Email" button is always visible at the bottom
+/// • Users swipe through 2 product-introduction slides
+/// • A progression button is always visible at the bottom
 /// • Animated page indicator dots
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback? onComplete;
@@ -22,28 +22,22 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late Animation<double> _pulseAnimation;
 
   int _currentPage = 0;
-  static const int _totalPages = 3;
+  static const int _totalPages = 2;
 
   static const List<_OnboardingPage> _pages = [
     _OnboardingPage(
       icon: Icons.mic_external_on_rounded,
       iconColor: _OC.primary,
-      title: 'Your world.\nLive.',
-      subtitle: 'Stream live audio to anyone, anywhere — in seconds.',
+      title: 'Go live with\nVolantisLive.',
+      subtitle:
+          'Broadcast live to your audience or discover creators and organisations streaming now.',
     ),
     _OnboardingPage(
-      icon: Icons.auto_awesome_rounded,
+      icon: Icons.video_call_rounded,
       iconColor: _OC.secondary,
-      title: 'AI that works\nfor you.',
+      title: 'Meet on\nVolantisConnect.',
       subtitle:
-          'Smart tools handle the hard parts so you can focus on your audience.',
-    ),
-    _OnboardingPage(
-      icon: Icons.videocam_rounded,
-      iconColor: _OC.tertiary,
-      title: 'Video is\ncoming.',
-      subtitle:
-          'Full video streaming is on the way. Be first in line when it drops.',
+          'Create or join a room for real-time video and audio conversations with anyone.',
     ),
   ];
 
@@ -124,7 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 _PrimaryButton(
                   label: _currentPage == _totalPages - 1
                       ? 'Get Started'
-                      : 'Continue with Email',
+                      : 'Continue',
                   onTap: _nextPage,
                 ),
                 const SizedBox(height: 14),
@@ -194,7 +188,7 @@ class _PageSlide extends StatelessWidget {
           // ── Pulsing orb ───────────────────────────────────────────────
           AnimatedBuilder(
             animation: pulseAnimation,
-            builder: (_, __) => _PulseOrb(
+            builder: (context, child) => _PulseOrb(
               icon: page.icon,
               iconColor: page.iconColor,
               scale: isActive ? pulseAnimation.value : 0.85,
@@ -264,7 +258,10 @@ class _PulseOrb extends StatelessWidget {
       height: 140,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: iconColor.withOpacity(0.15), width: 1.5),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.15),
+          width: 1.5,
+        ),
       ),
       child: Center(
         child: Transform.scale(
@@ -274,10 +271,10 @@ class _PulseOrb extends StatelessWidget {
             height: 104,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: iconColor.withOpacity(0.10),
+              color: iconColor.withValues(alpha: 0.10),
               boxShadow: [
                 BoxShadow(
-                  color: iconColor.withOpacity(0.20),
+                  color: iconColor.withValues(alpha: 0.20),
                   blurRadius: 32,
                   spreadRadius: 4,
                 ),
@@ -314,7 +311,7 @@ class _PageDots extends StatelessWidget {
           width: isActive ? 24 : 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isActive ? _OC.primary : _OC.primary.withOpacity(0.25),
+            color: isActive ? _OC.primary : _OC.primary.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(4),
           ),
         );
@@ -348,7 +345,7 @@ class _PrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _OC.primary.withOpacity(0.25),
+              color: _OC.primary.withValues(alpha: 0.25),
               blurRadius: 20,
               offset: const Offset(0, 6),
             ),
@@ -404,15 +401,12 @@ class _SkipLink extends StatelessWidget {
 
 abstract class _OC {
   static const background = Color(0xFF0B1326);
-  static const surfaceHigh = Color(0xFF222A3D);
   static const primary = Color(0xFF89CEFF);
   static const primaryContainer = Color(0xFF0EA5E9);
   static const onPrimaryFixed = Color(0xFF001E2F);
   static const secondary = Color(0xFFD2BBFF);
-  static const tertiary = Color(0xFFFFB3AD);
   static const onSurface = Color(0xFFDAE2FD);
   static const onSurfaceVariant = Color(0xFFBEC8D2);
-  static const outlineVariant = Color(0xFF3E4850);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

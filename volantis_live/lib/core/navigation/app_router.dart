@@ -5,6 +5,8 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/onboarding/presentation/providers/onboarding_provider.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/connect/presentation/screens/connect_room_screen.dart';
+import '../../features/connect/presentation/providers/meeting_provider.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
@@ -36,6 +38,7 @@ class AppRoutes {
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 /// App Router configuration
 class AppRouter {
@@ -90,6 +93,7 @@ class AppRouter {
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
       ShellRoute(
+        navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => _MainShell(child: child),
         routes: [
           GoRoute(
@@ -145,7 +149,10 @@ class AppRouter {
         name: 'companyDetails',
         builder: (context, state) {
           final companySlug = state.pathParameters['slug'] ?? '';
-          return _CompanyDetailsHandler(companySlug: companySlug);
+          return _CompanyDetailsHandler(
+            companySlug: companySlug,
+            isFromDeepLink: true,
+          );
         },
       ),
       GoRoute(
@@ -181,6 +188,24 @@ class AppRouter {
         path: '/set-preferences',
         name: 'setPreferences',
         builder: (context, state) => const SetPreferencesScreen(),
+      ),
+      GoRoute(
+        path: '/connect/room/:meetingId',
+        name: 'connectRoom',
+        builder: (context, state) {
+          final args = state.extra as MeetingJoinArgs?;
+          if (args == null) {
+            return const Scaffold(
+              body: Center(child: Text('Invalid room arguments')),
+            );
+          }
+          return ConnectRoomScreen(
+            url: args.url,
+            token: args.token,
+            displayName: args.displayName,
+            meetingCode: args.meetingCode,
+          );
+        },
       ),
     ],
     redirect: (context, state) {
@@ -219,6 +244,17 @@ class AppRouter {
           print('AppRouter: Update check not complete, staying on splash');
           return null; // stay on splash
         }
+        
+        if (!hasCompletedOnboarding) {
+          print('AppRouter: Redirecting to onboarding');
+          return AppRoutes.onboarding;
+        }
+
+        if (!isLoggedIn) {
+          print('AppRouter: Redirecting to login');
+          return AppRoutes.login;
+        }
+
         print('AppRouter: Redirecting from splash to Live');
         return AppRoutes.home;
       }
@@ -375,14 +411,22 @@ class _ChannelDeepLinkHandler extends StatelessWidget {
 }
 
 /// Deep link handler for company details
+/// Routes: /company/{slug} (from deep links like volantislive.com/creator_slug)
 class _CompanyDetailsHandler extends StatelessWidget {
   final String companySlug;
+  final bool isFromDeepLink;
 
-  const _CompanyDetailsHandler({required this.companySlug});
+  const _CompanyDetailsHandler({
+    required this.companySlug,
+    this.isFromDeepLink = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return CompanyDetailsScreen(companySlug: companySlug);
+    return CompanyDetailsScreen(
+      companySlug: companySlug,
+      isFromDeepLink: isFromDeepLink,
+    );
   }
 }
 
