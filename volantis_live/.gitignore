@@ -46,3 +46,7 @@ app.*.map.json
 VolantisLive_IPA
 VolantisLive.xcarchive
 .kilo
+
+windows/
+linux/
+macOS/
