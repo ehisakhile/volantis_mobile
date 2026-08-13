@@ -1,8 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../home/data/models/playlist_model.dart';
 import '../../../home/presentation/providers/playlist_provider.dart';
+import '../../../home/presentation/widgets/playlist_video_player.dart';
+import '../../../../services/audio_manager.dart';
 
 class PlaylistPlayerScreen extends StatefulWidget {
   final String companySlug;
@@ -18,27 +21,33 @@ class PlaylistPlayerScreen extends StatefulWidget {
   State<PlaylistPlayerScreen> createState() => _PlaylistPlayerScreenState();
 }
 
-class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
-  static const _bg = Color(0xFF0B1326);
-  static const _glassCard = Color(0xFF171F33);
-  static const _surfaceHigh = Color(0xFF222A3D);
-  static const _primary = Color(0xFF89CEFF);
-  static const _primaryCont = Color(0xFF0EA5E9);
-  static const _onPrimary = Color(0xFF00344D);
-  static const _onSurface = Color(0xFFDAE2FD);
-  static const _onVariant = Color(0xFFBEC8D2);
-  static const _outline = Color(0xFF88929B);
-  static const _outlineVar = Color(0xFF3E4850);
+const _bg = Color(0xFF0B1326);
+const _glassCard = Color(0xFF171F33);
+const _surfaceHigh = Color(0xFF222A3D);
+const _primary = Color(0xFF89CEFF);
+const _primaryCont = Color(0xFF0EA5E9);
+const _onPrimary = Color(0xFF00344D);
+const _onSurface = Color(0xFFDAE2FD);
+const _onVariant = Color(0xFFBEC8D2);
+const _outline = Color(0xFF88929B);
+const _outlineVar = Color(0xFF3E4850);
 
+class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PlaylistPlayerProvider>().loadPlaylist(
-        companySlug: widget.companySlug,
-        playlistSlug: widget.playlistSlug,
-      );
+            companySlug: widget.companySlug,
+            playlistSlug: widget.playlistSlug,
+          );
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<PlaylistPlayerProvider>().closePlayer();
+    super.dispose();
   }
 
   @override
@@ -54,12 +63,8 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
               );
             }
 
-            if (provider.error != null) {
-              return _buildErrorState(provider.error!);
-            }
-
             if (provider.currentPlaylist == null) {
-              return _buildErrorState('Playlist not found');
+              return _buildErrorState(provider.error ?? 'Playlist not found');
             }
 
             return _buildContent(provider);
@@ -122,6 +127,13 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
             collapseMode: CollapseMode.parallax,
           ),
         ),
+        if (provider.currentItem != null)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            sliver: SliverToBoxAdapter(
+              child: _buildNowPlaying(provider),
+            ),
+          ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverList(
@@ -136,10 +148,64 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     );
   }
 
+  // ── Now playing ──────────────────────────────────────────────────────────
+
+  Widget _buildNowPlaying(PlaylistPlayerProvider provider) {
+    final item = provider.currentItem!;
+
+    if (item.isVideo) {
+      return _buildVideoNowPlaying(provider, item);
+    }
+    return _AudioNowPlaying(provider: provider, item: item);
+  }
+
+  Widget _buildVideoNowPlaying(
+    PlaylistPlayerProvider provider,
+    PlaylistItemModel item,
+  ) {
+    final url = item.mediaUrl;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (url != null && url.isNotEmpty)
+          PlaylistVideoPlayer(
+            key: ValueKey(item.id),
+            url: url,
+            thumbnailUrl: item.thumbnailUrl,
+            autoPlay: true,
+            onControllerCreated: provider.attachVideoController,
+            onControllerDisposed: (_) => provider.attachVideoController(null),
+            onPlayStateChanged: provider.setVideoPlaying,
+            onEnded: () {
+              if (provider.hasNext) provider.next();
+            },
+          )
+        else
+          Container(
+            height: 200,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _surfaceHigh,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: Text(
+                'Video unavailable',
+                style: TextStyle(color: _onVariant, fontSize: 13),
+              ),
+            ),
+          ),
+        const SizedBox(height: 12),
+        _NowPlayingMetaBar(provider: provider, item: item),
+      ],
+    );
+  }
+
   Widget _buildPlaylistHeader(
     PlaylistModel playlist,
     PlaylistPlayerProvider provider,
   ) {
+    final hasCurrentItem = provider.currentItem != null;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
       child: Column(
@@ -220,7 +286,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: playlist.items.isNotEmpty
-                  ? () => _playAll(provider)
+                  ? () => _onPrimaryAction(provider)
                   : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _primary,
@@ -233,10 +299,16 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
               icon: Icon(
                 provider.isPlaying
                     ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
+                    : hasCurrentItem
+                        ? Icons.play_arrow_rounded
+                        : Icons.playlist_play_rounded,
               ),
               label: Text(
-                provider.isPlaying ? 'Pause' : 'Play All',
+                provider.isPlaying
+                    ? 'Pause'
+                    : hasCurrentItem
+                        ? 'Resume'
+                        : 'Play All',
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
@@ -247,6 +319,14 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
         ],
       ),
     );
+  }
+
+  void _onPrimaryAction(PlaylistPlayerProvider provider) {
+    if (provider.currentItem != null) {
+      provider.togglePlayPause();
+    } else {
+      _playAll(provider);
+    }
   }
 
   Widget _buildInfoChip({required IconData icon, required String label}) {
@@ -447,4 +527,362 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       ),
     );
   }
+}
+
+// ── Now-playing meta bar (shared by audio & video) ────────────────────────────
+
+class _NowPlayingMetaBar extends StatelessWidget {
+  final PlaylistPlayerProvider provider;
+  final PlaylistItemModel item;
+
+  const _NowPlayingMetaBar({required this.provider, required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _barButton(
+            icon: Icons.skip_previous_rounded,
+            enabled: provider.hasPrevious,
+            onTap: () => provider.previous(),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Now Playing',
+                  style: TextStyle(
+                    color: _primary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: _onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          _barButton(
+            icon: Icons.skip_next_rounded,
+            enabled: provider.hasNext,
+            onTap: () => provider.next(),
+          ),
+          const SizedBox(width: 4),
+          _barButton(
+            icon: Icons.close_rounded,
+            enabled: true,
+            onTap: () => provider.closePlayer(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _barButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      icon: Icon(icon, color: enabled ? _onVariant : _outlineVar, size: 22),
+      onPressed: enabled ? onTap : null,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+// ── Inline audio player (uses the shared AudioManager recording player) ──────
+
+class _AudioNowPlaying extends StatelessWidget {
+  final PlaylistPlayerProvider provider;
+  final PlaylistItemModel item;
+
+  const _AudioNowPlaying({required this.provider, required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _glassCard,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: StreamBuilder<AudioState>(
+        stream: AudioManager.instance.stateStream,
+        initialData: AudioManager.instance.currentState,
+        builder: (context, snap) {
+          final state = snap.data ?? const AudioState();
+          final isPlaying =
+              state.sourceType == AudioSourceType.recording && state.isPlaying;
+          final isLoading =
+              state.sourceType == AudioSourceType.recording &&
+                  state.isConnecting;
+
+          return Column(
+            children: [
+              Row(
+                children: [
+                  _audioThumbnail(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Now Playing',
+                          style: TextStyle(
+                            color: _primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            color: _onSurface,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _audioCloseButton(),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _audioProgress(),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _audioControl(
+                    icon: Icons.skip_previous_rounded,
+                    size: 26,
+                    enabled: provider.hasPrevious,
+                    onTap: () => provider.previous(),
+                  ),
+                  _audioControl(
+                    icon: Icons.replay_10_rounded,
+                    size: 26,
+                    enabled: true,
+                    onTap: () => provider.skipBack(10),
+                  ),
+                  _audioPlayPause(isPlaying: isPlaying, isLoading: isLoading),
+                  _audioControl(
+                    icon: Icons.forward_10_rounded,
+                    size: 26,
+                    enabled: true,
+                    onTap: () => provider.skipForward(10),
+                  ),
+                  _audioControl(
+                    icon: Icons.skip_next_rounded,
+                    size: 26,
+                    enabled: provider.hasNext,
+                    onTap: () => provider.next(),
+                  ),
+                ],
+              ),
+              if (provider.error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  provider.error!,
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _audioThumbnail() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: item.thumbnailUrl != null
+          ? CachedNetworkImage(
+              imageUrl: item.thumbnailUrl!,
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => _thumbnailPlaceholder(),
+              errorWidget: (_, __, ___) => _thumbnailPlaceholder(),
+            )
+          : _thumbnailPlaceholder(),
+    );
+  }
+
+  Widget _thumbnailPlaceholder() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: _surfaceHigh,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.audiotrack_rounded, color: _primary, size: 26),
+    );
+  }
+
+  Widget _audioCloseButton() {
+    return IconButton(
+      icon: const Icon(Icons.close_rounded, color: _onVariant, size: 20),
+      onPressed: () => provider.closePlayer(),
+    );
+  }
+
+  Widget _audioProgress() {
+    return StreamBuilder<Duration?>(
+      stream: AudioManager.instance.positionStream,
+      builder: (context, posSnap) {
+        final pos = posSnap.data ?? Duration.zero;
+        return StreamBuilder<Duration?>(
+          stream: AudioManager.instance.durationStream,
+          builder: (context, durSnap) {
+            final dur = durSnap.data ??
+                (item.durationSeconds != null
+                    ? Duration(seconds: item.durationSeconds!)
+                    : Duration.zero);
+            final maxVal =
+                dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
+
+            return Column(
+              children: [
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    activeTrackColor: _primary,
+                    inactiveTrackColor: _outlineVar,
+                    thumbColor: _primary,
+                    overlayColor: _primary.withOpacity(0.15),
+                  ),
+                  child: Slider(
+                    value: pos.inSeconds.toDouble().clamp(0, maxVal),
+                    max: maxVal,
+                    onChanged: (v) =>
+                        provider.seek(Duration(seconds: v.toInt())),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _fmtDuration(pos),
+                        style: const TextStyle(
+                          color: _outline,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        _fmtDuration(dur),
+                        style: const TextStyle(
+                          color: _outline,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _audioPlayPause({required bool isPlaying, required bool isLoading}) {
+    return GestureDetector(
+      onTap: () => provider.togglePlayPause(),
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [_primary, _primaryCont],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: _primary.withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Center(
+          child: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    color: _onPrimary,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: _onPrimary,
+                  size: 30,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _audioControl({
+    required IconData icon,
+    required double size,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      icon: Icon(icon, color: enabled ? _onVariant : _outlineVar, size: size),
+      onPressed: enabled ? onTap : null,
+    );
+  }
+}
+
+String _fmtDuration(Duration d) {
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return h > 0 ? '$h:$m:$s' : '$m:$s';
 }

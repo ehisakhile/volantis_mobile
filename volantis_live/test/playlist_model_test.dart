@@ -6,26 +6,32 @@ void main() {
     test('fromJson creates correct instance', () {
       final json = {
         'id': 1,
+        'playlist_id': 4,
+        'position': 1,
+        'is_skipped': false,
+        'media_type': 'recording',
+        'media_id': 57,
         'title': 'Test Audio',
         'description': 'Test description',
-        'media_type': 'audio',
-        'media_url': 'https://example.com/audio.mp3',
+        's3_url': 'https://example.com/audio.mp3',
         'thumbnail_url': 'https://example.com/thumb.jpg',
         'duration_seconds': 180,
-        'order': 0,
         'created_at': '2024-01-01T00:00:00.000Z',
       };
 
       final item = PlaylistItemModel.fromJson(json);
 
       expect(item.id, 1);
+      expect(item.playlistId, 4);
+      expect(item.position, 1);
+      expect(item.isSkipped, false);
+      expect(item.mediaType, 'recording');
+      expect(item.mediaId, 57);
       expect(item.title, 'Test Audio');
       expect(item.description, 'Test description');
-      expect(item.mediaType, 'audio');
       expect(item.mediaUrl, 'https://example.com/audio.mp3');
       expect(item.thumbnailUrl, 'https://example.com/thumb.jpg');
       expect(item.durationSeconds, 180);
-      expect(item.order, 0);
       expect(item.isAudio, true);
       expect(item.isVideo, false);
     });
@@ -34,16 +40,42 @@ void main() {
       final json = {
         'id': 2,
         'title': 'Test Video',
-        'media_type': 'video',
-        'media_url': 'https://example.com/video.mp4',
-        'order': 1,
+        'media_type': 'recording',
+        's3_url': 'https://example.com/video.mp4',
+        'media_subtype': 'video',
       };
 
       final item = PlaylistItemModel.fromJson(json);
 
-      expect(item.mediaType, 'video');
+      expect(item.mediaType, 'recording');
       expect(item.isVideo, true);
       expect(item.isAudio, false);
+    });
+
+    test('s3_url extension takes precedence over media_subtype', () {
+      final json = {
+        'id': 3,
+        'title': 'MP3 tagged as video',
+        'media_type': 'recording',
+        's3_url': 'https://example.com/audio.mp3',
+        'media_subtype': 'video',
+      };
+
+      final item = PlaylistItemModel.fromJson(json);
+
+      expect(item.isAudio, true);
+      expect(item.isVideo, false);
+    });
+
+    test('streamingUrlAbsolute joins relative paths with base url', () {
+      final item = PlaylistItemModel(
+        id: 1,
+        title: 'Test',
+        streamingUrl: '/recordings/stream/57',
+      );
+
+      expect(item.streamingUrlAbsolute, 'https://api-dev.volantislive.com/recordings/stream/57');
+      expect(item.mediaUrl, 'https://api-dev.volantislive.com/recordings/stream/57');
     });
 
     test('formattedDuration formats hours correctly', () {
@@ -51,7 +83,6 @@ void main() {
         id: 1,
         title: 'Test',
         mediaType: 'audio',
-        order: 0,
         durationSeconds: 3723,
       );
 
@@ -63,7 +94,6 @@ void main() {
         id: 1,
         title: 'Test',
         mediaType: 'audio',
-        order: 0,
         durationSeconds: 125,
       );
 
@@ -75,7 +105,6 @@ void main() {
         id: 1,
         title: 'Test',
         mediaType: 'audio',
-        order: 0,
         durationSeconds: null,
       );
 
@@ -87,7 +116,7 @@ void main() {
         id: 1,
         title: 'Test',
         mediaType: 'audio',
-        order: 0,
+        s3Url: 'https://example.com/audio.mp3',
       );
 
       final json = item.toJson();
@@ -95,7 +124,7 @@ void main() {
       expect(json['id'], 1);
       expect(json['title'], 'Test');
       expect(json['media_type'], 'audio');
-      expect(json['order'], 0);
+      expect(json['s3_url'], 'https://example.com/audio.mp3');
     });
   });
 
@@ -107,7 +136,7 @@ void main() {
         'title': 'Test Playlist',
         'description': 'Test description',
         'thumbnail_url': 'https://example.com/thumb.jpg',
-        'item_count': 5,
+        'item_count': 2,
         'total_duration_seconds': 3600,
         'is_public': true,
         'created_at': '2024-01-01T00:00:00.000Z',
@@ -117,13 +146,13 @@ void main() {
             'id': 1,
             'title': 'Item 1',
             'media_type': 'audio',
-            'order': 0,
+            's3_url': 'https://example.com/audio.mp3',
           },
           {
             'id': 2,
             'title': 'Item 2',
             'media_type': 'video',
-            'order': 1,
+            's3_url': 'https://example.com/video.mp4',
           },
         ],
       };
@@ -135,7 +164,7 @@ void main() {
       expect(playlist.title, 'Test Playlist');
       expect(playlist.description, 'Test description');
       expect(playlist.thumbnailUrl, 'https://example.com/thumb.jpg');
-      expect(playlist.itemCount, 5);
+      expect(playlist.itemCount, 2);
       expect(playlist.totalDurationSeconds, 3600);
       expect(playlist.isPublic, true);
       expect(playlist.items.length, 2);
@@ -143,19 +172,41 @@ void main() {
       expect(playlist.items[1].isVideo, true);
     });
 
-    test('fromJson handles items from item_count when items not provided', () {
+    test('fromJson parses the public media endpoint response', () {
       final json = {
-        'id': 1,
-        'slug': 'test-playlist',
-        'title': 'Test Playlist',
-        'item_count': 3,
-        'is_public': true,
-        'items': [],
+        'playlist_id': 4,
+        'media': [
+          {
+            'id': 1,
+            'playlist_id': 4,
+            'position': 1,
+            'is_skipped': false,
+            'media_type': 'recording',
+            'media_id': 57,
+            'title': 'Oceans',
+            's3_url': 'https://example.com/video.mp4',
+          },
+          {
+            'id': 2,
+            'playlist_id': 4,
+            'position': 2,
+            'is_skipped': false,
+            'media_type': 'recording',
+            'media_id': 56,
+            'title': 'Testament Of Love',
+            's3_url': 'https://example.com/audio.mp3',
+          },
+        ],
+        'total': 4,
       };
 
       final playlist = PlaylistModel.fromJson(json);
 
-      expect(playlist.itemCount, 3);
+      expect(playlist.id, 4);
+      expect(playlist.itemCount, 4);
+      expect(playlist.items.length, 2);
+      expect(playlist.items[0].isVideo, true);
+      expect(playlist.items[1].isAudio, true);
     });
 
     test('fromJson handles null values gracefully', () {
@@ -172,6 +223,30 @@ void main() {
       expect(playlist.thumbnailUrl, null);
       expect(playlist.totalDurationSeconds, null);
       expect(playlist.items, isEmpty);
+    });
+
+    test('copyWith updates items and itemCount', () {
+      final playlist = PlaylistModel(
+        id: 1,
+        slug: 'test',
+        title: 'Test',
+        itemCount: 0,
+        isPublic: true,
+      );
+
+      final updated = playlist.copyWith(
+        items: [
+          PlaylistItemModel(
+            id: 1,
+            title: 'Item 1',
+            s3Url: 'https://example.com/audio.mp3',
+          ),
+        ],
+        itemCount: 1,
+      );
+
+      expect(updated.itemCount, 1);
+      expect(updated.items.length, 1);
     });
 
     test('formattedTotalDuration formats hours correctly', () {
@@ -218,14 +293,14 @@ void main() {
         id: 1,
         slug: 'test-playlist',
         title: 'Test Playlist',
-        itemCount: 2,
+        itemCount: 1,
         isPublic: true,
         items: [
           PlaylistItemModel(
             id: 1,
             title: 'Item 1',
             mediaType: 'audio',
-            order: 0,
+            s3Url: 'https://example.com/audio.mp3',
           ),
         ],
       );

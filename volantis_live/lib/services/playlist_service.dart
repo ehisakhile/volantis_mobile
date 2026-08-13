@@ -52,7 +52,19 @@ class PlaylistService {
         queryParameters: {'include_items': includeItems},
       );
 
-      return PlaylistModel.fromJson(response.data as Map<String, dynamic>);
+      final playlist =
+          PlaylistModel.fromJson(response.data as Map<String, dynamic>);
+
+      if (includeItems && playlist.items.isEmpty) {
+        try {
+          final items = await getPlaylistMedia(playlist.id);
+          return playlist.copyWith(items: items, itemCount: items.length);
+        } catch (e) {
+          print('PlaylistService: Error loading media items - $e');
+        }
+      }
+
+      return playlist;
     } on DioException catch (e) {
       print('PlaylistService: Error loading playlist detail - ${e.message}');
       rethrow;
@@ -67,18 +79,39 @@ class PlaylistService {
       final response = await _apiService.get(
         ApiConstants.getPlaylistItemsEndpoint(companySlug, playlistSlug),
       );
-
-      if (response.data is List) {
-        return (response.data as List)
-            .map((json) => PlaylistItemModel.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-
-      return [];
+      return _parseMediaResponse(response.data);
     } on DioException catch (e) {
       print('PlaylistService: Error loading playlist items - ${e.message}');
       rethrow;
     }
+  }
+
+  /// Fetch the media items of a playlist via
+  /// `GET /playlists/public/{playlistId}/media`.
+  Future<List<PlaylistItemModel>> getPlaylistMedia(int playlistId) async {
+    try {
+      final response = await _apiService.get(
+        ApiConstants.getPlaylistMediaEndpoint(playlistId),
+      );
+      return _parseMediaResponse(response.data);
+    } on DioException catch (e) {
+      print('PlaylistService: Error loading playlist media - ${e.message}');
+      rethrow;
+    }
+  }
+
+  List<PlaylistItemModel> _parseMediaResponse(dynamic data) {
+    final List<dynamic> media;
+    if (data is List) {
+      media = data;
+    } else if (data is Map<String, dynamic>) {
+      media = data['media'] as List<dynamic>? ?? [];
+    } else {
+      return [];
+    }
+    return media
+        .map((json) => PlaylistItemModel.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   Future<PlaylistModel> createPlaylist({

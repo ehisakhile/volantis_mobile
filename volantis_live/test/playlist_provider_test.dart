@@ -13,9 +13,21 @@ void main() {
       itemCount: 3,
       isPublic: true,
       items: [
-        PlaylistItemModel(id: 1, title: 'Item 1', mediaType: 'audio', order: 0),
-        PlaylistItemModel(id: 2, title: 'Item 2', mediaType: 'audio', order: 1),
-        PlaylistItemModel(id: 3, title: 'Item 3', mediaType: 'video', order: 2),
+        PlaylistItemModel(
+          id: 1,
+          title: 'Item 1',
+          s3Url: 'https://example.com/audio.mp3',
+        ),
+        PlaylistItemModel(
+          id: 2,
+          title: 'Item 2',
+          s3Url: 'https://example.com/audio2.mp3',
+        ),
+        PlaylistItemModel(
+          id: 3,
+          title: 'Item 3',
+          s3Url: 'https://example.com/video.mp4',
+        ),
       ],
     );
   });
@@ -48,6 +60,10 @@ void main() {
       provider = PlaylistPlayerProvider();
     });
 
+    tearDown(() {
+      provider.dispose();
+    });
+
     test('initial state is correct', () {
       expect(provider.currentPlaylist, null);
       expect(provider.currentIndex, 0);
@@ -64,20 +80,20 @@ void main() {
       expect(provider.currentItem, null);
     });
 
-    test('playItem does nothing when no playlist is loaded', () {
-      provider.playItem(testPlaylist.items[0]);
+    test('playItem does nothing when no playlist is loaded', () async {
+      await provider.playItem(testPlaylist.items[0]);
 
       expect(provider.currentIndex, 0);
       expect(provider.isPlaying, false);
     });
 
-    test('togglePlayPause toggles isPlaying', () {
+    test('togglePlayPause is a no-op without a current item', () async {
       expect(provider.isPlaying, false);
 
-      provider.togglePlayPause();
-      expect(provider.isPlaying, true);
+      await provider.togglePlayPause();
+      expect(provider.isPlaying, false);
 
-      provider.togglePlayPause();
+      await provider.togglePlayPause();
       expect(provider.isPlaying, false);
     });
 
@@ -119,9 +135,21 @@ void main() {
         itemCount: 3,
         isPublic: true,
         items: [
-          PlaylistItemModel(id: 1, title: 'Item 1', mediaType: 'audio', order: 0),
-          PlaylistItemModel(id: 2, title: 'Item 2', mediaType: 'audio', order: 1),
-          PlaylistItemModel(id: 3, title: 'Item 3', mediaType: 'video', order: 2),
+          PlaylistItemModel(
+            id: 1,
+            title: 'Item 1',
+            s3Url: 'https://example.com/audio.mp3',
+          ),
+          PlaylistItemModel(
+            id: 2,
+            title: 'Item 2',
+            s3Url: 'https://example.com/audio2.mp3',
+          ),
+          PlaylistItemModel(
+            id: 3,
+            title: 'Item 3',
+            s3Url: 'https://example.com/video.mp4',
+          ),
         ],
       );
 
@@ -132,15 +160,30 @@ void main() {
 
     test('PlaylistItemModel formattedDuration works', () {
       expect(
-        PlaylistItemModel(id: 1, title: 'Test', mediaType: 'audio', order: 0, durationSeconds: null).formattedDuration,
+        PlaylistItemModel(
+          id: 1,
+          title: 'Test',
+          mediaType: 'audio',
+          durationSeconds: null,
+        ).formattedDuration,
         'N/A',
       );
       expect(
-        PlaylistItemModel(id: 1, title: 'Test', mediaType: 'audio', order: 0, durationSeconds: 90).formattedDuration,
+        PlaylistItemModel(
+          id: 1,
+          title: 'Test',
+          mediaType: 'audio',
+          durationSeconds: 90,
+        ).formattedDuration,
         '1:30',
       );
       expect(
-        PlaylistItemModel(id: 1, title: 'Test', mediaType: 'audio', order: 0, durationSeconds: 3661).formattedDuration,
+        PlaylistItemModel(
+          id: 1,
+          title: 'Test',
+          mediaType: 'audio',
+          durationSeconds: 3661,
+        ).formattedDuration,
         '1:01:01',
       );
     });

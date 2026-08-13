@@ -197,6 +197,8 @@ class ApiConstants {
     String companySlug,
     String playlistSlug,
   ) => '/playlists/public/$playlistSlug/media';
+  static String getPlaylistMediaEndpoint(int playlistId) =>
+      '/playlists/public/$playlistId/media';
 
   // Creator endpoints for playlist management
   static const String createPlaylist = '/creator/playlists';

@@ -18,6 +18,7 @@ class AudioState {
   final String? artworkUrl;
   final bool isPlaying;
   final bool isConnecting;
+  final bool isCompleted;
   final String? error;
   final Duration? position;
   final Duration? duration;
@@ -31,6 +32,7 @@ class AudioState {
     this.artworkUrl,
     this.isPlaying = false,
     this.isConnecting = false,
+    this.isCompleted = false,
     this.error,
     this.position,
     this.duration,
@@ -45,6 +47,7 @@ class AudioState {
     String? artworkUrl,
     bool? isPlaying,
     bool? isConnecting,
+    bool? isCompleted,
     String? error,
     Duration? position,
     Duration? duration,
@@ -59,6 +62,7 @@ class AudioState {
       artworkUrl: artworkUrl ?? this.artworkUrl,
       isPlaying: isPlaying ?? this.isPlaying,
       isConnecting: isConnecting ?? this.isConnecting,
+      isCompleted: isCompleted ?? this.isCompleted,
       error: clearError ? null : (error ?? this.error),
       position: position ?? this.position,
       duration: duration ?? this.duration,
@@ -157,6 +161,7 @@ class AudioManager extends ChangeNotifier {
       _currentState = _currentState.copyWith(
         isPlaying: false,
         isConnecting: false,
+        isCompleted: true,
         sourceType: AudioSourceType.none,
       );
       _whepHandler?.resetToLiveStreamMode();
