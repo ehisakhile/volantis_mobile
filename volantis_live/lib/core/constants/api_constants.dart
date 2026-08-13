@@ -172,12 +172,48 @@ class ApiConstants {
 
   static String getStreamEndpoint(String slug) => '/stream/$slug';
 
-  static String getStreamRealtimeEndpoint(String slug) => '/stream/$slug/realtime';
+  static String getStreamRealtimeEndpoint(String slug) =>
+      '/stream/$slug/realtime';
 
   // Meeting/Connect endpoints
   static const String createInstantMeeting = '/meetings/instant';
   static String getMeetingEndpoint(String meetingId) => '/meetings/$meetingId';
-  static String getMeetingJoinEndpoint(String meetingId) => '/meetings/$meetingId/join';
-  static String getMeetingGuestTokenEndpoint(String meetingId) => '/meetings/$meetingId/guest-token';
-  static String getMeetingLeaveEndpoint(String meetingId) => '/meetings/$meetingId/leave';
+  static String getMeetingJoinEndpoint(String meetingId) =>
+      '/meetings/$meetingId/join';
+  static String getMeetingGuestTokenEndpoint(String meetingId) =>
+      '/meetings/$meetingId/guest-token';
+  static String getMeetingLeaveEndpoint(String meetingId) =>
+      '/meetings/$meetingId/leave';
+
+  // Playlist endpoints
+  static const String playlists = '/playlists';
+  static String getCompanyPlaylistsEndpoint(String companySlug) =>
+      '/playlists/public/company/$companySlug';
+  static String getPlaylistDetailEndpoint(
+    String companySlug,
+    String playlistSlug,
+  ) => '/playlists/public/$playlistSlug';
+  static String getPlaylistItemsEndpoint(
+    String companySlug,
+    String playlistSlug,
+  ) => '/playlists/public/$playlistSlug/media';
+
+  // Creator endpoints for playlist management
+  static const String createPlaylist = '/creator/playlists';
+  static String updatePlaylistEndpoint(String playlistId) =>
+      '/creator/playlists/$playlistId';
+  static String deletePlaylistEndpoint(String playlistId) =>
+      '/creator/playlists/$playlistId';
+  static const String uploadPlaylistMedia = '/creator/playlists/media/upload';
+
+  // Telegram integration
+  static const String telegramConnect = '/creator/telegram/connect';
+  static const String telegramDisconnect = '/creator/telegram/disconnect';
+  static const String telegramStatus = '/creator/telegram/status';
+
+  // Creator media upload
+  static const String creatorUploadAudio = '/creator/media/audio';
+  static const String creatorUploadVideo = '/creator/media/video';
+  static String creatorMediaStatus(String mediaId) =>
+      '/creator/media/$mediaId/status';
 }

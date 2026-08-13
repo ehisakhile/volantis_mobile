@@ -15,6 +15,7 @@ import '../../features/home/presentation/screens/company_details_screen.dart';
 import '../../features/downloads/presentation/screens/downloads_screen.dart';
 import '../../features/categories/presentation/screens/set_preferences_screen.dart';
 import '../../features/streams/presentation/screens/stream_player_screen.dart';
+import '../../features/home/presentation/screens/playlist_player_screen.dart';
 import '../../routes/main_screen.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/app_update_manager.dart';
@@ -35,6 +36,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String downloads = '/downloads';
   static const String companyDetails = '/company/:slug';
+  static const String playlist = '/company/:slug/playlist/:playlistSlug';
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -176,6 +178,18 @@ class AppRouter {
           return _RecordingHandler(
             companySlug: companySlug,
             recordingId: recordingId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/company/:slug/playlist/:playlistSlug',
+        name: 'playlistPlayer',
+        builder: (context, state) {
+          final companySlug = state.pathParameters['slug'] ?? '';
+          final playlistSlug = state.pathParameters['playlistSlug'] ?? '';
+          return _PlaylistHandler(
+            companySlug: companySlug,
+            playlistSlug: playlistSlug,
           );
         },
       ),
@@ -457,5 +471,23 @@ class _RecordingHandler extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CompanyDetailsHandler(companySlug: companySlug);
+  }
+}
+
+class _PlaylistHandler extends StatelessWidget {
+  final String companySlug;
+  final String playlistSlug;
+
+  const _PlaylistHandler({
+    required this.companySlug,
+    required this.playlistSlug,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PlaylistPlayerScreen(
+      companySlug: companySlug,
+      playlistSlug: playlistSlug,
+    );
   }
 }

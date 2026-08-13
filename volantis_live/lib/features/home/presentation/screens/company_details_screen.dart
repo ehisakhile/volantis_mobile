@@ -15,8 +15,10 @@ import '../../../recordings/presentation/widgets/mini_player.dart';
 import '../../../recordings/presentation/providers/recordings_provider.dart';
 import '../../../streams/data/models/company_live_stream_model.dart';
 import '../../data/models/company_model.dart';
+import '../../data/models/playlist_model.dart';
 import '../../data/models/subscription_model.dart';
 import '../providers/home_provider.dart';
+import '../providers/playlist_provider.dart';
 
 /// Company details screen — VolantisLive dark glass design
 /// Handles deep links from creator share links (e.g., volantislive.com/creator_slug)
@@ -51,6 +53,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   CompanyStatsModel? _companyStats;
   bool _isLoadingStats = true;
 
+  List<PlaylistModel> _playlists = [];
+  bool _isLoadingPlaylists = true;
+
   // ── Design tokens ─────────────────────────────────────────────────────────
   static const _bg = Color(0xFF0B1326);
   static const _glassCard = Color(0xFF171F33);
@@ -67,6 +72,35 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   void initState() {
     super.initState();
     _loadCompanyDetails();
+    _loadPlaylists();
+  }
+
+  Future<void> _loadPlaylists() async {
+    setState(() => _isLoadingPlaylists = true);
+
+    try {
+      final response = await ApiService.instance.get(
+        ApiConstants.getCompanyPlaylistsEndpoint(widget.companySlug),
+      );
+
+      if (response.data is List) {
+        _playlists = (response.data as List)
+            .map((json) => PlaylistModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else if (response.data is Map<String, dynamic>) {
+        final data = response.data as Map<String, dynamic>;
+        final playlists = data['playlists'] as List<dynamic>? ?? [];
+        _playlists = playlists
+            .map((json) => PlaylistModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+    } on DioException catch (e) {
+      print('API: Error loading playlists - ${e.message}');
+    } catch (e) {
+      print('API: Error loading playlists - $e');
+    }
+
+    setState(() => _isLoadingPlaylists = false);
   }
 
   Future<void> _loadCompanyDetails() async {
@@ -257,6 +291,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 ),
                 SliverToBoxAdapter(child: _buildPreviousStreamsSection()),
               ],
+
+              // ── Playlists ───────────────────────────────────────
+              _buildPlaylistsSection(),
 
               const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
             ],
@@ -461,18 +498,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            _primary.withOpacity(0.15),
-            _primaryCont.withOpacity(0.08),
-          ],
+          colors: [_primary.withOpacity(0.15), _primaryCont.withOpacity(0.08)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _primary.withOpacity(0.25),
-          width: 1,
-        ),
+        border: Border.all(color: _primary.withOpacity(0.25), width: 1),
       ),
       child: Row(
         children: [
@@ -505,10 +536,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'You\'ll never miss a stream from ${_company?.name ?? "this creator"}',
-                  style: const TextStyle(
-                    color: _onVariant,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: _onVariant, fontSize: 11),
                 ),
               ],
             ),
@@ -1135,6 +1163,144 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     if (!isSameStream) {
       await provider.openStream(stream);
     }
+  }
+
+  Widget _buildPlaylistsSection() {
+    if (_isLoadingPlaylists) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: CircularProgressIndicator(color: _primary, strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_playlists.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('Playlists', count: _playlists.length),
+          SizedBox(
+            height: 160,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _playlists.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                return _buildPlaylistCard(_playlists[index]);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaylistCard(PlaylistModel playlist) {
+    return GestureDetector(
+      onTap: () => context.push(
+        '/company/${widget.companySlug}/playlist/${playlist.id}',
+      ),
+      child: Container(
+        width: 160,
+        decoration: BoxDecoration(
+          color: _glassCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 90,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _primary.withOpacity(0.15),
+                    _primaryCont.withOpacity(0.08),
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.playlist_play_rounded,
+                    color: _primary,
+                    size: 40,
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _surfaceHigh,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${playlist.itemCount}',
+                        style: const TextStyle(
+                          color: _onVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    playlist.title,
+                    style: const TextStyle(
+                      color: _onSurface,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  if (playlist.formattedTotalDuration.isNotEmpty)
+                    Text(
+                      playlist.formattedTotalDuration,
+                      style: const TextStyle(color: _outline, fontSize: 11),
+                    )
+                  else
+                    Text(
+                      '${playlist.itemCount} items',
+                      style: const TextStyle(color: _outline, fontSize: 11),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

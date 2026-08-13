@@ -28,6 +28,10 @@ dependencies:
   audio_service: ^0.18.12
   audio_session: ^0.1.21
 
+  # Video Playback
+  video_player: ^2.11.1
+  chewie: ^1.13.1
+
   # Audio Recording
   # record: ^5.1.2  # Temporarily disabled due to compatibility issues
 
