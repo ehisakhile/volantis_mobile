@@ -33,20 +33,24 @@ const _outline = Color(0xFF88929B);
 const _outlineVar = Color(0xFF3E4850);
 
 class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
+  late final PlaylistPlayerProvider _provider;
+
   @override
   void initState() {
     super.initState();
+    _provider = context.read<PlaylistPlayerProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PlaylistPlayerProvider>().loadPlaylist(
-            companySlug: widget.companySlug,
-            playlistSlug: widget.playlistSlug,
-          );
+      _provider.setPlayerScreenVisible(true);
+      _provider.loadPlaylist(
+        companySlug: widget.companySlug,
+        playlistSlug: widget.playlistSlug,
+      );
     });
   }
 
   @override
   void dispose() {
-    context.read<PlaylistPlayerProvider>().closePlayer();
+    _provider.setPlayerScreenVisible(false);
     super.dispose();
   }
 
@@ -80,6 +84,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       slivers: [
         SliverAppBar(
           pinned: true,
+          expandedHeight: 470,
           backgroundColor: _bg,
           leading: GestureDetector(
             onTap: () => context.pop(),
@@ -130,9 +135,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
         if (provider.currentItem != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            sliver: SliverToBoxAdapter(
-              child: _buildNowPlaying(provider),
-            ),
+            sliver: SliverToBoxAdapter(child: _buildNowPlaying(provider)),
           ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -163,22 +166,18 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     PlaylistPlayerProvider provider,
     PlaylistItemModel item,
   ) {
-    final url = item.mediaUrl;
+    final controller = provider.videoController;
+    final hasError = provider.error != null;
+    final canRenderPlayer =
+        controller != null && (controller.value.isInitialized || !hasError);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (url != null && url.isNotEmpty)
+        if (canRenderPlayer)
           PlaylistVideoPlayer(
-            key: ValueKey(item.id),
-            url: url,
+            key: ValueKey('video_${item.id}'),
+            controller: controller,
             thumbnailUrl: item.thumbnailUrl,
-            autoPlay: true,
-            onControllerCreated: provider.attachVideoController,
-            onControllerDisposed: (_) => provider.attachVideoController(null),
-            onPlayStateChanged: provider.setVideoPlaying,
-            onEnded: () {
-              if (provider.hasNext) provider.next();
-            },
           )
         else
           Container(
@@ -188,10 +187,13 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
               color: _surfaceHigh,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
-                'Video unavailable',
-                style: TextStyle(color: _onVariant, fontSize: 13),
+                provider.error ?? 'Video unavailable',
+                style: const TextStyle(color: _onVariant, fontSize: 13),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -207,73 +209,45 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
   ) {
     final hasCurrentItem = provider.currentItem != null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 56, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            height: 180,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _primary.withOpacity(0.2),
-                  _primaryCont.withOpacity(0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: _primary.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.playlist_play_rounded,
-                      color: _primary,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    playlist.title,
-                    style: const TextStyle(
-                      color: _onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (playlist.description != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      playlist.description!,
-                      style: const TextStyle(color: _onVariant, fontSize: 13),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
+          _buildCover(playlist),
+          const SizedBox(height: 16),
+          Text(
+            playlist.title,
+            style: const TextStyle(
+              color: _onSurface,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+              height: 1.15,
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
+          if (playlist.description != null &&
+              playlist.description!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              playlist.description!,
+              style: const TextStyle(color: _onVariant, fontSize: 13),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (provider.companyName != null &&
+                  provider.companyName!.isNotEmpty)
+                _buildCompanyChip(provider),
               _buildInfoChip(
                 icon: Icons.format_list_numbered,
                 label: '${playlist.itemCount} items',
               ),
-              const SizedBox(width: 8),
               if (playlist.formattedTotalDuration.isNotEmpty)
                 _buildInfoChip(
                   icon: Icons.schedule_rounded,
@@ -300,15 +274,15 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                 provider.isPlaying
                     ? Icons.pause_rounded
                     : hasCurrentItem
-                        ? Icons.play_arrow_rounded
-                        : Icons.playlist_play_rounded,
+                    ? Icons.play_arrow_rounded
+                    : Icons.playlist_play_rounded,
               ),
               label: Text(
                 provider.isPlaying
                     ? 'Pause'
                     : hasCurrentItem
-                        ? 'Resume'
-                        : 'Play All',
+                    ? 'Resume'
+                    : 'Play All',
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
@@ -318,6 +292,123 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCover(PlaylistModel playlist) {
+    final cover = playlist.thumbnailUrl;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 200,
+        width: double.infinity,
+        child: cover != null && cover.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: cover,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => _coverPlaceholder(playlist),
+                errorWidget: (_, __, ___) => _coverPlaceholder(playlist),
+              )
+            : _coverPlaceholder(playlist),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder(PlaylistModel playlist) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_primary.withOpacity(0.2), _primaryCont.withOpacity(0.1)],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: _primary.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.playlist_play_rounded,
+                color: _primary,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                playlist.title,
+                style: const TextStyle(
+                  color: _onSurface,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanyChip(PlaylistPlayerProvider provider) {
+    final name = provider.companyName!;
+    final logo = provider.companyLogoUrl;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _surfaceHigh,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipOval(
+            child: logo != null && logo.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: logo,
+                    width: 18,
+                    height: 18,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _companyLogoFallback(),
+                  )
+                : _companyLogoFallback(),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _onVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _companyLogoFallback() {
+    return Container(
+      width: 18,
+      height: 18,
+      color: _surfaceHigh,
+      child: const Icon(Icons.business_rounded, color: _primary, size: 11),
     );
   }
 
@@ -589,7 +680,10 @@ class _NowPlayingMetaBar extends StatelessWidget {
           _barButton(
             icon: Icons.close_rounded,
             enabled: true,
-            onTap: () => provider.closePlayer(),
+            onTap: () {
+              provider.closePlayer();
+              if (context.mounted) context.pop();
+            },
           ),
         ],
       ),
@@ -634,7 +728,7 @@ class _AudioNowPlaying extends StatelessWidget {
               state.sourceType == AudioSourceType.recording && state.isPlaying;
           final isLoading =
               state.sourceType == AudioSourceType.recording &&
-                  state.isConnecting;
+              state.isConnecting;
 
           return Column(
             children: [
@@ -669,7 +763,7 @@ class _AudioNowPlaying extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _audioCloseButton(),
+                  _audioCloseButton(context),
                 ],
               ),
               const SizedBox(height: 8),
@@ -709,10 +803,7 @@ class _AudioNowPlaying extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   provider.error!,
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -753,10 +844,13 @@ class _AudioNowPlaying extends StatelessWidget {
     );
   }
 
-  Widget _audioCloseButton() {
+  Widget _audioCloseButton(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.close_rounded, color: _onVariant, size: 20),
-      onPressed: () => provider.closePlayer(),
+      onPressed: () {
+        provider.closePlayer();
+        if (context.mounted) context.pop();
+      },
     );
   }
 
@@ -768,20 +862,21 @@ class _AudioNowPlaying extends StatelessWidget {
         return StreamBuilder<Duration?>(
           stream: AudioManager.instance.durationStream,
           builder: (context, durSnap) {
-            final dur = durSnap.data ??
+            final dur =
+                durSnap.data ??
                 (item.durationSeconds != null
                     ? Duration(seconds: item.durationSeconds!)
                     : Duration.zero);
-            final maxVal =
-                dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
+            final maxVal = dur.inSeconds > 0 ? dur.inSeconds.toDouble() : 1.0;
 
             return Column(
               children: [
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 3,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
                     activeTrackColor: _primary,
                     inactiveTrackColor: _outlineVar,
                     thumbColor: _primary,

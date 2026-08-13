@@ -105,6 +105,20 @@ void main() {
       expect(provider.isPlaying, false);
     });
 
+    test('setPlayerScreenVisible updates visibility', () {
+      expect(provider.isPlayerScreenVisible, false);
+
+      provider.setPlayerScreenVisible(true);
+      expect(provider.isPlayerScreenVisible, true);
+
+      provider.setPlayerScreenVisible(false);
+      expect(provider.isPlayerScreenVisible, false);
+    });
+
+    test('showMiniPlayer is false without a current item', () {
+      expect(provider.showMiniPlayer, false);
+    });
+
     test('reset clears all state', () {
       provider.setPlaying(true);
 

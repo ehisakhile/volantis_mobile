@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
+import 'package:volantis_live/services/api_service.dart';
 import '../../../home/data/models/playlist_model.dart';
 import 'package:volantis_live/services/playlist_service.dart';
 import 'package:volantis_live/services/audio_manager.dart';
@@ -42,6 +43,10 @@ class PlaylistProvider extends ChangeNotifier {
   }
 }
 
+/// App-level playback controller for a playlist. Owns both audio (through
+/// [AudioManager]) and video (through its own [VideoPlayerController]) so
+/// playback survives leaving the playlist screen — a global mini player can
+/// keep showing the current item and jump back to the full screen.
 class PlaylistPlayerProvider extends ChangeNotifier {
   PlaylistModel? _currentPlaylist;
   int _currentIndex = 0;
@@ -49,7 +54,14 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  String? _companySlug;
+  int? _playlistId;
+  String? _companyName;
+  String? _companyLogoUrl;
+  bool _isPlayerScreenVisible = false;
+
   VideoPlayerController? _videoController;
+  bool _videoEndedHandled = false;
 
   StreamSubscription<AudioState>? _audioSubscription;
 
@@ -63,6 +75,19 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  String? get companySlug => _companySlug;
+  int? get playlistId => _playlistId;
+  String? get companyName => _companyName;
+  String? get companyLogoUrl => _companyLogoUrl;
+
+  VideoPlayerController? get videoController => _videoController;
+
+  /// True while the full playlist player screen is on screen. The global mini
+  /// player only shows when playback is active but the screen is not visible.
+  bool get isPlayerScreenVisible => _isPlayerScreenVisible;
+  bool get showMiniPlayer =>
+      currentItem != null && !_isPlayerScreenVisible;
 
   PlaylistItemModel? get currentItem {
     if (_currentPlaylist == null ||
@@ -85,20 +110,50 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   bool get hasNext => _currentIndex < (_currentPlaylist?.items.length ?? 0) - 1;
   bool get hasPrevious => _currentIndex > 0;
 
+  void setPlayerScreenVisible(bool visible) {
+    if (_isPlayerScreenVisible == visible) return;
+    _isPlayerScreenVisible = visible;
+    notifyListeners();
+  }
+
   Future<void> loadPlaylist({
     required String companySlug,
     required String playlistSlug,
   }) async {
+    final parsedId = int.tryParse(playlistSlug);
+
+    // Resume: the same playlist is already loaded and being played, so just
+    // mark the screen visible again without resetting playback.
+    if (_currentPlaylist != null &&
+        parsedId != null &&
+        _currentPlaylist!.id == parsedId) {
+      _companySlug = companySlug;
+      _playlistId = parsedId;
+      _isPlayerScreenVisible = true;
+      if (_companyName == null) unawaited(_loadCompanyInfo(companySlug));
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      await _stopAudioIfPlaying();
+      _disposeVideoController();
+
       _currentPlaylist = await PlaylistService.instance.getPlaylistDetail(
         companySlug,
         playlistSlug,
       );
       _currentIndex = 0;
+      _companySlug = companySlug;
+      _playlistId = _currentPlaylist!.id;
+      _companyName = null;
+      _companyLogoUrl = null;
+      _isPlayerScreenVisible = true;
+      unawaited(_loadCompanyInfo(companySlug));
     } catch (e) {
       _error = e.toString();
     }
@@ -107,16 +162,17 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Attach the controller of the currently rendered video player so the
-  /// provider can drive play/pause from list & header controls.
-  void attachVideoController(VideoPlayerController? controller) {
-    _videoController = controller;
-  }
-
-  /// Keep the header/list play indicator in sync with the video player.
-  void setVideoPlaying(bool playing) {
-    _isPlaying = playing;
-    notifyListeners();
+  Future<void> _loadCompanyInfo(String companySlug) async {
+    try {
+      final response = await ApiService.instance.get('/$companySlug');
+      final company = (response.data as Map<String, dynamic>?)?['company'];
+      if (company == null) return;
+      _companyName = company['name'];
+      _companyLogoUrl = company['logo_url'];
+      notifyListeners();
+    } catch (_) {
+      // Company metadata is optional; ignore failures.
+    }
   }
 
   Future<void> playItem(PlaylistItemModel item) async {
@@ -138,13 +194,63 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     if (item == null) return;
 
     if (item.isVideo) {
-      _isPlaying = true;
       await _stopAudioIfPlaying();
+      await _playVideo(item);
+      return;
+    }
+
+    final video = _videoController;
+    if (video != null && video.value.isInitialized && video.value.isPlaying) {
+      await video.pause();
+    }
+    await _playAudio(item);
+  }
+
+  Future<void> _playVideo(PlaylistItemModel item) async {
+    final url = item.mediaUrl;
+    if (url == null || url.isEmpty) {
+      _error = 'Playback unavailable for "${item.title}"';
+      _isPlaying = false;
       notifyListeners();
       return;
     }
 
-    await _playAudio(item);
+    final existing = _videoController;
+    if (existing != null &&
+        existing.dataSource == url &&
+        existing.value.isInitialized) {
+      _isPlaying = true;
+      _error = null;
+      await existing.play();
+      notifyListeners();
+      return;
+    }
+
+    _disposeVideoController();
+
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    _videoController = controller;
+    controller.addListener(_onVideoStateChanged);
+    _isPlaying = true;
+    _error = null;
+    _videoEndedHandled = false;
+    notifyListeners();
+
+    try {
+      await controller.initialize();
+      if (_videoController != controller) return;
+      await controller.play();
+      notifyListeners();
+    } catch (e) {
+      if (_videoController == controller) {
+        _isPlaying = false;
+        _error = 'Failed to play "${item.title}": $e';
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> _playAudio(PlaylistItemModel item) async {
@@ -178,10 +284,49 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     }
   }
 
+  void _onVideoStateChanged() {
+    final controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    final playing = controller.value.isPlaying;
+    if (playing != _isPlaying) {
+      _isPlaying = playing;
+      notifyListeners();
+    }
+
+    if (controller.value.isCompleted) {
+      if (!_videoEndedHandled) {
+        _videoEndedHandled = true;
+        _onVideoCompleted();
+      }
+    } else {
+      _videoEndedHandled = false;
+    }
+  }
+
+  void _onVideoCompleted() {
+    if (hasNext) {
+      unawaited(next());
+    } else {
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _stopAudioIfPlaying() async {
     if (AudioManager.instance.isRecordingActive) {
       await AudioManager.instance.stop();
     }
+  }
+
+  void _disposeVideoController() {
+    final controller = _videoController;
+    if (controller != null) {
+      controller.removeListener(_onVideoStateChanged);
+      controller.dispose();
+    }
+    _videoController = null;
+    _videoEndedHandled = false;
   }
 
   void _onAudioStateChanged(AudioState state) {
@@ -209,7 +354,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   void _onAudioCompleted() {
     if (hasNext) {
-      next();
+      unawaited(next());
     } else {
       _isPlaying = false;
       notifyListeners();
@@ -236,15 +381,11 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
     if (item.isVideo) {
       final controller = _videoController;
-      if (controller != null && controller.value.isInitialized) {
-        if (controller.value.isPlaying) {
-          await controller.pause();
-          _isPlaying = false;
-        } else {
-          await controller.play();
-          _isPlaying = true;
-        }
-        notifyListeners();
+      if (controller == null || !controller.value.isInitialized) return;
+      if (controller.value.isPlaying) {
+        await controller.pause();
+      } else {
+        await controller.play();
       }
       return;
     }
@@ -271,11 +412,15 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   Future<void> closePlayer() async {
     await _stopAudioIfPlaying();
+    _disposeVideoController();
     _currentPlaylist = null;
     _currentIndex = 0;
     _isPlaying = false;
     _error = null;
-    _videoController = null;
+    _companySlug = null;
+    _playlistId = null;
+    _companyName = null;
+    _companyLogoUrl = null;
     notifyListeners();
   }
 
@@ -285,13 +430,18 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     _isPlaying = false;
     _isLoading = false;
     _error = null;
-    _videoController = null;
+    _companySlug = null;
+    _playlistId = null;
+    _companyName = null;
+    _companyLogoUrl = null;
+    _disposeVideoController();
     notifyListeners();
   }
 
   @override
   void dispose() {
     _audioSubscription?.cancel();
+    _disposeVideoController();
     super.dispose();
   }
 }

@@ -20,6 +20,7 @@ import 'features/categories/presentation/providers/category_preferences_provider
 import 'features/creator/presentation/providers/creator_provider.dart';
 import 'features/connect/presentation/providers/meeting_provider.dart';
 import 'features/home/presentation/providers/playlist_provider.dart';
+import 'features/home/presentation/widgets/playlist_mini_player.dart';
 import 'services/download_manager.dart';
 import 'features/recordings/data/services/recordings_downloads_service.dart';
 
@@ -163,6 +164,20 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         routerConfig: _appRouter!.router,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              if (child != null) child,
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: PlaylistMiniPlayer(router: _appRouter!.router),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
