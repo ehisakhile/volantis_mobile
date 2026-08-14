@@ -66,8 +66,9 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   StreamSubscription<AudioState>? _audioSubscription;
 
   PlaylistPlayerProvider() {
-    _audioSubscription =
-        AudioManager.instance.stateStream.listen(_onAudioStateChanged);
+    _audioSubscription = AudioManager.instance.stateStream.listen(
+      _onAudioStateChanged,
+    );
   }
 
   PlaylistModel? get currentPlaylist => _currentPlaylist;
@@ -86,8 +87,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   /// True while the full playlist player screen is on screen. The global mini
   /// player only shows when playback is active but the screen is not visible.
   bool get isPlayerScreenVisible => _isPlayerScreenVisible;
-  bool get showMiniPlayer =>
-      currentItem != null && !_isPlayerScreenVisible;
+  bool get showMiniPlayer => currentItem != null && !_isPlayerScreenVisible;
 
   PlaylistItemModel? get currentItem {
     if (_currentPlaylist == null ||
@@ -180,13 +180,24 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     final index = _currentPlaylist!.items.indexWhere((i) => i.id == item.id);
     if (index == -1) return;
 
-    if (index == _currentIndex && currentItem != null) {
+    if (index == _currentIndex && _isItemActuallyLoaded(item)) {
       await togglePlayPause();
       return;
     }
 
     _currentIndex = index;
     await _playCurrent();
+  }
+
+  bool _isItemActuallyLoaded(PlaylistItemModel item) {
+    if (item.isVideo) {
+      return _videoController != null &&
+          _videoController!.dataSource == item.mediaUrl;
+    }
+    final sourceId = item.mediaId ?? item.id;
+    final state = AudioManager.instance.currentState;
+    return state.sourceType == AudioSourceType.recording &&
+        state.sourceId == sourceId;
   }
 
   Future<void> _playCurrent() async {
@@ -227,6 +238,8 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     }
 
     _disposeVideoController();
+
+    await AudioManager.instance.activateSession();
 
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(url),

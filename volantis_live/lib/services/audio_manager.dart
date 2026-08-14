@@ -5,11 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'whep_audio_handler.dart';
 
-enum AudioSourceType {
-  none,
-  liveStream,
-  recording,
-}
+enum AudioSourceType { none, liveStream, recording }
 
 class AudioState {
   final AudioSourceType sourceType;
@@ -103,9 +99,12 @@ class AudioManager extends ChangeNotifier {
 
   AudioSourceType get currentSourceType => _currentState.sourceType;
   bool get isPlaying => _currentState.isPlaying;
-  bool get hasActivePlayback => _currentState.sourceType != AudioSourceType.none;
-  bool get isLiveStreamActive => _currentState.sourceType == AudioSourceType.liveStream;
-  bool get isRecordingActive => _currentState.sourceType == AudioSourceType.recording;
+  bool get hasActivePlayback =>
+      _currentState.sourceType != AudioSourceType.none;
+  bool get isLiveStreamActive =>
+      _currentState.sourceType == AudioSourceType.liveStream;
+  bool get isRecordingActive =>
+      _currentState.sourceType == AudioSourceType.recording;
 
   Duration get position => _recordingPlayer?.position ?? Duration.zero;
   Duration? get duration => _recordingPlayer?.duration;
@@ -152,7 +151,8 @@ class AudioManager extends ChangeNotifier {
   void _onRecordingPlayerState(PlayerState state) {
     if (_currentState.sourceType != AudioSourceType.recording) return;
 
-    final isConnecting = state.processingState == ProcessingState.loading ||
+    final isConnecting =
+        state.processingState == ProcessingState.loading ||
         state.processingState == ProcessingState.buffering;
     final isPlaying = state.playing;
 
@@ -171,7 +171,7 @@ class AudioManager extends ChangeNotifier {
       } else {
         _stopPositionTimer();
       }
-      
+
       _currentState = _currentState.copyWith(
         isPlaying: isPlaying,
         isConnecting: isConnecting,
@@ -189,7 +189,9 @@ class AudioManager extends ChangeNotifier {
 
   void _onLiveStreamState(PlaybackState state) {
     if (_currentState.sourceType != AudioSourceType.liveStream) {
-      debugPrint('[AudioManager] _onLiveStreamState SKIPPED: sourceType=${_currentState.sourceType}, processingState=${state.processingState}, playing=${state.playing}');
+      debugPrint(
+        '[AudioManager] _onLiveStreamState SKIPPED: sourceType=${_currentState.sourceType}, processingState=${state.processingState}, playing=${state.playing}',
+      );
       return;
     }
 
@@ -199,7 +201,7 @@ class AudioManager extends ChangeNotifier {
         state.processingState == AudioProcessingState.buffering) {
       isConnecting = true;
     } else if (state.processingState == AudioProcessingState.ready ||
-               state.processingState == AudioProcessingState.idle) {
+        state.processingState == AudioProcessingState.idle) {
       // Not connecting or playing
     } else if (state.processingState == AudioProcessingState.completed) {
       // Stream ended
@@ -209,7 +211,9 @@ class AudioManager extends ChangeNotifier {
       isConnecting = false;
     }
 
-    debugPrint('[AudioManager] _onLiveStreamState: processingState=${state.processingState}, playing=${state.playing}, isConnecting=$isConnecting');
+    debugPrint(
+      '[AudioManager] _onLiveStreamState: processingState=${state.processingState}, playing=${state.playing}, isConnecting=$isConnecting',
+    );
 
     if (state.processingState == AudioProcessingState.completed) {
       _currentState = _currentState.copyWith(
@@ -233,25 +237,33 @@ class AudioManager extends ChangeNotifier {
         isConnecting: isConnecting,
       );
     }
-    debugPrint('[AudioManager] _onLiveStreamState RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}, sourceType=${_currentState.sourceType}');
+    debugPrint(
+      '[AudioManager] _onLiveStreamState RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}, sourceType=${_currentState.sourceType}',
+    );
     _stateController.add(_currentState);
     notifyListeners();
   }
 
   void _onWhepStateChanged(bool isPlaying, bool isConnecting) {
-    debugPrint('[AudioManager] _onWhepStateChanged: isPlaying=$isPlaying, isConnecting=$isConnecting, currentSourceType=${_currentState.sourceType}');
+    debugPrint(
+      '[AudioManager] _onWhepStateChanged: isPlaying=$isPlaying, isConnecting=$isConnecting, currentSourceType=${_currentState.sourceType}',
+    );
     if (_currentState.sourceType != AudioSourceType.liveStream) {
-      debugPrint('[AudioManager] _onWhepStateChanged SKIPPED: sourceType=${_currentState.sourceType}');
+      debugPrint(
+        '[AudioManager] _onWhepStateChanged SKIPPED: sourceType=${_currentState.sourceType}',
+      );
       return;
     }
-    
+
     // Always trust direct connection state from WhepAudioHandler over audio_service playbackState
     // which may drop events on iOS due to native AudioSession lifecycle differences.
     _currentState = _currentState.copyWith(
       isPlaying: isPlaying,
       isConnecting: isConnecting,
     );
-    debugPrint('[AudioManager] _onWhepStateChanged RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}');
+    debugPrint(
+      '[AudioManager] _onWhepStateChanged RESULT: isPlaying=${_currentState.isPlaying}, isConnecting=${_currentState.isConnecting}',
+    );
     _stateController.add(_currentState);
     notifyListeners();
   }
@@ -327,7 +339,9 @@ class AudioManager extends ChangeNotifier {
 
       debugPrint('[AudioManager] initStream done, calling play()...');
       await _whepHandler?.play();
-      debugPrint('[AudioManager] play() returned. Handler isConnected=${_whepHandler?.isConnected}');
+      debugPrint(
+        '[AudioManager] play() returned. Handler isConnected=${_whepHandler?.isConnected}',
+      );
 
       // ── iOS FIX: Force-sync state from handler ────────────────────────
       // On iOS, the audio_service playbackState BehaviorSubject events
@@ -337,7 +351,9 @@ class AudioManager extends ChangeNotifier {
       if (_whepHandler != null &&
           _whepHandler!.isConnected &&
           !_currentState.isPlaying) {
-        debugPrint('[AudioManager] iOS FIX: Handler is connected but AudioManager state is stale. Force-updating isPlaying=true');
+        debugPrint(
+          '[AudioManager] iOS FIX: Handler is connected but AudioManager state is stale. Force-updating isPlaying=true',
+        );
         _currentState = _currentState.copyWith(
           isPlaying: true,
           isConnecting: false,
@@ -463,7 +479,7 @@ class AudioManager extends ChangeNotifier {
     _positionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (_recordingPlayer != null) {
         var pos = _recordingPlayer!.position;
-        
+
         if (pos == _lastNativePosition) {
           _stuckCount++;
           if (_stuckCount >= 2 && _currentState.position != null) {
@@ -547,8 +563,9 @@ class AudioManager extends ChangeNotifier {
       final currentPosition = _recordingPlayer?.position ?? Duration.zero;
       final dur = _recordingPlayer?.duration ?? Duration.zero;
       final newPosition = currentPosition - Duration(seconds: seconds);
-      final clamped = newPosition < Duration.zero ? Duration.zero :
-                     (newPosition > dur ? dur : newPosition);
+      final clamped = newPosition < Duration.zero
+          ? Duration.zero
+          : (newPosition > dur ? dur : newPosition);
       await seek(clamped);
     }
   }
@@ -566,6 +583,15 @@ class AudioManager extends ChangeNotifier {
   Future<void> setSpeed(double speed) async {
     if (_currentState.sourceType == AudioSourceType.recording) {
       await _recordingPlayer?.setSpeed(speed);
+    }
+  }
+
+  // audio_manager.dart
+  Future<void> activateSession() async {
+    try {
+      await _audioSession?.setActive(true);
+    } catch (e) {
+      debugPrint('[AudioManager] Failed to activate audio session: $e');
     }
   }
 

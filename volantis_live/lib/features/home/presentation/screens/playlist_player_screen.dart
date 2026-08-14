@@ -413,10 +413,10 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
   }
 
   void _onPrimaryAction(PlaylistPlayerProvider provider) {
-    if (provider.currentItem != null) {
-      provider.togglePlayPause();
-    } else {
-      _playAll(provider);
+    if (provider.currentPlaylist?.items.isNotEmpty == true) {
+      provider.playItem(
+        provider.currentItem ?? provider.currentPlaylist!.items.first,
+      );
     }
   }
 
