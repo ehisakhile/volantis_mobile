@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:floating/floating.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -39,10 +42,23 @@ const _outlineVar = Color(0xFF3E4850);
 class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
   late final PlaylistPlayerProvider _provider;
 
+  // Fullscreen (is_recording == true) control-chrome state.
+  bool _controlsVisible = true;
+  Timer? _hideControlsTimer;
+
+  bool get _isFullScreenMode => widget.is_recording;
+
   @override
   void initState() {
     super.initState();
     _provider = context.read<PlaylistPlayerProvider>();
+
+    if (_isFullScreenMode) {
+      // Go edge-to-edge/immersive for a true full-screen player.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      _scheduleHideControls();
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _provider.setPlayerScreenVisible(true);
       // Skip server load if a standalone playlist is already loaded
@@ -57,15 +73,33 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
   @override
   void dispose() {
+    _hideControlsTimer?.cancel();
+    if (_isFullScreenMode) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     _provider.setPlayerScreenVisible(false);
     super.dispose();
+  }
+
+  void _scheduleHideControls() {
+    _hideControlsTimer?.cancel();
+    _hideControlsTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _toggleControls() {
+    setState(() => _controlsVisible = !_controlsVisible);
+    if (_controlsVisible) _scheduleHideControls();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: _isFullScreenMode ? Colors.black : _bg,
       body: SafeArea(
+        top: !_isFullScreenMode,
+        bottom: !_isFullScreenMode,
         child: Consumer<PlaylistPlayerProvider>(
           builder: (context, provider, _) {
             if (provider.isLoading) {
@@ -76,6 +110,14 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
             if (provider.currentPlaylist == null) {
               return _buildErrorState(provider.error ?? 'Playlist not found');
+            }
+
+            if (_isFullScreenMode) {
+              return PiPSwitcher(
+                floating: provider.floating,
+                childWhenDisabled: _buildFullScreenPlayer(provider),
+                childWhenEnabled: _buildPipContent(provider),
+              );
             }
 
             return PiPSwitcher(
@@ -109,6 +151,288 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       ),
     );
   }
+
+  // ── Full-screen interactive player (is_recording == true) ────────────────
+
+  Widget _buildFullScreenPlayer(PlaylistPlayerProvider provider) {
+    final item = provider.currentItem;
+
+    if (item == null) {
+      return const Center(child: CircularProgressIndicator(color: _primary));
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _toggleControls,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: item.isVideo
+                ? _buildFullScreenVideo(provider)
+                : _buildFullScreenAudio(provider, item),
+          ),
+          IgnorePointer(
+            ignoring: !_controlsVisible,
+            child: AnimatedOpacity(
+              opacity: _controlsVisible ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Column(
+                children: [
+                  _fullScreenTopBar(item),
+                  const Spacer(),
+                  if (item.isVideo) _fullScreenVideoControls(provider),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fullScreenTopBar(PlaylistItemModel item) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 0, 16, 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black.withOpacity(0.75), Colors.transparent],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                _provider.closePlayer();
+                if (context.mounted) context.pop();
+              },
+            ),
+            Expanded(
+              child: Text(
+                item.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullScreenVideo(PlaylistPlayerProvider provider) {
+    final controller = provider.videoController;
+    final hasError = provider.error != null;
+    final canRender =
+        controller != null && (controller.value.isInitialized || !hasError);
+
+    if (!canRender) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            provider.error ?? 'Video unavailable',
+            style: const TextStyle(color: _onVariant, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: AspectRatio(
+        aspectRatio: controller.value.aspectRatio.isFinite
+            ? controller.value.aspectRatio
+            : 16 / 9,
+        child: VideoPlayer(controller),
+      ),
+    );
+  }
+
+  Widget _fullScreenVideoControls(PlaylistPlayerProvider provider) {
+    final controller = provider.videoController;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (controller != null)
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: controller,
+                builder: (context, value, _) {
+                  final pos = value.position;
+                  final dur = value.duration;
+                  final maxVal = dur.inMilliseconds > 0
+                      ? dur.inMilliseconds.toDouble()
+                      : 1.0;
+                  return Column(
+                    children: [
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 7,
+                          ),
+                          activeTrackColor: _primary,
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: _primary,
+                          overlayColor: _primary.withOpacity(0.15),
+                        ),
+                        child: Slider(
+                          value: pos.inMilliseconds.toDouble().clamp(0, maxVal),
+                          max: maxVal,
+                          onChanged: (v) {
+                            provider.seek(Duration(milliseconds: v.toInt()));
+                            _scheduleHideControls();
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _fmtDuration(pos),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _fmtDuration(dur),
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _fsControl(
+                  icon: Icons.skip_previous_rounded,
+                  size: 28,
+                  enabled: provider.hasPrevious,
+                  onTap: () => provider.previous(),
+                ),
+                _fsControl(
+                  icon: Icons.replay_10_rounded,
+                  size: 28,
+                  enabled: true,
+                  onTap: () => provider.skipBack(10),
+                ),
+                _fsPlayPause(provider),
+                _fsControl(
+                  icon: Icons.forward_10_rounded,
+                  size: 28,
+                  enabled: true,
+                  onTap: () => provider.skipForward(10),
+                ),
+                _fsControl(
+                  icon: Icons.skip_next_rounded,
+                  size: 28,
+                  enabled: provider.hasNext,
+                  onTap: () => provider.next(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fsControl({
+    required IconData icon,
+    required double size,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      icon: Icon(
+        icon,
+        color: enabled ? Colors.white : Colors.white30,
+        size: size,
+      ),
+      onPressed: enabled
+          ? () {
+              onTap();
+              _scheduleHideControls();
+            }
+          : null,
+    );
+  }
+
+  Widget _fsPlayPause(PlaylistPlayerProvider provider) {
+    return GestureDetector(
+      onTap: () {
+        provider.togglePlayPause();
+        _scheduleHideControls();
+      },
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: const BoxDecoration(
+          color: Colors.white24,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          provider.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          color: Colors.white,
+          size: 34,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullScreenAudio(
+    PlaylistPlayerProvider provider,
+    PlaylistItemModel item,
+  ) {
+    // Fall back to the shared audio "now playing" widget, centered fullscreen.
+    return Container(
+      color: _bg,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Center(
+        child: _AudioNowPlaying(provider: provider, item: item),
+      ),
+    );
+  }
+
+  // ── Playlist view (is_recording == false, unchanged) ─────────────────────
 
   Widget _buildContent(PlaylistPlayerProvider provider) {
     final playlist = provider.currentPlaylist!;
