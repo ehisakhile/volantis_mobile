@@ -337,6 +337,8 @@ class PlaylistPlayerProvider extends ChangeNotifier {
         duration: item.durationSeconds != null
             ? Duration(seconds: item.durationSeconds!)
             : null,
+        skipNext: hasNext ? () => next() : null,
+        skipPrevious: hasPrevious ? () => previous() : null,
       );
     } catch (e) {
       _isPlaying = false;
@@ -483,6 +485,32 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     _companyName = null;
     _companyLogoUrl = null;
     notifyListeners();
+  }
+
+  /// Load a standalone playlist (e.g. video recordings) without fetching
+  /// from the server. Starts playback of the item at [startIndex].
+  Future<void> loadStandalonePlaylist({
+    required PlaylistModel playlist,
+    int startIndex = 0,
+  }) async {
+    await _stopAudioIfPlaying();
+    _disposeVideoController();
+
+    _currentPlaylist = playlist;
+    _currentIndex = startIndex;
+    _companySlug = null;
+    _playlistId = playlist.id;
+    _companyName = null;
+    _companyLogoUrl = null;
+    _isPlayerScreenVisible = true;
+    _isPlaying = false;
+    _error = null;
+
+    notifyListeners();
+
+    if (playlist.items.isNotEmpty && startIndex >= 0) {
+      await _playCurrent();
+    }
   }
 
   void reset() {

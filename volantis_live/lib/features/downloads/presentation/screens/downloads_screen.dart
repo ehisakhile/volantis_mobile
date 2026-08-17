@@ -206,7 +206,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         child: ListTile(
           contentPadding: const EdgeInsets.all(12),
           onTap: () => provider.playDownloaded(download.recordingId),
-          leading: _buildThumbnail(download.thumbnailUrl),
+          leading: _buildThumbnail(download.thumbnailUrl, isVideo: download.isVideo),
           title: Text(
             download.title,
             style: const TextStyle(
@@ -312,7 +312,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     );
   }
 
-  Widget _buildThumbnail(String? url, {bool isDownloading = false}) {
+  Widget _buildThumbnail(String? url, {bool isDownloading = false, bool isVideo = false}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -323,7 +323,11 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             : Container(
                 color: _primary.withOpacity(0.1),
                 child: Icon(
-                  isDownloading ? Icons.downloading : Icons.headphones,
+                  isDownloading
+                      ? Icons.downloading
+                      : isVideo
+                          ? Icons.videocam_rounded
+                          : Icons.headphones,
                   color: _primary,
                 ),
               ),

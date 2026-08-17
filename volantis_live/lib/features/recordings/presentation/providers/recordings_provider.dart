@@ -8,9 +8,12 @@ import '../../data/models/recording_download.dart';
 import '../../data/services/recordings_service.dart';
 import '../../data/services/recordings_downloads_service.dart';
 import '../../../../services/download_manager.dart';
+import '../../../home/data/models/playlist_model.dart';
+import '../../../home/presentation/providers/playlist_provider.dart';
 
 class RecordingsProvider extends ChangeNotifier {
   final RecordingsService _service;
+  final PlaylistPlayerProvider? _playlistPlayerProvider;
 
   List<Recording> recordings = [];
   bool isLoadingList = false;
@@ -39,7 +42,7 @@ class RecordingsProvider extends ChangeNotifier {
   StreamSubscription? _downloadProgressSubscription;
   StreamSubscription<AudioState>? _audioManagerSubscription;
 
-  RecordingsProvider(this._service) {
+  RecordingsProvider(this._service, [this._playlistPlayerProvider]) {
     _initialize();
   }
 
@@ -227,6 +230,12 @@ class RecordingsProvider extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
+      // Route video recordings through PlaylistPlayerProvider for PiP support
+      if (recording.isVideo && _playlistPlayerProvider != null) {
+        await _playVideoRecording(recording, startPosition: startPosition);
+        return;
+      }
+
       final url = _service.getStreamingUrl(recording.streamingUrl);
 
       await AudioManager.instance.playRecording(
@@ -248,6 +257,43 @@ class RecordingsProvider extends ChangeNotifier {
       isPlayerOpen = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _playVideoRecording(
+    Recording recording, {
+    int? startPosition,
+  }) async {
+    final playlist = PlaylistModel(
+      id: -recording.id,
+      slug: 'recording-${recording.id}',
+      title: recording.title,
+      description: recording.description,
+      itemCount: 1,
+      isPublic: true,
+      items: [
+        PlaylistItemModel(
+          id: recording.id,
+          title: recording.title,
+          description: recording.description,
+          thumbnailUrl: recording.thumbnailUrl,
+          s3Url: recording.s3Url,
+          streamingUrl: recording.streamingUrl,
+          durationSeconds: recording.durationSeconds,
+          mediaType: 'recording',
+        ),
+      ],
+    );
+
+    final startIndex = 0;
+    await _playlistPlayerProvider!.loadStandalonePlaylist(
+      playlist: playlist,
+      startIndex: startIndex,
+    );
+
+    // Close the recordings player sheet since we're now on playlist player screen
+    isPlayerOpen = false;
+    currentRecording = null;
+    notifyListeners();
   }
 
   void minimize() {
@@ -400,6 +446,12 @@ class RecordingsProvider extends ChangeNotifier {
         thumbnailUrl: download?.thumbnailUrl,
         createdAt: download?.downloadedAt ?? DateTime.now(),
       );
+
+      // Route video downloads through PlaylistPlayerProvider for PiP support
+      if (currentRecording!.isVideo && _playlistPlayerProvider != null) {
+        await _playVideoRecording(currentRecording!, startPosition: download?.lastPosition);
+        return;
+      }
 
       isPlayerOpen = true;
       isFullScreen = true;

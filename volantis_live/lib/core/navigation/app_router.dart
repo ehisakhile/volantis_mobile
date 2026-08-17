@@ -40,7 +40,8 @@ class AppRoutes {
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 /// App Router configuration
 class AppRouter {
@@ -187,9 +188,13 @@ class AppRouter {
         builder: (context, state) {
           final companySlug = state.pathParameters['slug'] ?? '';
           final playlistSlug = state.pathParameters['playlistSlug'] ?? '';
+          final is_recording = state.pathParameters['is_recording'] == 'true'
+              ? true
+              : false;
           return _PlaylistHandler(
             companySlug: companySlug,
             playlistSlug: playlistSlug,
+            is_recording: is_recording,
           );
         },
       ),
@@ -258,7 +263,7 @@ class AppRouter {
           print('AppRouter: Update check not complete, staying on splash');
           return null; // stay on splash
         }
-        
+
         if (!hasCompletedOnboarding) {
           print('AppRouter: Redirecting to onboarding');
           return AppRoutes.onboarding;
@@ -477,10 +482,12 @@ class _RecordingHandler extends StatelessWidget {
 class _PlaylistHandler extends StatelessWidget {
   final String companySlug;
   final String playlistSlug;
+  final bool is_recording;
 
   const _PlaylistHandler({
     required this.companySlug,
     required this.playlistSlug,
+    this.is_recording = false,
   });
 
   @override
@@ -488,6 +495,7 @@ class _PlaylistHandler extends StatelessWidget {
     return PlaylistPlayerScreen(
       companySlug: companySlug,
       playlistSlug: playlistSlug,
+      is_recording: is_recording,
     );
   }
 }

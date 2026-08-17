@@ -42,6 +42,15 @@ extension DownloadStatusExtension on DownloadStatus {
       this == DownloadStatus.downloaded || this == DownloadStatus.paused;
 }
 
+const _videoExtensions = [
+  '.mp4',
+  '.m4v',
+  '.webm',
+  '.mov',
+  '.mkv',
+  '.m3u8',
+];
+
 /// Recording download model for tracking downloaded recordings
 class RecordingDownload {
   final int id;
@@ -121,6 +130,14 @@ class RecordingDownload {
       'duration_seconds': durationSeconds,
     };
   }
+
+  /// Detected from the local file extension.
+  bool get isVideo {
+    final path = localPath.toLowerCase();
+    return _videoExtensions.any(path.endsWith);
+  }
+
+  bool get isAudio => !isVideo;
 
   /// Check if download has expired
   bool get isExpired {

@@ -21,6 +21,8 @@ class WhepAudioHandler extends BaseAudioHandler {
   Future<void> Function()? _externalPlay;
   Future<void> Function()? _externalPause;
   Future<void> Function()? _externalStop;
+  Future<void> Function()? _externalSkipNext;
+  Future<void> Function()? _externalSkipPrevious;
   void Function(bool isPlaying, bool isConnecting)? onStateChanged;
   
   final RTCVideoRenderer _audioRenderer = RTCVideoRenderer();
@@ -166,6 +168,16 @@ class WhepAudioHandler extends BaseAudioHandler {
   Future<void> hardStop() async {
     await stop();
     await super.stop();
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    if (_externalSkipNext != null) await _externalSkipNext!();
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    if (_externalSkipPrevious != null) await _externalSkipPrevious!();
   }
 
   Future<void> _connect() async {
@@ -551,16 +563,22 @@ class WhepAudioHandler extends BaseAudioHandler {
     Future<void> Function()? play,
     Future<void> Function()? pause,
     Future<void> Function()? stop,
+    Future<void> Function()? skipNext,
+    Future<void> Function()? skipPrevious,
   }) {
     _externalPlay = play;
     _externalPause = pause;
     _externalStop = stop;
+    _externalSkipNext = skipNext;
+    _externalSkipPrevious = skipPrevious;
   }
 
   void unregisterExternalPlaybackControls() {
     _externalPlay = null;
     _externalPause = null;
     _externalStop = null;
+    _externalSkipNext = null;
+    _externalSkipPrevious = null;
   }
 
   void updateRecordingMediaItem(MediaItem item, {bool playing = false}) {
@@ -611,18 +629,23 @@ class WhepAudioHandler extends BaseAudioHandler {
     bool playing = false,
     AudioProcessingState processingState = AudioProcessingState.ready,
   }) {
+    final controls = <MediaControl>[
+      if (_externalSkipPrevious != null) MediaControl.skipToPrevious,
+      playing ? MediaControl.pause : MediaControl.play,
+      MediaControl.stop,
+      if (_externalSkipNext != null) MediaControl.skipToNext,
+    ];
     return PlaybackState(
-      controls: [
-        playing ? MediaControl.pause : MediaControl.play,
-        MediaControl.stop,
-      ],
-      androidCompactActionIndices: const [0, 1],
+      controls: controls,
+      androidCompactActionIndices: [1, 2],
       processingState: processingState,
       playing: playing,
       systemActions: const {
         MediaAction.play,
         MediaAction.pause,
         MediaAction.stop,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
       },
     );
   }
@@ -635,13 +658,17 @@ class WhepAudioHandler extends BaseAudioHandler {
   }) {
     if (_playbackMode != _AudioPlaybackMode.recording) return;
 
+    final controls = <MediaControl>[
+      if (_externalSkipPrevious != null) MediaControl.skipToPrevious,
+      playing ? MediaControl.pause : MediaControl.play,
+      MediaControl.stop,
+      if (_externalSkipNext != null) MediaControl.skipToNext,
+    ];
+
     playbackState.add(
       PlaybackState(
-        controls: [
-          playing ? MediaControl.pause : MediaControl.play,
-          MediaControl.stop,
-        ],
-        androidCompactActionIndices: const [0, 1],
+        controls: controls,
+        androidCompactActionIndices: [1, 2],
         processingState: playing ? AudioProcessingState.ready : AudioProcessingState.idle,
         playing: playing,
         updatePosition: position ?? Duration.zero,
@@ -652,6 +679,8 @@ class WhepAudioHandler extends BaseAudioHandler {
           MediaAction.pause,
           MediaAction.seek,
           MediaAction.stop,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
         },
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
@@ -52,6 +53,28 @@ class _RecordingsSectionState extends State<RecordingsSection> {
 
   void _openPlayer(BuildContext context, int recordingId) {
     final provider = context.read<RecordingsProvider>();
+
+    // Check if this recording is a video — route through PlaylistPlayerProvider
+    final recording = provider.recordings.firstWhere(
+      (r) => r.id == recordingId,
+      orElse: () => provider.recordings.first,
+    );
+
+    if (recording.isVideo) {
+      provider.openRecording(recordingId);
+      // Navigate to playlist player screen (standalone mode)
+      context.pushNamed(
+        'playlistPlayer',
+        pathParameters: {
+          'slug': recordingId.toString(),
+          'playlistSlug': recordingId.toString(),
+          'is_recording': 'true',
+        },
+      );
+      return;
+    }
+
+    // Audio recordings: use existing bottom sheet
     provider.openRecording(recordingId);
     showModalBottomSheet(
       context: context,

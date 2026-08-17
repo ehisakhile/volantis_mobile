@@ -382,6 +382,8 @@ class AudioManager extends ChangeNotifier {
     required String audioUrl,
     Duration? duration,
     Duration? startPosition,
+    Future<void> Function()? skipNext,
+    Future<void> Function()? skipPrevious,
   }) async {
     debugPrint('[AudioManager] Playing recording: $title');
 
@@ -418,6 +420,8 @@ class AudioManager extends ChangeNotifier {
         stop: () async {
           await _stopAllAndClear();
         },
+        skipNext: skipNext,
+        skipPrevious: skipPrevious,
       );
 
       final mediaItem = MediaItem(

@@ -1,3 +1,14 @@
+import '../../../../core/constants/api_constants.dart';
+
+const _videoExtensions = [
+  '.mp4',
+  '.m4v',
+  '.webm',
+  '.mov',
+  '.mkv',
+  '.m3u8',
+];
+
 /// Recording model for Volantis Live recordings/podcasts
 class Recording {
   final int id;
@@ -90,6 +101,28 @@ class Recording {
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
+
+  /// Absolute URL for the playable media, preferring the S3 source.
+  String? get mediaUrl {
+    if (s3Url.isNotEmpty) return s3Url;
+    return streamingUrlAbsolute;
+  }
+
+  /// Fully-qualified streaming URL (relative values are joined to the API base).
+  String? get streamingUrlAbsolute {
+    final url = streamingUrl;
+    if (url.isEmpty) return null;
+    if (url.startsWith('http') || url.startsWith('file://')) return url;
+    return '${ApiConstants.baseUrl}$url';
+  }
+
+  /// A media item is a video when its source file is a video container.
+  bool get isVideo {
+    final url = (s3Url.isEmpty ? streamingUrl : s3Url).toLowerCase();
+    return _videoExtensions.any(url.endsWith);
+  }
+
+  bool get isAudio => !isVideo;
 
   /// Check if recording has a thumbnail
   bool get hasThumbnail => thumbnailUrl != null && thumbnailUrl!.isNotEmpty;

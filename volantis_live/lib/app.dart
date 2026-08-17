@@ -66,8 +66,11 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
       ),
     );
     _recordingsService = RecordingsService(dio);
-    _recordingsProvider = RecordingsProvider(_recordingsService);
     _playlistPlayerProvider = PlaylistPlayerProvider();
+    _recordingsProvider = RecordingsProvider(
+      _recordingsService,
+      _playlistPlayerProvider,
+    );
 
     // Listen to auth state changes to stop playback on logout
     _authProvider.addListener(_onAuthStateChanged);

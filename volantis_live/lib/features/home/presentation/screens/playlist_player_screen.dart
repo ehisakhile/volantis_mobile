@@ -12,11 +12,13 @@ import '../../../../services/audio_manager.dart';
 class PlaylistPlayerScreen extends StatefulWidget {
   final String companySlug;
   final String playlistSlug;
+  final bool is_recording;
 
   const PlaylistPlayerScreen({
     super.key,
     required this.companySlug,
     required this.playlistSlug,
+    this.is_recording = false,
   });
 
   @override
@@ -43,10 +45,13 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     _provider = context.read<PlaylistPlayerProvider>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _provider.setPlayerScreenVisible(true);
-      _provider.loadPlaylist(
-        companySlug: widget.companySlug,
-        playlistSlug: widget.playlistSlug,
-      );
+      // Skip server load if a standalone playlist is already loaded
+      if (_provider.currentPlaylist == null) {
+        _provider.loadPlaylist(
+          companySlug: widget.companySlug,
+          playlistSlug: widget.playlistSlug,
+        );
+      }
     });
   }
 

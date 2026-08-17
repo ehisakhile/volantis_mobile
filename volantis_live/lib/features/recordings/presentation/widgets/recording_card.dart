@@ -156,7 +156,11 @@ class RecordingCard extends StatelessWidget {
         color: _surfaceHigh,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Icons.mic_rounded, color: _primary, size: 28),
+      child: Icon(
+        recording.isVideo ? Icons.videocam_rounded : Icons.mic_rounded,
+        color: _primary,
+        size: 28,
+      ),
     );
   }
 
