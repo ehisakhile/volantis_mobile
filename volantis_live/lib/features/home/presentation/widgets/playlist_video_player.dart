@@ -31,6 +31,7 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
   static const _onSurface = Color(0xFFDAE2FD);
 
   ChewieController? _chewieController;
+  bool _isFullScreen = false;
 
   @override
   void initState() {
@@ -63,14 +64,8 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
         bufferedColor: _outlineVar,
         backgroundColor: _surfaceHigh,
       ),
-      placeholder: widget.thumbnailUrl != null
-          ? Image.network(
-              widget.thumbnailUrl!,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _loading(),
-            )
-          : _loading(),
-      errorBuilder: (_, errorMessage) => _buildError(errorMessage),
+      // CRITICAL: Remove placeholder to prevent thumbnail obstruction
+      placeholder: null,
     );
   }
 
@@ -96,21 +91,7 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.controller.value.isInitialized) {
-      return AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Container(
-          color: Colors.black,
-          child: widget.thumbnailUrl != null
-              ? Image.network(
-                  widget.thumbnailUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _loading(),
-                )
-              : _loading(),
-        ),
-      );
-    }
+    final isInitialized = widget.controller.value.isInitialized;
 
     return AspectRatio(
       aspectRatio: _aspectRatio(),
@@ -118,9 +99,34 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
         color: Colors.black,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: _chewieController == null
-              ? _loading()
-              : Chewie(controller: _chewieController!),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Video player - always show when initialized
+              if (isInitialized && _chewieController != null)
+                Chewie(controller: _chewieController!),
+
+              // Thumbnail overlay - only before video is loaded AND not in fullscreen
+              if (!isInitialized && !_isFullScreen)
+                Container(
+                  color: Colors.black,
+                  child: widget.thumbnailUrl != null
+                      ? Image.network(
+                          widget.thumbnailUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _loading(),
+                        )
+                      : _loading(),
+                ),
+
+              // Loading indicator while buffering
+              if (isInitialized &&
+                  _chewieController != null &&
+                  _chewieController!.videoPlayerController.value.isBuffering &&
+                  !_isFullScreen)
+                _loading(),
+            ],
+          ),
         ),
       ),
     );
@@ -128,47 +134,8 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
 
   Widget _loading() {
     return Container(
-      color: _surface,
+      color: _surface.withOpacity(0.8),
       child: const Center(child: CircularProgressIndicator(color: _primary)),
-    );
-  }
-
-  Widget _buildError(String message) {
-    return Container(
-      color: _surface,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.videocam_off_rounded,
-                color: Colors.redAccent,
-                size: 40,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Video could not be loaded',
-                style: TextStyle(
-                  color: _onSurface,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                message,
-                style: const TextStyle(color: _outlineVar, fontSize: 12),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
