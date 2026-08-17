@@ -38,6 +38,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
   late final OnboardingProvider _onboardingProvider;
   late final RecordingsService _recordingsService;
   late final RecordingsProvider _recordingsProvider;
+  late final PlaylistPlayerProvider _playlistPlayerProvider;
   AppRouter? _appRouter;
   bool _isInitialized = false;
 
@@ -66,6 +67,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
     );
     _recordingsService = RecordingsService(dio);
     _recordingsProvider = RecordingsProvider(_recordingsService);
+    _playlistPlayerProvider = PlaylistPlayerProvider();
 
     // Listen to auth state changes to stop playback on logout
     _authProvider.addListener(_onAuthStateChanged);
@@ -124,15 +126,13 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_isInitialized || _appRouter == null) return;
 
-    final playlistProvider = context.read<PlaylistPlayerProvider>();
-
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
         // App going to background — enter PiP if a video is playing.
-        if (playlistProvider.isPlaying &&
-            playlistProvider.currentItem?.isVideo == true) {
-          playlistProvider.enterPip();
+        if (_playlistPlayerProvider.isPlaying &&
+            _playlistPlayerProvider.currentItem?.isVideo == true) {
+          _playlistPlayerProvider.enterPip();
         }
         break;
       case AppLifecycleState.resumed:
@@ -178,7 +178,9 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
         ChangeNotifierProvider(create: (_) => CategoryPreferencesProvider()),
         ChangeNotifierProvider(create: (_) => CreatorProvider()),
         ChangeNotifierProvider(create: (_) => PlaylistProvider()),
-        ChangeNotifierProvider(create: (_) => PlaylistPlayerProvider()),
+        ChangeNotifierProvider<PlaylistPlayerProvider>.value(
+          value: _playlistPlayerProvider,
+        ),
         ChangeNotifierProvider(
           create: (context) => MeetingProvider(context.read<AuthProvider>()),
         ),
