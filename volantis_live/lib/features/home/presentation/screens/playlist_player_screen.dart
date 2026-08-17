@@ -80,6 +80,8 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
   Widget _buildContent(PlaylistPlayerProvider provider) {
     final playlist = provider.currentPlaylist!;
+    final hasCurrentItem = provider.currentItem != null;
+
     return CustomScrollView(
       slivers: [
         SliverAppBar(
@@ -132,7 +134,8 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
             collapseMode: CollapseMode.parallax,
           ),
         ),
-        if (provider.currentItem != null)
+        // Only show Now Playing section if there's actually a current item
+        if (hasCurrentItem)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             sliver: SliverToBoxAdapter(child: _buildNowPlaying(provider)),
@@ -208,6 +211,23 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     PlaylistPlayerProvider provider,
   ) {
     final hasCurrentItem = provider.currentItem != null;
+    final isPlaying = provider.isPlaying;
+
+    // Determine the correct button state
+    String buttonLabel;
+    IconData buttonIcon;
+
+    if (isPlaying) {
+      buttonLabel = 'Pause';
+      buttonIcon = Icons.pause_rounded;
+    } else if (hasCurrentItem) {
+      buttonLabel = 'Resume';
+      buttonIcon = Icons.play_arrow_rounded;
+    } else {
+      buttonLabel = 'Play All';
+      buttonIcon = Icons.playlist_play_rounded;
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 56, 16, 16),
       child: Column(
@@ -270,19 +290,9 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              icon: Icon(
-                provider.isPlaying
-                    ? Icons.pause_rounded
-                    : hasCurrentItem
-                    ? Icons.play_arrow_rounded
-                    : Icons.playlist_play_rounded,
-              ),
+              icon: Icon(buttonIcon),
               label: Text(
-                provider.isPlaying
-                    ? 'Pause'
-                    : hasCurrentItem
-                    ? 'Resume'
-                    : 'Play All',
+                buttonLabel,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
@@ -414,9 +424,15 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
   void _onPrimaryAction(PlaylistPlayerProvider provider) {
     if (provider.currentPlaylist?.items.isNotEmpty == true) {
-      provider.playItem(
-        provider.currentItem ?? provider.currentPlaylist!.items.first,
-      );
+      // If there's a current item, play it (resume/pause)
+      // If no current item, start from the first item
+      if (provider.currentItem != null) {
+        // Toggle play/pause if there's a current item
+        provider.togglePlayPause();
+      } else {
+        // Start playing from the first item
+        provider.playItem(provider.currentPlaylist!.items.first);
+      }
     }
   }
 

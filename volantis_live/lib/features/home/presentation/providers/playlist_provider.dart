@@ -49,7 +49,7 @@ class PlaylistProvider extends ChangeNotifier {
 /// keep showing the current item and jump back to the full screen.
 class PlaylistPlayerProvider extends ChangeNotifier {
   PlaylistModel? _currentPlaylist;
-  int _currentIndex = 0;
+  int _currentIndex = -1; // -1 means no item selected
   bool _isPlaying = false;
   bool _isLoading = false;
   String? _error;
@@ -92,6 +92,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   PlaylistItemModel? get currentItem {
     if (_currentPlaylist == null ||
         _currentPlaylist!.items.isEmpty ||
+        _currentIndex < 0 ||
         _currentIndex >= _currentPlaylist!.items.length) {
       return null;
     }
@@ -101,13 +102,17 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   PlaylistItemModel? get nextItem {
     if (_currentPlaylist == null ||
         _currentPlaylist!.items.isEmpty ||
+        _currentIndex < 0 ||
         _currentIndex + 1 >= _currentPlaylist!.items.length) {
       return null;
     }
     return _currentPlaylist!.items[_currentIndex + 1];
   }
 
-  bool get hasNext => _currentIndex < (_currentPlaylist?.items.length ?? 0) - 1;
+  bool get hasNext =>
+      _currentIndex >= 0 &&
+      _currentIndex < (_currentPlaylist?.items.length ?? 0) - 1;
+
   bool get hasPrevious => _currentIndex > 0;
 
   void setPlayerScreenVisible(bool visible) {
@@ -147,12 +152,14 @@ class PlaylistPlayerProvider extends ChangeNotifier {
         companySlug,
         playlistSlug,
       );
-      _currentIndex = 0;
+      // Reset index to -1 (no item selected) when loading a new playlist
+      _currentIndex = -1;
       _companySlug = companySlug;
       _playlistId = _currentPlaylist!.id;
       _companyName = null;
       _companyLogoUrl = null;
       _isPlayerScreenVisible = true;
+      _isPlaying = false; // Ensure playing state is false
       unawaited(_loadCompanyInfo(companySlug));
     } catch (e) {
       _error = e.toString();
@@ -427,7 +434,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     await _stopAudioIfPlaying();
     _disposeVideoController();
     _currentPlaylist = null;
-    _currentIndex = 0;
+    _currentIndex = -1; // Reset to -1
     _isPlaying = false;
     _error = null;
     _companySlug = null;
@@ -439,7 +446,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   void reset() {
     _currentPlaylist = null;
-    _currentIndex = 0;
+    _currentIndex = -1; // Reset to -1
     _isPlaying = false;
     _isLoading = false;
     _error = null;
