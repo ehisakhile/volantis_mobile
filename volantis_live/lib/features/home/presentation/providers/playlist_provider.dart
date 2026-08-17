@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:floating/floating.dart';
 import 'package:video_player/video_player.dart';
 import 'package:volantis_live/services/api_service.dart';
 import '../../../home/data/models/playlist_model.dart';
@@ -63,6 +64,9 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   VideoPlayerController? _videoController;
   bool _videoEndedHandled = false;
 
+  final Floating _floating = Floating();
+  bool _isPipActive = false;
+
   StreamSubscription<AudioState>? _audioSubscription;
 
   PlaylistPlayerProvider() {
@@ -84,10 +88,16 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   VideoPlayerController? get videoController => _videoController;
 
+  Floating get floating => _floating;
+
   /// True while the full playlist player screen is on screen. The global mini
   /// player only shows when playback is active but the screen is not visible.
   bool get isPlayerScreenVisible => _isPlayerScreenVisible;
   bool get showMiniPlayer => currentItem != null && !_isPlayerScreenVisible;
+
+  bool get isPipActive => _isPipActive;
+
+  Future<bool> get isPipAvailable async => await _floating.isPipAvailable;
 
   PlaylistItemModel? get currentItem {
     if (_currentPlaylist == null ||
@@ -118,6 +128,35 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   void setPlayerScreenVisible(bool visible) {
     if (_isPlayerScreenVisible == visible) return;
     _isPlayerScreenVisible = visible;
+    notifyListeners();
+  }
+
+  /// Enter native Android PiP mode immediately.
+  Future<void> enterPip() async {
+    if (_isPipActive) return;
+    final canPip = await _floating.isPipAvailable;
+    if (!canPip) return;
+    await _floating.enable(ImmediatePiP());
+    _isPipActive = true;
+    notifyListeners();
+  }
+
+  /// Enable automatic PiP when the app is minimized (e.g. user presses home).
+  Future<void> enableAutoPip() async {
+    final canPip = await _floating.isPipAvailable;
+    if (!canPip) return;
+    await _floating.enable(OnLeavePiP());
+  }
+
+  /// Cancel the automatic PiP-on-minimize behavior.
+  Future<void> cancelAutoPip() async {
+    await _floating.cancelOnLeavePiP();
+  }
+
+  /// Called when the OS notifies us that PiP mode has ended.
+  void onPipExited() {
+    if (!_isPipActive) return;
+    _isPipActive = false;
     notifyListeners();
   }
 

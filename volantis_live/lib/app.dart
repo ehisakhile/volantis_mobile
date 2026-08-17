@@ -32,7 +32,8 @@ class VolantisLiveApp extends StatefulWidget {
   State<VolantisLiveApp> createState() => _VolantisLiveAppState();
 }
 
-class _VolantisLiveAppState extends State<VolantisLiveApp> {
+class _VolantisLiveAppState extends State<VolantisLiveApp>
+    with WidgetsBindingObserver {
   late final AuthProvider _authProvider;
   late final OnboardingProvider _onboardingProvider;
   late final RecordingsService _recordingsService;
@@ -43,6 +44,7 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _authProvider = AuthProvider();
     _onboardingProvider = OnboardingProvider();
 
@@ -112,9 +114,34 @@ class _VolantisLiveAppState extends State<VolantisLiveApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authProvider.removeListener(_onAuthStateChanged);
     _recordingsProvider.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isInitialized || _appRouter == null) return;
+
+    final playlistProvider = context.read<PlaylistPlayerProvider>();
+
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        // App going to background — enable auto PiP if a video is playing.
+        if (playlistProvider.isPlaying &&
+            playlistProvider.currentItem?.isVideo == true) {
+          playlistProvider.enableAutoPip();
+        }
+        break;
+      case AppLifecycleState.resumed:
+        // App returned to foreground — cancel auto PiP if not actually in PiP.
+        playlistProvider.cancelAutoPip();
+        break;
+      default:
+        break;
+    }
   }
 
   @override

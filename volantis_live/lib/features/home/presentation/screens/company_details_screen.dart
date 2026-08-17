@@ -1205,102 +1205,185 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   }
 
   Widget _buildPlaylistCard(PlaylistModel playlist) {
-    return GestureDetector(
-      onTap: () => context.push(
-        '/company/${widget.companySlug}/playlist/${playlist.id}',
-      ),
-      child: Container(
+    final hasThumbnail = (playlist.thumbnailUrl ?? '').trim().isNotEmpty;
+
+    final metaParts = <String>[
+      '${playlist.itemCount} ${playlist.itemCount == 1 ? 'item' : 'items'}',
+      if (playlist.formattedTotalDuration.isNotEmpty)
+        playlist.formattedTotalDuration,
+    ];
+    final metaLine = metaParts.join(' • ');
+
+    return Semantics(
+      button: true,
+      excludeSemantics: true,
+      label:
+          '${playlist.title}. $metaLine'
+          '${playlist.isPublic ? '' : '. Private playlist'}',
+      child: SizedBox(
         width: 160,
-        decoration: BoxDecoration(
-          color: _glassCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.04)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 90,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _primary.withOpacity(0.15),
-                    _primaryCont.withOpacity(0.08),
-                  ],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(14),
-                ),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: _glassCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withOpacity(0.06)),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => context.push(
+                '/company/${widget.companySlug}/playlist/${playlist.id}',
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(
-                    Icons.playlist_play_rounded,
-                    color: _primary,
-                    size: 40,
-                  ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _surfaceHigh,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${playlist.itemCount}',
-                        style: const TextStyle(
-                          color: _onVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    playlist.title,
-                    style: const TextStyle(
-                      color: _onSurface,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                  _buildPlaylistThumbnail(playlist, hasThumbnail),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          playlist.title.isNotEmpty
+                              ? playlist.title
+                              : 'Untitled playlist',
+                          style: const TextStyle(
+                            color: _onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          metaLine,
+                          style: const TextStyle(color: _outline, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (playlist.updatedAt != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Updated ${_timeAgo(playlist.updatedAt!)}',
+                            style: TextStyle(
+                              color: _outline.withOpacity(0.65),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  if (playlist.formattedTotalDuration.isNotEmpty)
-                    Text(
-                      playlist.formattedTotalDuration,
-                      style: const TextStyle(color: _outline, fontSize: 11),
-                    )
-                  else
-                    Text(
-                      '${playlist.itemCount} items',
-                      style: const TextStyle(color: _outline, fontSize: 11),
-                    ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildPlaylistThumbnail(PlaylistModel playlist, bool hasThumbnail) {
+    return SizedBox(
+      height: 96,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          hasThumbnail
+              ? Image.network(
+                  playlist.thumbnailUrl!,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) =>
+                      progress == null ? child : _thumbnailFallback(),
+                  errorBuilder: (context, error, stackTrace) =>
+                      _thumbnailFallback(),
+                )
+              : _thumbnailFallback(),
+          // Scrim so the badges stay legible over arbitrary cover art
+          if (hasThumbnail)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.35)],
+                  stops: const [0.55, 1],
+                ),
+              ),
+            ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _PlaylistBadge(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.queue_music_rounded,
+                    size: 10,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${playlist.itemCount}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (!playlist.isPublic)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: _PlaylistBadge(
+                child: const Icon(
+                  Icons.lock_rounded,
+                  size: 11,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thumbnailFallback() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_primary.withOpacity(0.18), _primaryCont.withOpacity(0.08)],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.queue_music_rounded,
+        color: _primary.withOpacity(0.9),
+        size: 34,
+      ),
+    );
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays >= 365) return '${(diff.inDays / 365).floor()}y ago';
+    if (diff.inDays >= 30) return '${(diff.inDays / 30).floor()}mo ago';
+    if (diff.inDays >= 1) return '${diff.inDays}d ago';
+    if (diff.inHours >= 1) return '${diff.inHours}h ago';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
+    return 'just now';
   }
 }
 
@@ -1418,6 +1501,23 @@ class _PulseDotState extends State<_PulseDot>
         height: widget.size,
         decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
       ),
+    );
+  }
+}
+
+class _PlaylistBadge extends StatelessWidget {
+  const _PlaylistBadge({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: child,
     );
   }
 }

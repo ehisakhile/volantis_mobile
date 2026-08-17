@@ -1,6 +1,9 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:floating/floating.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+import '../providers/playlist_provider.dart';
 
 /// Renders a [VideoPlayerController] (owned by `PlaylistPlayerProvider`) inside
 /// a [Chewie] player with forwarding (±10s), fullscreen, playback speed and
@@ -11,12 +14,14 @@ class PlaylistVideoPlayer extends StatefulWidget {
   final VideoPlayerController controller;
   final String? thumbnailUrl;
   final bool autoPlay;
+  final bool enablePip;
 
   const PlaylistVideoPlayer({
     super.key,
     required this.controller,
     this.thumbnailUrl,
     this.autoPlay = true,
+    this.enablePip = true,
   });
 
   @override
@@ -93,6 +98,18 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
   Widget build(BuildContext context) {
     final isInitialized = widget.controller.value.isInitialized;
 
+    return Consumer<PlaylistPlayerProvider>(
+      builder: (context, provider, _) {
+        return PiPSwitcher(
+          floating: provider.floating,
+          childWhenDisabled: _buildNormalPlayer(context, isInitialized),
+          childWhenEnabled: _buildPipPlayer(),
+        );
+      },
+    );
+  }
+
+  Widget _buildNormalPlayer(BuildContext context, bool isInitialized) {
     return AspectRatio(
       aspectRatio: _aspectRatio(),
       child: Container(
@@ -125,9 +142,43 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
                   _chewieController!.videoPlayerController.value.isBuffering &&
                   !_isFullScreen)
                 _loading(),
+
+              // PiP toggle button
+              if (isInitialized && widget.enablePip)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: _pipButton(context),
+                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPipPlayer() {
+    return Container(
+      color: Colors.black,
+      child: VideoPlayer(widget.controller),
+    );
+  }
+
+  Widget _pipButton(BuildContext context) {
+    final provider = context.read<PlaylistPlayerProvider>();
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IconButton(
+        icon: const Icon(
+          Icons.picture_in_picture_alt_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
+        onPressed: () => provider.enterPip(),
+        tooltip: 'Picture-in-Picture',
       ),
     );
   }
