@@ -68,10 +68,14 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   bool _isPipActive = false;
 
   StreamSubscription<AudioState>? _audioSubscription;
+  StreamSubscription<PiPStatus>? _pipStatusSubscription;
 
   PlaylistPlayerProvider() {
     _audioSubscription = AudioManager.instance.stateStream.listen(
       _onAudioStateChanged,
+    );
+    _pipStatusSubscription = _floating.pipStatusStream.listen(
+      _onPipStatusChanged,
     );
   }
 
@@ -137,8 +141,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     final canPip = await _floating.isPipAvailable;
     if (!canPip) return;
     await _floating.enable(ImmediatePiP());
-    _isPipActive = true;
-    notifyListeners();
   }
 
   /// Enable automatic PiP when the app is minimized (e.g. user presses home).
@@ -153,10 +155,10 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     await _floating.cancelOnLeavePiP();
   }
 
-  /// Called when the OS notifies us that PiP mode has ended.
-  void onPipExited() {
-    if (!_isPipActive) return;
-    _isPipActive = false;
+  void _onPipStatusChanged(PiPStatus status) {
+    final active = status == PiPStatus.enabled;
+    if (_isPipActive == active) return;
+    _isPipActive = active;
     notifyListeners();
   }
 
@@ -500,6 +502,7 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   @override
   void dispose() {
     _audioSubscription?.cancel();
+    _pipStatusSubscription?.cancel();
     _disposeVideoController();
     super.dispose();
   }

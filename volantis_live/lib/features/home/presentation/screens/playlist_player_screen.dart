@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:floating/floating.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../../../home/data/models/playlist_model.dart';
 import '../../../home/presentation/providers/playlist_provider.dart';
 import '../../../home/presentation/widgets/playlist_video_player.dart';
@@ -71,8 +73,33 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
               return _buildErrorState(provider.error ?? 'Playlist not found');
             }
 
-            return _buildContent(provider);
+            return PiPSwitcher(
+              floating: provider.floating,
+              childWhenDisabled: _buildContent(provider),
+              childWhenEnabled: _buildPipContent(provider),
+            );
           },
+        ),
+      ),
+    );
+  }
+
+  /// Simplified view shown when the OS is in PiP mode — only the video,
+  /// no app bar, no playlist header, no controls chrome.
+  Widget _buildPipContent(PlaylistPlayerProvider provider) {
+    final item = provider.currentItem;
+    final controller = provider.videoController;
+    if (item == null || controller == null || !controller.value.isInitialized) {
+      return Container(color: _bg);
+    }
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio.isFinite
+              ? controller.value.aspectRatio
+              : 16 / 9,
+          child: VideoPlayer(controller),
         ),
       ),
     );

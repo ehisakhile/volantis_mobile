@@ -1,6 +1,5 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
-import 'package:floating/floating.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import '../providers/playlist_provider.dart';
@@ -98,18 +97,6 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
   Widget build(BuildContext context) {
     final isInitialized = widget.controller.value.isInitialized;
 
-    return Consumer<PlaylistPlayerProvider>(
-      builder: (context, provider, _) {
-        return PiPSwitcher(
-          floating: provider.floating,
-          childWhenDisabled: _buildNormalPlayer(context, isInitialized),
-          childWhenEnabled: _buildPipPlayer(),
-        );
-      },
-    );
-  }
-
-  Widget _buildNormalPlayer(BuildContext context, bool isInitialized) {
     return AspectRatio(
       aspectRatio: _aspectRatio(),
       child: Container(
@@ -154,13 +141,6 @@ class _PlaylistVideoPlayerState extends State<PlaylistVideoPlayer> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildPipPlayer() {
-    return Container(
-      color: Colors.black,
-      child: VideoPlayer(widget.controller),
     );
   }
 

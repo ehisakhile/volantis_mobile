@@ -129,15 +129,15 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        // App going to background — enable auto PiP if a video is playing.
+        // App going to background — enter PiP if a video is playing.
         if (playlistProvider.isPlaying &&
             playlistProvider.currentItem?.isVideo == true) {
-          playlistProvider.enableAutoPip();
+          playlistProvider.enterPip();
         }
         break;
       case AppLifecycleState.resumed:
-        // App returned to foreground — cancel auto PiP if not actually in PiP.
-        playlistProvider.cancelAutoPip();
+        // App returned to foreground — the PiP status stream already
+        // tracks active/inactive state, so nothing extra needed here.
         break;
       default:
         break;
