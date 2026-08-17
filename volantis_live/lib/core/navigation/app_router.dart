@@ -188,13 +188,14 @@ class AppRouter {
         builder: (context, state) {
           final companySlug = state.pathParameters['slug'] ?? '';
           final playlistSlug = state.pathParameters['playlistSlug'] ?? '';
-          final is_recording = state.pathParameters['is_recording'] == 'true'
+          final isrecording =
+              state.uri.queryParameters['is_recording'] == 'true'
               ? true
               : false;
           return _PlaylistHandler(
             companySlug: companySlug,
             playlistSlug: playlistSlug,
-            is_recording: is_recording,
+            isrecording: isrecording,
           );
         },
       ),
@@ -482,12 +483,12 @@ class _RecordingHandler extends StatelessWidget {
 class _PlaylistHandler extends StatelessWidget {
   final String companySlug;
   final String playlistSlug;
-  final bool is_recording;
+  final bool isrecording;
 
   const _PlaylistHandler({
     required this.companySlug,
     required this.playlistSlug,
-    this.is_recording = false,
+    this.isrecording = false,
   });
 
   @override
@@ -495,7 +496,7 @@ class _PlaylistHandler extends StatelessWidget {
     return PlaylistPlayerScreen(
       companySlug: companySlug,
       playlistSlug: playlistSlug,
-      is_recording: is_recording,
+      is_recording: isrecording,
     );
   }
 }

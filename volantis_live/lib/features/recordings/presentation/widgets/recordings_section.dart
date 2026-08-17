@@ -68,8 +68,8 @@ class _RecordingsSectionState extends State<RecordingsSection> {
         pathParameters: {
           'slug': recordingId.toString(),
           'playlistSlug': recordingId.toString(),
-          'is_recording': 'true',
         },
+        queryParameters: {'is_recording': 'true'},
       );
       return;
     }
