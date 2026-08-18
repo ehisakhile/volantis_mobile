@@ -61,8 +61,12 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _provider.setPlayerScreenVisible(true);
-      // Skip server load if a standalone playlist is already loaded
-      if (_provider.currentPlaylist == null) {
+      // Always delegate to loadPlaylist — it already short-circuits when
+      // the *same* playlist is loaded (resume path) and properly stops old
+      // playback when a *different* playlist is requested.
+
+      if (!widget.is_recording) {
+        // If this is a full-screen recording, we want to start playback immediately.
         _provider.loadPlaylist(
           companySlug: widget.companySlug,
           playlistSlug: widget.playlistSlug,
@@ -95,37 +99,48 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _isFullScreenMode ? Colors.black : _bg,
-      body: SafeArea(
-        top: !_isFullScreenMode,
-        bottom: !_isFullScreenMode,
-        child: Consumer<PlaylistPlayerProvider>(
-          builder: (context, provider, _) {
-            if (provider.isLoading) {
-              return const Center(
-                child: CircularProgressIndicator(color: _primary),
-              );
-            }
+    return PopScope(
+      canPop: !_isFullScreenMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Full-screen (single recording) — kill playback on back.
+        _provider.closePlayer();
+        if (context.mounted) context.pop();
+      },
+      child: Scaffold(
+        backgroundColor: _isFullScreenMode
+            ? const Color.fromARGB(255, 194, 128, 128)
+            : _bg,
+        body: SafeArea(
+          top: !_isFullScreenMode,
+          bottom: !_isFullScreenMode,
+          child: Consumer<PlaylistPlayerProvider>(
+            builder: (context, provider, _) {
+              if (!widget.is_recording && !provider.isLoading) {
+                return const Center(
+                  child: CircularProgressIndicator(color: _primary),
+                );
+              }
 
-            if (provider.currentPlaylist == null) {
-              return _buildErrorState(provider.error ?? 'Playlist not found');
-            }
+              if (!widget.is_recording && provider.currentPlaylist == null) {
+                return _buildErrorState(provider.error ?? 'Playlist not found');
+              }
 
-            if (_isFullScreenMode) {
+              if (_isFullScreenMode) {
+                return PiPSwitcher(
+                  floating: provider.floating,
+                  childWhenDisabled: _buildFullScreenPlayer(provider),
+                  childWhenEnabled: _buildPipContent(provider),
+                );
+              }
+
               return PiPSwitcher(
                 floating: provider.floating,
-                childWhenDisabled: _buildFullScreenPlayer(provider),
+                childWhenDisabled: _buildContent(provider),
                 childWhenEnabled: _buildPipContent(provider),
               );
-            }
-
-            return PiPSwitcher(
-              floating: provider.floating,
-              childWhenDisabled: _buildContent(provider),
-              childWhenEnabled: _buildPipContent(provider),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
