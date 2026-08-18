@@ -219,6 +219,11 @@ class RecordingsProvider extends ChangeNotifier {
     }
 
     try {
+      // Fully stop any active playlist playback first — the playlist provider
+      // owns its own VideoPlayerController which AudioManager.stop() won't
+      // dispose, so we must call closePlayer() to release it.
+      await _playlistPlayerProvider?.closePlayer();
+
       await AudioManager.instance.stop();
       await Future.delayed(const Duration(milliseconds: 100));
 
@@ -420,6 +425,8 @@ class RecordingsProvider extends ChangeNotifier {
 
   Future<void> playDownloadedRecording(int recordingId) async {
     try {
+      await _playlistPlayerProvider?.closePlayer();
+
       await AudioManager.instance.stop();
       await Future.delayed(const Duration(milliseconds: 100));
 

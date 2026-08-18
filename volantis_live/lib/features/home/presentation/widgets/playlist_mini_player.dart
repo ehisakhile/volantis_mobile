@@ -20,7 +20,7 @@ class PlaylistMiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<PlaylistPlayerProvider>(
       builder: (context, provider, _) {
-        if (!provider.showMiniPlayer) return const SizedBox.shrink();
+        if (provider.currentItem == null) return const SizedBox.shrink();
         if (provider.isPipActive) return const SizedBox.shrink();
 
         final item = provider.currentItem;

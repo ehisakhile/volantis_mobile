@@ -60,10 +60,6 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _provider.setPlayerScreenVisible(true);
-      // Always delegate to loadPlaylist — it already short-circuits when
-      // the *same* playlist is loaded (resume path) and properly stops old
-      // playback when a *different* playlist is requested.
       if (!widget.is_recording) {
         _provider.loadPlaylist(
           companySlug: widget.companySlug,
@@ -79,7 +75,10 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     if (_isFullScreenMode) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
-    _provider.setPlayerScreenVisible(false);
+    // Stop all playback when leaving the screen — no background audio/video,
+    // no mini player.  Recordings (is_recording) are already handled by
+    // PopScope; this catches playlist mode too.
+    _provider.closePlayer();
     super.dispose();
   }
 
@@ -458,7 +457,10 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
           expandedHeight: 470,
           backgroundColor: _bg,
           leading: GestureDetector(
-            onTap: () => context.pop(),
+            onTap: () {
+              _provider.closePlayer();
+              if (context.mounted) context.pop();
+            },
             child: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(

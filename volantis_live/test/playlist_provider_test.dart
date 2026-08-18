@@ -3,6 +3,7 @@ import 'package:volantis_live/features/home/data/models/playlist_model.dart';
 import 'package:volantis_live/features/home/presentation/providers/playlist_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late PlaylistModel testPlaylist;
 
   setUp(() {
@@ -66,7 +67,7 @@ void main() {
 
     test('initial state is correct', () {
       expect(provider.currentPlaylist, null);
-      expect(provider.currentIndex, 0);
+      expect(provider.currentIndex, -1);
       expect(provider.isPlaying, false);
       expect(provider.isLoading, false);
       expect(provider.error, null);
@@ -83,7 +84,7 @@ void main() {
     test('playItem does nothing when no playlist is loaded', () async {
       await provider.playItem(testPlaylist.items[0]);
 
-      expect(provider.currentIndex, 0);
+      expect(provider.currentIndex, -1);
       expect(provider.isPlaying, false);
     });
 
@@ -105,27 +106,13 @@ void main() {
       expect(provider.isPlaying, false);
     });
 
-    test('setPlayerScreenVisible updates visibility', () {
-      expect(provider.isPlayerScreenVisible, false);
-
-      provider.setPlayerScreenVisible(true);
-      expect(provider.isPlayerScreenVisible, true);
-
-      provider.setPlayerScreenVisible(false);
-      expect(provider.isPlayerScreenVisible, false);
-    });
-
-    test('showMiniPlayer is false without a current item', () {
-      expect(provider.showMiniPlayer, false);
-    });
-
     test('reset clears all state', () {
       provider.setPlaying(true);
 
       provider.reset();
 
       expect(provider.currentPlaylist, null);
-      expect(provider.currentIndex, 0);
+      expect(provider.currentIndex, -1);
       expect(provider.isPlaying, false);
       expect(provider.isLoading, false);
       expect(provider.error, null);

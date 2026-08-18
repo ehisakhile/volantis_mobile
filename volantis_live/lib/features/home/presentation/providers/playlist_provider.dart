@@ -45,9 +45,9 @@ class PlaylistProvider extends ChangeNotifier {
 }
 
 /// App-level playback controller for a playlist. Owns both audio (through
-/// [AudioManager]) and video (through its own [VideoPlayerController]) so
-/// playback survives leaving the playlist screen — a global mini player can
-/// keep showing the current item and jump back to the full screen.
+/// [AudioManager]) and video (through its own [VideoPlayerController]).
+/// Playback is stopped entirely when the player screen is disposed — there is
+/// no background mini player for playlist content.
 class PlaylistPlayerProvider extends ChangeNotifier {
   PlaylistModel? _currentPlaylist;
   int _currentIndex = -1; // -1 means no item selected
@@ -59,7 +59,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
   int? _playlistId;
   String? _companyName;
   String? _companyLogoUrl;
-  bool _isPlayerScreenVisible = false;
 
   VideoPlayerController? _videoController;
   bool _videoEndedHandled = false;
@@ -94,11 +93,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   Floating get floating => _floating;
 
-  /// True while the full playlist player screen is on screen. The global mini
-  /// player only shows when playback is active but the screen is not visible.
-  bool get isPlayerScreenVisible => _isPlayerScreenVisible;
-  bool get showMiniPlayer => currentItem != null && !_isPlayerScreenVisible;
-
   bool get isPipActive => _isPipActive;
 
   /// True when the current content was loaded via [loadStandalonePlaylist]
@@ -132,12 +126,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
       _currentIndex < (_currentPlaylist?.items.length ?? 0) - 1;
 
   bool get hasPrevious => _currentIndex > 0;
-
-  void setPlayerScreenVisible(bool visible) {
-    if (_isPlayerScreenVisible == visible) return;
-    _isPlayerScreenVisible = visible;
-    notifyListeners();
-  }
 
   /// Enter native Android PiP mode immediately.
   Future<void> enterPip() async {
@@ -184,7 +172,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
       if (samePlaylist || sameStandalone) {
         _companySlug = companySlug;
         _playlistId = parsedId;
-        _isPlayerScreenVisible = true;
         if (_companyName == null) unawaited(_loadCompanyInfo(companySlug));
         notifyListeners();
         return;
@@ -209,7 +196,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
       _playlistId = _currentPlaylist!.id;
       _companyName = null;
       _companyLogoUrl = null;
-      _isPlayerScreenVisible = true;
       _isPlaying = false; // Ensure playing state is false
       unawaited(_loadCompanyInfo(companySlug));
     } catch (e) {
@@ -512,7 +498,6 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     _playlistId = playlist.id;
     _companyName = null;
     _companyLogoUrl = null;
-    _isPlayerScreenVisible = true;
     _isPlaying = false;
     _error = null;
 
