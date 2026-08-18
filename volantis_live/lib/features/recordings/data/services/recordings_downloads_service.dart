@@ -49,7 +49,7 @@ class RecordingsDownloadsService {
 
     _database = await openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE $_tableName (
@@ -67,7 +67,8 @@ class RecordingsDownloadsService {
             download_progress REAL DEFAULT 0.0,
             company_name TEXT,
             company_slug TEXT,
-            duration_seconds INTEGER
+            duration_seconds INTEGER,
+            file_type TEXT DEFAULT 'audio'
           )
         ''');
 
@@ -75,6 +76,13 @@ class RecordingsDownloadsService {
         await db.execute(
           'CREATE INDEX idx_recording_id ON $_tableName (recording_id)',
         );
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE $_tableName ADD COLUMN file_type TEXT DEFAULT 'audio'",
+          );
+        }
       },
     );
   }
@@ -110,6 +118,7 @@ class RecordingsDownloadsService {
     String? companyName,
     String? companySlug,
     int? durationSeconds,
+    String? fileType,
     Function(double)? onProgress,
   }) async {
     // Check if already downloaded AND file exists
@@ -150,6 +159,7 @@ class RecordingsDownloadsService {
         companyName: companyName,
         companySlug: companySlug,
         durationSeconds: durationSeconds,
+        fileType: fileType,
       );
 
       // Download the file
@@ -206,6 +216,7 @@ class RecordingsDownloadsService {
     String? companyName,
     String? companySlug,
     int? durationSeconds,
+    String? fileType,
   }) async {
     return db.insert(_tableName, {
       'recording_id': recordingId,
@@ -220,6 +231,7 @@ class RecordingsDownloadsService {
       'company_name': companyName,
       'company_slug': companySlug,
       'duration_seconds': durationSeconds,
+      'file_type': fileType ?? 'audio',
     });
   }
 
@@ -331,7 +343,8 @@ class RecordingsDownloadsService {
     }
 
     // Decrypt to temp file for playback
-    final fileName = 'playback_${recordingId}.mp3';
+    final ext = download.fileType == 'video' ? '.mp4' : '.mp3';
+    final fileName = 'playback_$recordingId$ext';
     return _encryptionService.decryptToTempFile(download.localPath, fileName);
   }
 

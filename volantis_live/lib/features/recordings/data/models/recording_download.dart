@@ -42,15 +42,6 @@ extension DownloadStatusExtension on DownloadStatus {
       this == DownloadStatus.downloaded || this == DownloadStatus.paused;
 }
 
-const _videoExtensions = [
-  '.mp4',
-  '.m4v',
-  '.webm',
-  '.mov',
-  '.mkv',
-  '.m3u8',
-];
-
 /// Recording download model for tracking downloaded recordings
 class RecordingDownload {
   final int id;
@@ -68,6 +59,7 @@ class RecordingDownload {
   final String? companyName;
   final String? companySlug;
   final int? durationSeconds;
+  final String fileType;
 
   const RecordingDownload({
     required this.id,
@@ -85,6 +77,7 @@ class RecordingDownload {
     this.companyName,
     this.companySlug,
     this.durationSeconds,
+    this.fileType = 'audio',
   });
 
   factory RecordingDownload.fromJson(Map<String, dynamic> json) {
@@ -108,6 +101,7 @@ class RecordingDownload {
       companyName: json['company_name'] as String?,
       companySlug: json['company_slug'] as String?,
       durationSeconds: json['duration_seconds'] as int?,
+      fileType: json['file_type'] as String? ?? 'audio',
     );
   }
 
@@ -128,14 +122,12 @@ class RecordingDownload {
       'company_name': companyName,
       'company_slug': companySlug,
       'duration_seconds': durationSeconds,
+      'file_type': fileType,
     };
   }
 
-  /// Detected from the local file extension.
-  bool get isVideo {
-    final path = localPath.toLowerCase();
-    return _videoExtensions.any(path.endsWith);
-  }
+  /// Detected from the file type stored at download time.
+  bool get isVideo => fileType == 'video';
 
   bool get isAudio => !isVideo;
 
@@ -194,6 +186,7 @@ class RecordingDownload {
     String? companyName,
     String? companySlug,
     int? durationSeconds,
+    String? fileType,
   }) {
     return RecordingDownload(
       id: id ?? this.id,
@@ -211,6 +204,7 @@ class RecordingDownload {
       companyName: companyName ?? this.companyName,
       companySlug: companySlug ?? this.companySlug,
       durationSeconds: durationSeconds ?? this.durationSeconds,
+      fileType: fileType ?? this.fileType,
     );
   }
 }

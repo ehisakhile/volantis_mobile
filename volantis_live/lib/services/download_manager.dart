@@ -11,6 +11,7 @@ import 'connectivity_service.dart';
 class DownloadTask {
   final Recording recording;
   final String downloadUrl;
+  final String fileType;
   final Function(double) onProgress;
   final Function(RecordingDownload) onComplete;
   final Function(String) onError;
@@ -18,6 +19,7 @@ class DownloadTask {
   DownloadTask({
     required this.recording,
     required this.downloadUrl,
+    required this.fileType,
     required this.onProgress,
     required this.onComplete,
     required this.onError,
@@ -139,6 +141,7 @@ class DownloadManager {
     required String downloadUrl,
     String? companyName,
     String? companySlug,
+    String? fileType,
   }) async {
     // Check if in queue
     if (_queue.any((t) => t.recording.id == recording.id)) {
@@ -173,6 +176,7 @@ class DownloadManager {
     final task = DownloadTask(
       recording: recording,
       downloadUrl: downloadUrl,
+      fileType: fileType ?? 'audio',
       onProgress: (progress) {
         _downloadProgressController.add(
           DownloadProgress(recordingId: recording.id, progress: progress),
@@ -252,6 +256,7 @@ class DownloadManager {
         fileSizeBytes: _currentTask!.recording.fileSizeBytes,
         companySlug: _currentTask!.recording.companyId.toString(),
         durationSeconds: _currentTask!.recording.durationSeconds,
+        fileType: _currentTask!.fileType,
         onProgress: _currentTask!.onProgress,
       );
 

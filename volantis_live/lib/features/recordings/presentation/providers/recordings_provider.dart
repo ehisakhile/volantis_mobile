@@ -409,6 +409,7 @@ class RecordingsProvider extends ChangeNotifier {
         downloadUrl: downloadUrl,
         companyName: companyName,
         companySlug: companySlug,
+        fileType: recording.isVideo ? 'video' : 'audio',
       );
     } catch (e) {
       _downloadStatuses[recordingId] = DownloadStatus.failed;

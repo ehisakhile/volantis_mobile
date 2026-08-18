@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -205,7 +206,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         ),
         child: ListTile(
           contentPadding: const EdgeInsets.all(12),
-          onTap: () => provider.playDownloaded(download.recordingId),
+          onTap: () {
+            provider.playDownloaded(download.recordingId);
+            // Video downloads route to the playlist player screen
+            if (download.isVideo) {
+              context.pushNamed(
+                'playlistPlayer',
+                pathParameters: {
+                  'slug': download.recordingId.toString(),
+                  'playlistSlug': download.recordingId.toString(),
+                },
+                queryParameters: {'is_recording': 'true'},
+              );
+            }
+          },
           leading: _buildThumbnail(download.thumbnailUrl, isVideo: download.isVideo),
           title: Text(
             download.title,
