@@ -17,6 +17,7 @@ import '../../features/categories/presentation/screens/set_preferences_screen.da
 import '../../features/streams/presentation/screens/stream_player_screen.dart';
 import '../../features/home/presentation/screens/playlist_player_screen.dart';
 import '../../routes/main_screen.dart';
+import '../../routes/creator_main_screen.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/app_update_manager.dart';
 
@@ -41,6 +42,8 @@ class AppRoutes {
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _creatorShellNavigatorKey =
     GlobalKey<NavigatorState>();
 
 /// App Router configuration
@@ -115,11 +118,6 @@ class AppRouter {
             builder: (context, state) => const SizedBox.shrink(),
           ),
           GoRoute(
-            path: '/creator',
-            name: 'creator',
-            builder: (context, state) => const SizedBox.shrink(),
-          ),
-          GoRoute(
             path: '/streams',
             name: 'streams',
             builder: (context, state) => const SizedBox.shrink(),
@@ -127,6 +125,27 @@ class AppRouter {
           GoRoute(
             path: '/profile',
             name: 'profile',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+        ],
+      ),
+      ShellRoute(
+        navigatorKey: _creatorShellNavigatorKey,
+        builder: (context, state, child) => _CreatorShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/creator',
+            name: 'creator',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/creator/streams',
+            name: 'creatorStreams',
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/creator/profile',
+            name: 'creatorProfile',
             builder: (context, state) => const SizedBox.shrink(),
           ),
         ],
@@ -242,6 +261,7 @@ class AppRouter {
       }
 
       final isLoggedIn = authProvider.isAuthenticated;
+      final isCreator = authProvider.isCreator;
       final hasCompletedOnboarding = context
           .read<OnboardingProvider>()
           .hasCompletedOnboarding;
@@ -275,19 +295,20 @@ class AppRouter {
           return AppRoutes.login;
         }
 
-        print('AppRouter: Redirecting from splash to Live');
-        return AppRoutes.home;
+        final homeRoute = isCreator ? '/creator' : AppRoutes.home;
+        print('AppRouter: Redirecting from splash to $homeRoute');
+        return homeRoute;
       }
 
       if (currentPath == AppRoutes.onboarding && hasCompletedOnboarding) {
-        return AppRoutes.home;
+        return isCreator ? '/creator' : AppRoutes.home;
       }
 
       if (currentPath == AppRoutes.login ||
           currentPath == AppRoutes.register ||
           currentPath == AppRoutes.forgotPassword) {
         if (isLoggedIn) {
-          return AppRoutes.home;
+          return isCreator ? '/creator' : AppRoutes.home;
         }
         return null;
       }
@@ -297,6 +318,13 @@ class AppRouter {
           'AppRouter: /home check - currentPath: $currentPath, contains /guest: ${currentPath.contains('/guest')}',
         );
         print('AppRouter: Allowing /home');
+        return null;
+      }
+
+      if (currentPath.startsWith('/creator')) {
+        if (!hasCompletedOnboarding) return AppRoutes.onboarding;
+        if (!isLoggedIn) return AppRoutes.login;
+        print('AppRouter: Allowing /creator');
         return null;
       }
 
@@ -346,8 +374,13 @@ class AppRouter {
   );
 
   void navigateToMain({int tabIndex = 0}) {
-    final tabs = ['home', 'connect'];
-    router.go('/${tabs[tabIndex.clamp(0, tabs.length - 1)]}');
+    if (authProvider.isCreator) {
+      final tabs = ['/creator', '/creator/streams', '/creator/profile'];
+      router.go(tabs[tabIndex.clamp(0, tabs.length - 1)]);
+    } else {
+      final tabs = ['home', 'connect'];
+      router.go('/${tabs[tabIndex.clamp(0, tabs.length - 1)]}');
+    }
   }
 
   void navigateToStream(String streamId) => router.push('/stream/$streamId');
@@ -395,6 +428,37 @@ class _MainShellState extends State<_MainShell> {
       onTabChanged: (index) {
         final tabs = ['home', 'connect'];
         context.go('/${tabs[index]}');
+      },
+    );
+  }
+}
+
+class _CreatorShell extends StatefulWidget {
+  final Widget child;
+
+  const _CreatorShell({required this.child});
+
+  @override
+  State<_CreatorShell> createState() => _CreatorShellState();
+}
+
+class _CreatorShellState extends State<_CreatorShell> {
+  int _getIndexFromLocation(String location) {
+    if (location.startsWith('/creator/streams')) return 1;
+    if (location.startsWith('/creator/profile')) return 2;
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final currentIndex = _getIndexFromLocation(location);
+
+    return CreatorMainScreen(
+      currentIndex: currentIndex,
+      onTabChanged: (index) {
+        final tabs = ['/creator', '/creator/streams', '/creator/profile'];
+        context.go(tabs[index]);
       },
     );
   }
