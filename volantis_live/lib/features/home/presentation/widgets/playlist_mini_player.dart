@@ -58,7 +58,21 @@ class PlaylistMiniPlayer extends StatelessWidget {
   void _restore(PlaylistPlayerProvider provider) {
     final companySlug = provider.companySlug;
     final playlistId = provider.playlistId;
-    if (companySlug == null || playlistId == null) return;
+    if (playlistId == null) return;
+
+    // Standalone recordings have no company slug — reconstruct the
+    // recording-player route so the screen can recognise it as a resume.
+    if (companySlug == null || provider.isStandalone) {
+      final recordingId = playlistId.abs();
+      router.push(
+        Uri(
+          path: '/company/$recordingId/playlist/$recordingId',
+          queryParameters: {'is_recording': 'true'},
+        ).toString(),
+      );
+      return;
+    }
+
     router.push('/company/$companySlug/playlist/$playlistId');
   }
 }

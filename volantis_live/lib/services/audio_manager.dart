@@ -417,11 +417,11 @@ class AudioManager extends ChangeNotifier {
             _saveRecordingPosition();
           }
         },
-        stop: () async {
-          await _stopAllAndClear();
-        },
-        skipNext: skipNext,
-        skipPrevious: skipPrevious,
+        // stop: () async {
+        //   await _stopAllAndClear();
+        // },
+        // skipNext: skipNext,
+        // skipPrevious: skipPrevious,
       );
 
       final mediaItem = MediaItem(

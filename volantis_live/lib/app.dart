@@ -80,9 +80,10 @@ class _VolantisLiveAppState extends State<VolantisLiveApp>
   }
 
   void _onAuthStateChanged() {
-    // Stop playback when user logs out
+    // Stop all playback when user logs out
     if (_authProvider.state == AuthState.unauthenticated) {
       _recordingsProvider.stopAndClose();
+      _playlistPlayerProvider.closePlayer();
     }
   }
 

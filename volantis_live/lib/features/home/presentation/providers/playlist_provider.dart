@@ -101,6 +101,10 @@ class PlaylistPlayerProvider extends ChangeNotifier {
 
   bool get isPipActive => _isPipActive;
 
+  /// True when the current content was loaded via [loadStandalonePlaylist]
+  /// (e.g. a single video recording) rather than a real server-side playlist.
+  bool get isStandalone => _companySlug == null && _currentPlaylist != null;
+
   Future<bool> get isPipAvailable async => await _floating.isPipAvailable;
 
   PlaylistItemModel? get currentItem {
@@ -169,16 +173,22 @@ class PlaylistPlayerProvider extends ChangeNotifier {
     final parsedId = int.tryParse(playlistSlug);
 
     // Resume: the same playlist is already loaded and being played, so just
-    // mark the screen visible again without resetting playback.
-    if (_currentPlaylist != null &&
-        parsedId != null &&
-        _currentPlaylist!.id == parsedId) {
-      _companySlug = companySlug;
-      _playlistId = parsedId;
-      _isPlayerScreenVisible = true;
-      if (_companyName == null) unawaited(_loadCompanyInfo(companySlug));
-      notifyListeners();
-      return;
+    // mark the screen visible again without resetting playback.  Also handle
+    // standalone playlists whose slug is "recording-<id>" so that the
+    // recording-player route (slug = recordingId) doesn't trigger a server
+    // fetch.
+    if (_currentPlaylist != null && parsedId != null) {
+      final samePlaylist = _currentPlaylist!.id == parsedId;
+      final sameStandalone =
+          _currentPlaylist!.slug == 'recording-$parsedId';
+      if (samePlaylist || sameStandalone) {
+        _companySlug = companySlug;
+        _playlistId = parsedId;
+        _isPlayerScreenVisible = true;
+        if (_companyName == null) unawaited(_loadCompanyInfo(companySlug));
+        notifyListeners();
+        return;
+      }
     }
 
     _isLoading = true;

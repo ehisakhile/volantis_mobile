@@ -64,9 +64,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       // Always delegate to loadPlaylist — it already short-circuits when
       // the *same* playlist is loaded (resume path) and properly stops old
       // playback when a *different* playlist is requested.
-
       if (!widget.is_recording) {
-        // If this is a full-screen recording, we want to start playback immediately.
         _provider.loadPlaylist(
           companySlug: widget.companySlug,
           playlistSlug: widget.playlistSlug,
@@ -116,7 +114,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
           bottom: !_isFullScreenMode,
           child: Consumer<PlaylistPlayerProvider>(
             builder: (context, provider, _) {
-              if (!widget.is_recording && !provider.isLoading) {
+              if (!widget.is_recording && provider.isLoading) {
                 return const Center(
                   child: CircularProgressIndicator(color: _primary),
                 );
